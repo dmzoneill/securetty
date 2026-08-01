@@ -1,0 +1,250 @@
+static_resources:
+  listeners:
+    # ─────────────────────────────────────────────────
+    # HTTPS/TLS catch-all (port 443) — SNI-based domain filtering
+    # Inspects TLS ClientHello SNI, checks against allowed domains.
+    # No SSL termination — pure TCP passthrough.
+    # ─────────────────────────────────────────────────
+    - name: tls_passthrough
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 443
+      listener_filters:
+        - name: envoy.filters.listener.tls_inspector
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.listener.tls_inspector.v3.TlsInspector
+      filter_chains:
+        - filter_chain_match:
+            server_names:
+              # Claude Code (Anthropic)
+              - "*.anthropic.com"
+              - "*.claude.ai"
+              - "*.claude.com"
+              - "*.claudeusercontent.com"
+              - "*.platform.claude.com"
+              # Codex CLI (OpenAI)
+              - "*.openai.com"
+              - "*.chatgpt.com"
+              - "*.oaistatic.com"
+              # Gemini CLI (Google)
+              - "*.googleapis.com"
+              - "*.google.com"
+              - "*.aistudio.google.com"
+              # Cursor
+              - "*.cursor.sh"
+              - "*.cursor.com"
+              - "*.cursorapi.com"
+              - "*.cursor-cdn.com"
+              - "*.todesktop.com"
+              # Kiro (AWS)
+              - "*.kiro.dev"
+              - "*.amazonaws.com"
+              # Grok Build (xAI)
+              - "*.x.ai"
+              # Amp (Sourcegraph)
+              - "*.sourcegraph.com"
+              - "*.ampcode.com"
+              # Cline
+              - "*.cline.bot"
+              # Kimi / Moonshot AI
+              - "*.moonshot.cn"
+              - "*.kimi.com"
+              - "*.moonshotai.com"
+              # OpenRouter (Aider, OpenCode, Goose, Forge, Kilo)
+              - "*.openrouter.ai"
+              # GitHub
+              - "*.github.com"
+              - "*.githubusercontent.com"
+              - "*.github.io"
+              - "*.githubcopilot.com"
+              # GitLab
+              - "*.gitlab.com"
+              - "*.gitlab.cee.redhat.com"
+              # Package registries
+              - "*.npmjs.org"
+              - "*.npmjs.com"
+              - "*.yarnpkg.com"
+              - "*.pypi.org"
+              - "*.pythonhosted.org"
+              - "*.crates.io"
+              - "*.astral.sh"
+              # Container registries
+              - "*.quay.io"
+              - "*.docker.io"
+              - "*.docker.com"
+              - "*.registry.fedoraproject.org"
+              - "*.ghcr.io"
+              # Red Hat
+              - "*.redhat.com"
+              - "*.access.redhat.com"
+              - "*.console.redhat.com"
+              # Cloud providers
+              - "*.cloud.google.com"
+              # Sigstore
+              - "*.sigstore.dev"
+              # Ollama models
+              - "*.ollama.com"
+              # Jira
+              - "*.atlassian.net"
+              - "*.atlassian.com"
+              # Stripe (Kiro billing)
+              - "*.stripe.com"
+          filters:
+            - name: envoy.filters.network.tcp_proxy
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
+                stat_prefix: tls_passthrough
+                cluster: dynamic_forward_proxy
+                access_log:
+                  - name: envoy.access_loggers.stdout
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+                      log_format:
+                        text_format: "[%START_TIME%] ALLOW TLS %REQUESTED_SERVER_NAME% %BYTES_SENT% %BYTES_RECEIVED% %DURATION%ms\n"
+        # Default: deny unmatched SNI
+        - filters:
+            - name: envoy.filters.network.tcp_proxy
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
+                stat_prefix: tls_denied
+                cluster: deny_cluster
+                access_log:
+                  - name: envoy.access_loggers.stdout
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+                      log_format:
+                        text_format: "[%START_TIME%] DENY TLS %REQUESTED_SERVER_NAME% — not in allowlist\n"
+
+    # ─────────────────────────────────────────────────
+    # HTTP CONNECT proxy (port 3128) — for clients using HTTP_PROXY
+    # Handles HTTP CONNECT method for HTTPS tunneling.
+    # Also SNI-filtered via dynamic forward proxy.
+    # ─────────────────────────────────────────────────
+    - name: http_connect
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 3128
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: http_connect
+                route_config:
+                  name: local_route
+                  virtual_hosts:
+                    - name: forward_proxy
+                      domains: ["*"]
+                      routes:
+                        - match:
+                            connect_matcher: {}
+                          route:
+                            cluster: dynamic_forward_proxy
+                            upgrade_configs:
+                              - upgrade_type: CONNECT
+                                connect_config: {}
+                http_filters:
+                  - name: envoy.filters.http.dynamic_forward_proxy
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.dynamic_forward_proxy.v3.FilterConfig
+                      dns_cache_config:
+                        name: dynamic_forward_proxy_cache
+                        dns_lookup_family: V4_ONLY
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+                http_protocol_options:
+                  allow_absolute_url: true
+                upgrade_configs:
+                  - upgrade_type: CONNECT
+                access_log:
+                  - name: envoy.access_loggers.stdout
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+                      log_format:
+                        text_format: "[%START_TIME%] %REQ(:METHOD)% %REQ(HOST)% %RESPONSE_CODE% %DURATION%ms\n"
+
+    # ─────────────────────────────────────────────────
+    # SSH passthrough (port 22) — only to GitHub/GitLab
+    # ─────────────────────────────────────────────────
+    - name: ssh_passthrough
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 22
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.tcp_proxy
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
+                stat_prefix: ssh_passthrough
+                weighted_clusters:
+                  clusters:
+                    - name: github_ssh
+                      weight: 50
+                    - name: gitlab_ssh
+                      weight: 50
+                access_log:
+                  - name: envoy.access_loggers.stdout
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+                      log_format:
+                        text_format: "[%START_TIME%] SSH %UPSTREAM_HOST% %BYTES_SENT% %BYTES_RECEIVED% %DURATION%ms\n"
+
+  clusters:
+    - name: dynamic_forward_proxy
+      lb_policy: CLUSTER_PROVIDED
+      cluster_type:
+        name: envoy.clusters.dynamic_forward_proxy
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.clusters.dynamic_forward_proxy.v3.ClusterConfig
+          dns_cache_config:
+            name: dynamic_forward_proxy_cache
+            dns_lookup_family: V4_ONLY
+
+    - name: github_ssh
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: github_ssh
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: github.com
+                      port_value: 22
+
+    - name: gitlab_ssh
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: gitlab_ssh
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: gitlab.cee.redhat.com
+                      port_value: 22
+
+    - name: deny_cluster
+      type: STATIC
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: deny_cluster
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: 127.0.0.1
+                      port_value: 1
+
+admin:
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 9901
