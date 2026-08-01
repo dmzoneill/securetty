@@ -4,61 +4,129 @@ Sandboxed AI development environment. All AI CLI agents run inside ephemeral con
 
 ## Architecture
 
-```
-                         INTERNET + VPN (100.90.0.0/15)
-                                │
-                    ┌───────────┴───────────┐
-                    │    external network    │
-                    │                       │
-                    │  dns-relay            │  dnsmasq → host DNS + VPN
-                    │  egress-proxy         │  Envoy SNI allowlist
-                    │                       │
-                    └───────────┬───────────┘
-                                │
-                    ┌───────────┴───────────┐
-                    │  internal network     │  NO internet gateway
-                    │  10.89.100.0/24       │
-                    │                       │
-                    │  omniroute   (:4000)  │  AI provider router (736 models)
-                    │  headroom   (:8787)  │  Token compression MCP
-                    │  cloudcli   (:3001)  │  Claude Code Web UI
-                    │  ollama    (:11434)  │  Local LLM (GPU)
-                    │  dev        (ephemeral)│  AI agent containers
-                    │                       │
-                    └───────────────────────┘
+```mermaid
+graph TD
+    Internet["🌐 Internet + VPN"]
+
+    subgraph external["External Network"]
+        DNS["dns-relay<br/>dnsmasq → host DNS + VPN"]
+        Egress["egress-proxy<br/>Envoy SNI allowlist"]
+    end
+
+    subgraph internal["Internal Network (no gateway)"]
+        OmniRoute["omniroute :4000<br/>AI provider router"]
+        Headroom["headroom :8787<br/>Token compression MCP"]
+        CloudCLI["cloudcli :3001<br/>Claude Code Web UI"]
+        Ollama["ollama :11434<br/>Local LLM (GPU)"]
+        Dev["dev (ephemeral)<br/>AI agent containers"]
+    end
+
+    Internet <--> DNS
+    Internet <--> Egress
+    Egress <--> OmniRoute
+    Egress <--> Headroom
+    Egress <--> CloudCLI
+    Egress <--> Dev
+    Dev --> OmniRoute
+    Dev --> Headroom
+    Dev --> Ollama
+    Dev --> CloudCLI
+
+    style external fill:#1a1a2e,stroke:#e94560,color:#fff
+    style internal fill:#0f3460,stroke:#e94560,color:#fff
+    style Internet fill:#533483,stroke:#e94560,color:#fff
 ```
 
 ## Security Model
 
-```
-Host                                    Container
-────                                    ─────────
-39 secret env vars                      Only agent-specific keys via .env
-npm ignore-scripts=false                npm_config_ignore_scripts=true
-505 pip packages globally               Fresh image, delayed install (7d quarantine)
-20 credential files readable            None mounted (or full dir for persistence)
-4 SSH keys in agent                     Restricted agent (dmzoneill-2024 only)
-3 services on 0.0.0.0                   Internal network, no gateway
-No egress filtering                     Envoy SNI allowlist (domains only)
-No resource limits                      CPU + memory capped per container
+```mermaid
+graph LR
+    subgraph Host["❌ Host (before)"]
+        H1["39 secret env vars"]
+        H2["npm ignore-scripts=false"]
+        H3["505 pip packages globally"]
+        H4["20 credential files readable"]
+        H5["4 SSH keys in agent"]
+        H6["No egress filtering"]
+        H7["No resource limits"]
+    end
+
+    subgraph Container["✅ Container (after)"]
+        C1["Only agent-specific keys via .env"]
+        C2["npm_config_ignore_scripts=true"]
+        C3["Fresh image, 7d quarantine"]
+        C4["Selective mounts only"]
+        C5["Restricted agent (1 key)"]
+        C6["Envoy SNI allowlist"]
+        C7["CPU + memory capped"]
+    end
+
+    H1 --> C1
+    H2 --> C2
+    H3 --> C3
+    H4 --> C4
+    H5 --> C5
+    H6 --> C6
+    H7 --> C7
+
+    style Host fill:#8B0000,stroke:#ff0000,color:#fff
+    style Container fill:#006400,stroke:#00ff00,color:#fff
 ```
 
 ### Egress Policy
 
-All containers on `internal` network — no direct internet. Traffic routes through Envoy proxy on `external` network. Only allowlisted domains pass (SNI inspection for TLS, HTTP CONNECT for proxied traffic).
+```mermaid
+flowchart LR
+    Process["Container process"] --> Envoy{"Envoy proxy<br/>(SNI inspect)"}
+    Envoy -->|"✅ allowlisted"| Internet["Internet"]
+    Envoy -->|"❌ not in list"| Block["DENIED"]
 
-Allowed: AI provider APIs, package registries, git hosting, Red Hat services.
-Blocked: everything else. Malicious postinstall scripts cannot exfiltrate.
+    subgraph Allowed["Allowed domains"]
+        A1["*.anthropic.com"]
+        A2["*.openai.com"]
+        A3["*.googleapis.com"]
+        A4["*.github.com"]
+        A5["*.npmjs.org"]
+        A6["+ 30 more"]
+    end
+
+    Envoy -.-> Allowed
+
+    style Block fill:#8B0000,stroke:#ff0000,color:#fff
+    style Allowed fill:#006400,stroke:#00ff00,color:#fff
+```
+
+All containers on `internal` network — no direct internet gateway. Traffic routes through Envoy on `external` network. Only allowlisted domains pass (SNI inspection for TLS, HTTP CONNECT for proxied traffic). Malicious postinstall scripts cannot exfiltrate.
 
 ### SSH
 
-Dedicated ssh-agent on host with only `dmzoneill-2024` key loaded. Socket forwarded into container read-only. Private key never enters container. Other keys inaccessible.
+```mermaid
+flowchart LR
+    Host["Host SSH agent<br/>(restricted)"] -->|"socket (ro)"| Container["Container"]
+    Key["dmzoneill-2024<br/>(only key loaded)"] --> Host
+    Other["ecdsa, rsa, automation<br/>keys"] -.-x|"not loaded"| Host
+
+    style Other fill:#8B0000,stroke:#ff0000,color:#fff
+    style Key fill:#006400,stroke:#00ff00,color:#fff
+```
+
+Dedicated ssh-agent on host with only one key loaded. Socket forwarded read-only. Private key never enters container.
 
 ### Delayed Ingestion
 
-AI agents installed from versions published >= 7 days ago. npm: queries `npm view <pkg> time` for version dates. pip: uses `uv --exclude-newer`. Binary agents: GitHub release date filtering.
+```mermaid
+flowchart LR
+    Registry["npm / PyPI"] --> Check{"Published<br/>>= 7 days ago?"}
+    Check -->|"✅ yes"| Install["Install in image"]
+    Check -->|"❌ too new"| Skip["Skip version"]
+    Install --> Manifest["/etc/securetty-manifest.json"]
+    Manifest --> Banner["TTY age banner<br/>on container start"]
 
-Manifest at `/etc/securetty-manifest.json` inside image records build date + agent versions. Entrypoint prints age banner on TTY.
+    style Skip fill:#8B0000,stroke:#ff0000,color:#fff
+    style Install fill:#006400,stroke:#00ff00,color:#fff
+```
+
+AI agents installed from versions published >= 7 days ago. npm: queries `npm view <pkg> time` for version dates. pip: uses `uv --exclude-newer`. Binary agents: GitHub release date filtering.
 
 ## Two Modes
 
