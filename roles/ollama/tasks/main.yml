@@ -22,7 +22,7 @@
 
 - name: Pull missing ollama models (background)
   ansible.builtin.shell: |
-    podman exec -d securetty-ollama ollama pull {{ item }}
+    {{ securetty_podman_cmd }} exec -d securetty-ollama ollama pull {{ item }}
   loop: "{{ securetty_ollama_models }}"
   when: item not in (ollama_existing_models.json.models | default([]) | map(attribute='name') | list)
   changed_when: true

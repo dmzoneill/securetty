@@ -17,7 +17,8 @@ services:
     security_opt:
       - no-new-privileges:true
       - label=disable
-    userns_mode: keep-id
+    # Rootful: user mapping handled by user: directive
+    # userns_mode: keep-id  # only needed for rootless
     annotations:
       securetty_firewall: "true"
 
@@ -445,13 +446,13 @@ volumes:
   ollama_models:
 
 networks:
-  # Container network — egress controlled via HTTP_PROXY env vars + Envoy SNI allowlist.
-  # NOTE: internal:true breaks inter-container connectivity on rootless podman + pasta.
-  # Egress enforcement relies on proxy env vars. OCI hooks (iptables) also don't work
-  # in rootless pasta namespaces (no netfilter support).
-  # For hard egress enforcement, run podman rootful or install slirp4netns.
+  # Internal network — no internet gateway.
+  # Rootful podman enforces this via nftables. OCI hook adds iptables firewall.
+  # DNS via dns-relay container (on both networks).
+  # Egress via Envoy proxy (on both networks).
   internal:
     driver: bridge
+    internal: true
     ipam:
       config:
         - subnet: {{ securetty_internal_subnet }}

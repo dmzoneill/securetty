@@ -130,7 +130,7 @@
 # 7. Build containers (only when templates changed)
 - name: Check if images need rebuilding
   ansible.builtin.shell: |
-    podman image exists securetty_dev 2>/dev/null && echo "exists" || echo "missing"
+    {{ securetty_podman_cmd }} image exists securetty_dev 2>/dev/null && echo "exists" || echo "missing"
   register: images_exist
   changed_when: false
   tags:
@@ -139,7 +139,7 @@
 - name: Build all container images
   ansible.builtin.shell: |
     cd {{ securetty_dir }}
-    podman-compose build
+    {{ securetty_compose_cmd }} build
   when: images_exist.stdout == "missing" or securetty_force_rebuild | default(false)
   tags:
     - build
@@ -170,6 +170,6 @@
 - name: Start all containers
   ansible.builtin.shell: |
     cd {{ securetty_dir }}
-    podman-compose up -d
+    {{ securetty_compose_cmd }} up -d
   tags:
     - up

@@ -43,16 +43,24 @@
     mode: "0755"
   tags: [prereqs]
 
-- name: Configure podman for securetty (DNS + hooks)
+- name: Configure rootful podman hooks dir
   ansible.builtin.copy:
     content: |
-      [containers]
-      dns_servers = ["8.8.8.8", "8.8.4.4"]
-
       [engine]
       hooks_dir = ["{{ securetty_dir }}/hooks"]
-    dest: "{{ securetty_home }}/.config/containers/containers.conf.d/securetty.conf"
+    dest: /etc/containers/containers.conf.d/securetty.conf
     mode: "0644"
+  become: true
+  tags: [prereqs]
+
+- name: Ensure passwordless sudo for podman
+  ansible.builtin.copy:
+    content: |
+      {{ securetty_user }} ALL=(ALL) NOPASSWD: /usr/bin/podman, /usr/bin/podman-compose
+    dest: /etc/sudoers.d/securetty-podman
+    mode: "0440"
+    validate: "visudo -cf %s"
+  become: true
   tags: [prereqs]
 
 - name: Ensure podman is installed

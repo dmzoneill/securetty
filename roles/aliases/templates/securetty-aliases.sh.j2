@@ -26,10 +26,10 @@ _securetty_run() {
     fi
 
     # Ensure services are running
-    if [ "$(podman inspect securetty-omniroute --format '{{ '{{' }}.State.Running{{ '}}' }}' 2>/dev/null)" != "true" ] || \
-       [ "$(podman inspect securetty-headroom --format '{{ '{{' }}.State.Running{{ '}}' }}' 2>/dev/null)" != "true" ]; then
+    if [ "$({{ securetty_podman_cmd }} inspect securetty-omniroute --format '{{ '{{' }}.State.Running{{ '}}' }}' 2>/dev/null)" != "true" ] || \
+       [ "$({{ securetty_podman_cmd }} inspect securetty-headroom --format '{{ '{{' }}.State.Running{{ '}}' }}' 2>/dev/null)" != "true" ]; then
         echo "Starting services..."
-        (cd "$SECURETTY_DIR" && podman-compose up -d egress-proxy omniroute headroom 2>/dev/null) || true
+        (cd "$SECURETTY_DIR" && {{ securetty_compose_cmd }} up -d egress-proxy omniroute headroom 2>/dev/null) || true
         sleep 1
     fi
 
@@ -40,11 +40,11 @@ _securetty_run() {
         sleep 0.3
     fi
 
-    podman run --rm -it \
+    {{ securetty_podman_cmd }} run --rm -it \
         ${_SECURETTY_EXTRA_ENV[@]+"${_SECURETTY_EXTRA_ENV[@]}"} \
         --name "securetty-${agent}-$$" \
         --hostname "securetty-${agent}" \
-        --userns=keep-id \
+        --user "$(id -u):$(id -g)" \
         --cap-drop ALL \
         --cap-add SYS_NICE \
         --security-opt no-new-privileges:true \

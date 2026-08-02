@@ -9,6 +9,8 @@ securetty_dir: "{{ securetty_home }}/src/securetty"
 securetty_fedora_version: 45
 securetty_quarantine_days: 7
 securetty_ssh_key: dmzoneill-2024
+securetty_podman_cmd: "sudo podman"
+securetty_compose_cmd: "sudo podman-compose"
 
 # =============================================================================
 # Network
