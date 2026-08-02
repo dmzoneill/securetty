@@ -6,8 +6,8 @@ RUN dnf install -y --setopt=install_weak_deps=False \
 
 RUN curl -fsSL https://ollama.com/install.sh | sh
 
-RUN groupadd -g 1000 ollama \
-    && useradd -u 1000 -g 1000 -m -s /bin/bash ollama \
+RUN groupadd -g {{ securetty_uid }} ollama \
+    && useradd -u {{ securetty_uid }} -g {{ securetty_gid }} -m -s /bin/bash ollama \
     && mkdir -p /data/models && chown -R ollama:ollama /data
 
 USER ollama

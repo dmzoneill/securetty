@@ -1,6 +1,6 @@
 # securetty
 
-Sandboxed AI development environment. All AI CLI agents run inside ephemeral containers with egress filtering, credential isolation, and delayed package ingestion.
+Sandboxed AI development environment. All AI CLI agents run inside ephemeral containers with egress filtering, credential isolation, and delayed package ingestion. Fully declarative via Ansible.
 
 ## Architecture
 
@@ -103,14 +103,14 @@ All containers on `internal` network — no direct internet gateway. Traffic rou
 ```mermaid
 flowchart LR
     Host["Host SSH agent<br/>(restricted)"] -->|"socket (ro)"| Container["Container"]
-    Key["dmzoneill-2024<br/>(only key loaded)"] --> Host
-    Other["ecdsa, rsa, automation<br/>keys"] -.-x|"not loaded"| Host
+    Key["configured key<br/>(only key loaded)"] --> Host
+    Other["all other keys"] -.-x|"not loaded"| Host
 
     style Other fill:#8B0000,stroke:#ff0000,color:#fff
     style Key fill:#006400,stroke:#00ff00,color:#fff
 ```
 
-Dedicated ssh-agent on host with only one key loaded. Socket forwarded read-only. Private key never enters container.
+Dedicated ssh-agent on host with only one key loaded (configurable via `securetty_ssh_key`). Socket forwarded read-only. Private key never enters container.
 
 ### Delayed Ingestion
 
@@ -126,7 +126,11 @@ flowchart LR
     style Install fill:#006400,stroke:#00ff00,color:#fff
 ```
 
-AI agents installed from versions published >= 7 days ago. npm: queries `npm view <pkg> time` for version dates. pip: uses `uv --exclude-newer`. Binary agents: GitHub release date filtering.
+AI agents installed from versions published >= 7 days ago (configurable via `securetty_quarantine_days`). npm: queries `npm view <pkg> time` for version dates. pip: uses `uv --exclude-newer`.
+
+### DNS
+
+VPN, home, and fallback DNS servers are auto-detected at runtime from `resolvectl` and `/etc/resolv.conf`. No hardcoded IPs — works across any network/location.
 
 ## Two Modes
 
@@ -140,6 +144,8 @@ All agents run with skip-permissions flags by default (sandbox is the container 
 ## Quick Start
 
 ```bash
+# Prerequisites: podman, podman-compose, ansible, pass (GNU password manager)
+
 # Full setup — builds, configures, installs aliases
 make setup
 
@@ -200,14 +206,16 @@ All commands are thin wrappers around `ansible-playbook site.yml --tags <tag>`.
 |-----------|-------|---------|-------|
 | `securetty-dns-relay` | dnsmasq | DNS forwarding (VPN + public) | 53 (internal) |
 | `securetty-egress-proxy` | Envoy | SNI-filtered egress allowlist | 443, 3128, 22 (internal) |
-| `securetty-omniroute` | omniroute | AI provider router (736 models) | 4000 (host 127.0.0.3) |
+| `securetty-omniroute` | omniroute | AI provider router | 4000 (host 127.0.0.1) |
 | `securetty-headroom` | headroom | Token compression MCP | 8787 (internal) |
-| `securetty-cloudcli` | cloudcli | Claude Code Web UI | 3001 (host 127.0.0.3) |
-| `securetty-ollama` | ollama | Local LLM server (GPU) | 11434 (host 127.0.0.3) |
+| `securetty-cloudcli` | cloudcli | Claude Code Web UI | 3001 (host 127.0.0.1) |
+| `securetty-ollama` | ollama | Local LLM server (GPU) | 11434 (host 127.0.0.1) |
 | `securetty` | dev | Persistent dev shell (optional) | — |
 | `securetty-<agent>-*` | dev | Ephemeral agent containers | — |
 
 ## OmniRoute Providers
+
+Configured via `securetty_providers` in `group_vars/all.yml`. Default setup:
 
 | Provider | Priority | Type |
 |----------|----------|------|
@@ -222,46 +230,103 @@ All commands are thin wrappers around `ansible-playbook site.yml --tags <tag>`.
 
 Dashboard: http://localhost:4000
 
+## Ansible Roles
+
+```mermaid
+flowchart TD
+    Setup["make setup"] --> Prereqs["prereqs<br/>podman, dirs, validation"]
+    Prereqs --> Env["env<br/>.env from pass + profile"]
+    Env --> Egress["egress<br/>Envoy SNI config"]
+    Egress --> SSH["ssh<br/>restricted agent"]
+    SSH --> Containers["containers<br/>build + compose up"]
+    Containers --> OmniRoute["omniroute<br/>provider API setup"]
+    OmniRoute --> Ollama["ollama<br/>model pulling"]
+    Ollama --> Aliases["aliases<br/>shell integration"]
+
+    Scan["scan<br/>secret scanner"] -.->|"on demand"| Setup
+    Migrate["migrate<br/>host cleanup"] -.->|"on demand"| Setup
+
+    style Setup fill:#533483,stroke:#e94560,color:#fff
+    style Scan fill:#8B0000,stroke:#ff0000,color:#fff
+    style Migrate fill:#8B0000,stroke:#ff0000,color:#fff
+```
+
+| Role | Purpose | Tag |
+|------|---------|-----|
+| `prereqs` | Install podman, create dirs, auto-detect DNS + UID/GID, validate SSH key + pass entries | `prereqs` |
+| `env` | Generate `.env` files from GNU pass + shell profile | `env` |
+| `egress` | Template Envoy SNI allowlist config | `egress` |
+| `ssh` | Restricted SSH agent (single key) | `ssh` |
+| `containers` | Template Containerfiles + compose, build images, start services | `containers`, `build`, `up` |
+| `omniroute` | Configure AI providers via REST API | `omniroute` |
+| `ollama` | Pull local LLM models | `ollama` |
+| `aliases` | Template and install shell aliases | `aliases` |
+| `scan` | Scan AI conversation history for leaked secrets | `scan` |
+| `migrate` | Remove AI agents from host (destructive, `never` tag) | `migrate` |
+
 ## File Structure
 
 ```
 securetty/
-├── ansible.cfg                # Ansible configuration
-├── inventory.yml              # Localhost inventory
-├── site.yml                   # Main playbook (10 roles)
-├── Makefile                   # Thin make wrappers
+├── ansible.cfg                    # Ansible config
+├── inventory.yml                  # Localhost
+├── site.yml                       # Main playbook (10 roles)
+├── Makefile                       # Thin wrappers
 ├── group_vars/
-│   └── all.yml                # All configurable variables
+│   └── all.yml                    # All configuration
 ├── roles/
-│   ├── prereqs/               # System deps, config dirs, validation
-│   ├── env/                   # .env generation from pass + profile
-│   ├── containers/            # Build images, compose, start services
-│   │   ├── templates/         # Containerfile.*.j2, podman-compose.yml.j2
-│   │   └── files/             # entrypoint.sh, install-delayed.sh, xdg-open
-│   ├── egress/                # Envoy SNI allowlist template
-│   ├── ssh/                   # Restricted SSH agent
-│   ├── omniroute/             # Provider setup via API
-│   ├── ollama/                # Model pulling
-│   ├── aliases/               # Shell aliases template
-│   ├── scan/                  # Secret scanner
-│   └── migrate/               # Host agent removal
-├── scripts/                   # Static files used inside containers
-│   ├── entrypoint.sh
-│   ├── install-delayed.sh
-│   ├── install.sh
-│   ├── open-relay-host.sh
-│   ├── scan-secrets.sh
-│   └── xdg-open
-└── README.md
+│   ├── prereqs/tasks/             # System deps, DNS auto-detect
+│   ├── env/
+│   │   ├── tasks/
+│   │   └── templates/generate-env.sh.j2
+│   ├── containers/
+│   │   ├── tasks/
+│   │   ├── templates/             # 7 Containerfile.*.j2 + compose + dnsmasq
+│   │   └── files/                 # entrypoint.sh, install-delayed.sh, xdg-open
+│   ├── egress/
+│   │   ├── tasks/
+│   │   └── templates/envoy.yaml.j2
+│   ├── ssh/
+│   │   ├── tasks/
+│   │   └── templates/ssh-agent-restricted.sh.j2
+│   ├── omniroute/tasks/           # Provider setup via API
+│   ├── ollama/tasks/              # Model pulling
+│   ├── aliases/
+│   │   ├── tasks/
+│   │   └── templates/securetty-aliases.sh.j2
+│   ├── scan/
+│   │   ├── tasks/
+│   │   └── files/scan-secrets.sh
+│   └── migrate/tasks/             # Host agent removal
+├── LICENSE
+├── README.md
+└── version
 ```
+
+## Configuration
+
+All configuration lives in `group_vars/all.yml`. Key sections:
+
+| Section | What it controls |
+|---------|-----------------|
+| User/paths | Username, home dir, SSH key name (UID/GID auto-detected) |
+| Network | Internal subnet (DNS + UID/GID auto-detected at runtime) |
+| Providers | OmniRoute provider list + priorities |
+| API keys | GNU pass paths for each key |
+| Agents | npm/pip packages, alias config, skip-flags |
+| Ollama | Models to pull |
+| Egress | Domain allowlist for Envoy SNI filter |
+| Resources | CPU/memory limits per container |
+| Packages | dnf + pip packages for dev container |
+| Migration | Packages/binaries/services to remove from host |
 
 ## Adding a New AI Agent
 
 1. Add to `group_vars/all.yml`:
    - `securetty_npm_agents` or `securetty_pip_agents` (package name)
-   - `securetty_agents` (alias config: name, skip flag, short alias)
+   - `securetty_agents` (alias config: name, skip flag, short alias, work mode)
    - `securetty_allowed_domains` (provider API domains)
-   - `securetty_pass_keys` (if new API key needed)
+   - `securetty_pass_keys` (API key pass path, if needed)
 2. Add `_lazy_pass` to `~/.bashrc.d/scripts.d/13-free-ai-providers.sh`
 3. `make setup`
 
@@ -273,3 +338,7 @@ securetty/
    - `securetty_pass_keys` (var, path)
 3. Add `_lazy_pass` to `~/.bashrc.d/scripts.d/13-free-ai-providers.sh`
 4. `make omniroute`
+
+## License
+
+See [LICENSE](LICENSE).

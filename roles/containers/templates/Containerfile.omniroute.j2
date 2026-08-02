@@ -8,8 +8,8 @@ ARG QUARANTINE_DAYS={{ securetty_quarantine_days }}
 COPY install.sh /tmp/install.sh
 RUN chmod +x /tmp/install.sh && /tmp/install.sh && rm /tmp/install.sh
 
-RUN groupadd -g 1000 omniroute \
-    && useradd -u 1000 -g 1000 -m -s /bin/bash omniroute \
+RUN groupadd -g {{ securetty_uid }} omniroute \
+    && useradd -u {{ securetty_uid }} -g {{ securetty_gid }} -m -s /bin/bash omniroute \
     && mkdir -p /data && chown omniroute:omniroute /data
 
 USER omniroute

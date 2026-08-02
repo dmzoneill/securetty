@@ -1,7 +1,7 @@
 FROM registry.fedoraproject.org/fedora:{{ securetty_fedora_version }}
 
-ARG UID=1000
-ARG GID=1000
+ARG UID={{ securetty_uid }}
+ARG GID={{ securetty_gid }}
 ARG USERNAME={{ securetty_user }}
 ARG QUARANTINE_DAYS={{ securetty_quarantine_days }}
 

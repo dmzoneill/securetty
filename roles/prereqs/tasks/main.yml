@@ -1,6 +1,41 @@
 ---
 # prereqs — ensure host prerequisites are in place before container build
 
+- name: Set user UID/GID facts
+  ansible.builtin.set_fact:
+    securetty_uid: "{{ ansible_user_uid }}"
+    securetty_gid: "{{ ansible_user_gid }}"
+  tags: [prereqs]
+
+- name: Auto-detect DNS servers from system
+  ansible.builtin.shell: |
+    # VPN DNS (NetBird/WireGuard interface)
+    vpn_dns=$(resolvectl status 2>/dev/null | grep -A5 'wt0\|wg0\|tun0' | grep 'DNS Server' | awk '{print $NF}' | head -1)
+    # Default gateway DNS (local router)
+    home_dns=$(resolvectl status 2>/dev/null | grep -B1 'Default Route: yes' | head -1 | grep -oP 'DNS Servers: \K\S+' || \
+               cat /etc/resolv.conf 2>/dev/null | grep '^nameserver' | grep -v '127.0.0' | head -1 | awk '{print $2}')
+    # Fallback DNS from resolv.conf
+    fallback_dns=$(cat /etc/resolv.conf 2>/dev/null | grep '^nameserver' | grep -v '127.0.0' | tail -1 | awk '{print $2}')
+    echo "vpn_dns=${vpn_dns:-8.8.8.8}"
+    echo "home_dns=${home_dns:-8.8.8.8}"
+    echo "fallback_dns=${fallback_dns:-8.8.4.4}"
+  register: dns_detect
+  changed_when: false
+  tags: [prereqs]
+
+- name: Set DNS facts from auto-detection
+  ansible.builtin.set_fact:
+    securetty_vpn_dns: "{{ (dns_detect.stdout_lines | select('match', '^vpn_dns=') | first).split('=')[1] }}"
+    securetty_home_dns: "{{ (dns_detect.stdout_lines | select('match', '^home_dns=') | first).split('=')[1] }}"
+    securetty_fallback_dns: "{{ (dns_detect.stdout_lines | select('match', '^fallback_dns=') | first).split('=')[1] }}"
+  when: securetty_vpn_dns is not defined
+  tags: [prereqs]
+
+- name: Show detected DNS servers
+  ansible.builtin.debug:
+    msg: "VPN={{ securetty_vpn_dns }} Home={{ securetty_home_dns }} Fallback={{ securetty_fallback_dns }}"
+  tags: [prereqs]
+
 - name: Ensure podman is installed
   ansible.builtin.dnf:
     name:

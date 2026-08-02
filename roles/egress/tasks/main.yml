@@ -1,4 +1,10 @@
 ---
+- name: Ensure egress-proxy directory exists
+  ansible.builtin.file:
+    path: "{{ securetty_dir }}/egress-proxy"
+    state: directory
+    mode: "0755"
+
 - name: Template envoy configuration
   ansible.builtin.template:
     src: envoy.yaml.j2

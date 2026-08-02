@@ -9,7 +9,7 @@ services:
     hostname: securetty
 
     # Non-root, minimal capabilities for Wayland/devkit
-    user: "1000:1000"
+    user: "{{ securetty_uid }}:{{ securetty_gid }}"
     cap_drop:
       - ALL
     cap_add:
@@ -48,8 +48,8 @@ services:
       - {{ securetty_home }}/.claude.json:{{ securetty_home }}/.claude.json
 
       # Audio (PipeWire/PulseAudio for notification sounds)
-      - /run/user/1000/pipewire-0:/run/user/1000/pipewire-0
-      - /run/user/1000/pulse:/run/user/1000/pulse
+      - /run/user/{{ securetty_uid }}/pipewire-0:/run/user/{{ securetty_uid }}/pipewire-0
+      - /run/user/{{ securetty_uid }}/pulse:/run/user/{{ securetty_uid }}/pulse
 
       # Pipenv virtualenvs
       - {{ securetty_home }}/.local/share/virtualenvs:{{ securetty_home }}/.local/share/virtualenvs
@@ -68,10 +68,10 @@ services:
 {% endfor %}
 
       # --- xdg-open relay socket (URLs sent to host browser) ---
-      - /run/user/1000/securetty-open.sock:/run/securetty-open.sock
+      - /run/user/{{ securetty_uid }}/securetty-open.sock:/run/securetty-open.sock
 
-      # --- SSH: restricted agent (only dmzoneill-2024, no private key in container) ---
-      - /run/user/1000/securetty-ssh-agent.sock:/run/ssh-agent.sock:ro
+      # --- SSH: restricted agent ({{ securetty_ssh_key }}, no private key in container) ---
+      - /run/user/{{ securetty_uid }}/securetty-ssh-agent.sock:/run/ssh-agent.sock:ro
       - {{ securetty_home }}/.ssh/config:{{ securetty_home }}/.ssh/config:ro
       - {{ securetty_home }}/.ssh/known_hosts:{{ securetty_home }}/.ssh/known_hosts:ro
 
@@ -116,7 +116,7 @@ services:
     environment:
       - HOME={{ securetty_home }}
       - USER={{ securetty_user }}
-      - XDG_RUNTIME_DIR=/run/user/1000
+      - XDG_RUNTIME_DIR=/run/user/{{ securetty_uid }}
       - WAYLAND_DISPLAY=wayland-0
       - NODE_ENV=development
       - npm_config_ignore_scripts=true
@@ -172,7 +172,7 @@ services:
       dockerfile: Containerfile
     container_name: securetty-omniroute
     hostname: omniroute
-    user: "1000:1000"
+    user: "{{ securetty_uid }}:{{ securetty_gid }}"
     cap_drop:
       - ALL
     security_opt:
@@ -221,7 +221,7 @@ services:
       dockerfile: Containerfile
     container_name: securetty-headroom
     hostname: headroom
-    user: "1000:1000"
+    user: "{{ securetty_uid }}:{{ securetty_gid }}"
     cap_drop:
       - ALL
     security_opt:
@@ -334,7 +334,7 @@ services:
       dockerfile: Containerfile
     container_name: securetty-cloudcli
     hostname: cloudcli
-    user: "1000:1000"
+    user: "{{ securetty_uid }}:{{ securetty_gid }}"
     cap_drop:
       - ALL
     security_opt:
@@ -386,7 +386,7 @@ services:
       dockerfile: Containerfile
     container_name: securetty-ollama
     hostname: ollama
-    user: "1000:1000"
+    user: "{{ securetty_uid }}:{{ securetty_gid }}"
     cap_drop:
       - ALL
     security_opt:

@@ -14,9 +14,11 @@ securetty_ssh_key: dmzoneill-2024
 # Network
 # =============================================================================
 
-securetty_vpn_dns: 100.91.73.46
-securetty_home_dns: 192.168.88.1
-securetty_fallback_dns: 92.43.136.14
+# Auto-detected at runtime by prereqs role.
+# Override here only if auto-detection fails.
+# securetty_vpn_dns: ""
+# securetty_home_dns: ""
+# securetty_fallback_dns: ""
 securetty_internal_subnet: 10.89.100.0/24
 securetty_internal_gateway: 10.89.100.1
 securetty_dns_relay_ip: 10.89.100.53

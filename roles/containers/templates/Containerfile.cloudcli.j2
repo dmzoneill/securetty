@@ -21,8 +21,8 @@ RUN CUTOFF_EPOCH=$(date -u -d "${QUARANTINE_DAYS} days ago" +%s) \
        fi \
     && npm cache clean --force 2>/dev/null || true
 
-RUN groupadd -g 1000 cloudcli \
-    && useradd -u 1000 -g 1000 -m -s /bin/bash cloudcli \
+RUN groupadd -g {{ securetty_uid }} cloudcli \
+    && useradd -u {{ securetty_uid }} -g {{ securetty_gid }} -m -s /bin/bash cloudcli \
     && mkdir -p /data/plugins && chown -R cloudcli:cloudcli /data
 
 USER cloudcli
