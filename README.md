@@ -8,12 +8,9 @@ Sandboxed AI development environment. All AI CLI agents run inside ephemeral con
 graph TD
     Internet["🌐 Internet + VPN"]
 
-    subgraph external["External Network"]
-        DNS["dns-relay<br/>dnsmasq → host DNS + VPN"]
+    subgraph network["Container Network"]
+        DNS["dns-relay<br/>dnsmasq → host DNS"]
         Egress["egress-proxy<br/>Envoy SNI allowlist"]
-    end
-
-    subgraph internal["Internal Network (no gateway)"]
         OmniRoute["omniroute :4000<br/>AI provider router"]
         Headroom["headroom :8787<br/>Token compression MCP"]
         CloudCLI["cloudcli :3001<br/>Claude Code Web UI"]
@@ -21,20 +18,18 @@ graph TD
         Dev["dev (ephemeral)<br/>AI agent containers"]
     end
 
-    Internet <--> DNS
     Internet <--> Egress
-    Egress <--> OmniRoute
-    Egress <--> Headroom
-    Egress <--> CloudCLI
-    Egress <--> Dev
+    Dev -->|"HTTP_PROXY"| Egress
+    OmniRoute -->|"HTTP_PROXY"| Egress
+    CloudCLI -->|"HTTP_PROXY"| Egress
     Dev --> OmniRoute
     Dev --> Headroom
     Dev --> Ollama
     Dev --> CloudCLI
 
-    style external fill:#1a1a2e,stroke:#e94560,color:#fff
-    style internal fill:#0f3460,stroke:#e94560,color:#fff
+    style network fill:#0f3460,stroke:#e94560,color:#fff
     style Internet fill:#533483,stroke:#e94560,color:#fff
+    style Egress fill:#8B0000,stroke:#e94560,color:#fff
 ```
 
 ## Security Model
@@ -57,7 +52,7 @@ graph LR
         C3["Fresh image, 7d quarantine"]
         C4["Selective mounts only"]
         C5["Restricted agent (1 key)"]
-        C6["Envoy SNI allowlist"]
+        C6["Envoy SNI allowlist (HTTP_PROXY)"]
         C7["CPU + memory capped"]
     end
 
@@ -96,7 +91,7 @@ flowchart LR
     style Allowed fill:#006400,stroke:#00ff00,color:#fff
 ```
 
-All containers on `internal` network — no direct internet gateway. Traffic routes through Envoy on `external` network. Only allowlisted domains pass (SNI inspection for TLS, HTTP CONNECT for proxied traffic). Malicious postinstall scripts cannot exfiltrate.
+Containers route outbound traffic through Envoy proxy via `HTTP_PROXY`/`HTTPS_PROXY` env vars. Only allowlisted domains pass (SNI inspection for TLS, HTTP CONNECT for proxied traffic). Malicious postinstall scripts cannot exfiltrate to unlisted domains.
 
 ### SSH
 
@@ -130,7 +125,7 @@ AI agents installed from versions published >= 7 days ago (configurable via `sec
 
 ### DNS
 
-VPN, home, and fallback DNS servers are auto-detected at runtime from `resolvectl` and `/etc/resolv.conf`. No hardcoded IPs — works across any network/location.
+Containers inherit DNS from the host via podman's default bridge networking. VPN domains (`.redhat.com` etc.) resolve through the host's VPN DNS. A dns-relay container (dnsmasq) is available as an optional forwarder with auto-detected upstream servers from `resolvectl` and `/etc/resolv.conf`. No hardcoded IPs — works across any network/location.
 
 ## Two Modes
 
@@ -169,7 +164,8 @@ All commands are thin wrappers around `ansible-playbook site.yml --tags <tag>`.
 | Command | Description |
 |---------|-------------|
 | `make setup` | Full setup (all roles) |
-| `make build` | Build container images |
+| `make build` | Build container images (skips if exist) |
+| `make rebuild` | Force rebuild all images (no cache) |
 | `make up` | Start services |
 | `make env` | Regenerate .env files |
 | `make aliases` | Install shell aliases |
