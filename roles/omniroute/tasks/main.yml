@@ -1,0 +1,54 @@
+---
+- name: Wait for omniroute to be healthy
+  ansible.builtin.uri:
+    url: http://localhost:4000/
+    method: GET
+    status_code: 200
+  register: omniroute_health
+  until: omniroute_health.status == 200
+  retries: 30
+  delay: 5
+  tags:
+    - omniroute
+
+- name: Login to omniroute API
+  ansible.builtin.uri:
+    url: http://localhost:4000/api/auth/login
+    method: POST
+    body_format: json
+    body:
+      password: "{{ lookup('pipe', 'pass show omniroute.ai/dashboard-password') }}"
+    status_code: 200
+  register: omniroute_login
+  tags:
+    - omniroute
+
+- name: Get existing providers
+  ansible.builtin.uri:
+    url: http://localhost:4000/api/providers
+    method: GET
+    headers:
+      Cookie: "{{ omniroute_login.cookies_string }}"
+    status_code: 200
+  register: omniroute_existing_providers
+  tags:
+    - omniroute
+
+- name: Add missing providers
+  ansible.builtin.uri:
+    url: http://localhost:4000/api/providers
+    method: POST
+    headers:
+      Cookie: "{{ omniroute_login.cookies_string }}"
+    body_format: json
+    body:
+      provider: "{{ item.id }}"
+      name: "{{ item.name }}"
+      apiKey: "{{ lookup('env', item.key_var) }}"
+    status_code:
+      - 200
+      - 201
+  loop: "{{ securetty_providers }}"
+  when: item.name not in (omniroute_existing_providers.json | map(attribute='name') | list)
+  tags:
+    - omniroute

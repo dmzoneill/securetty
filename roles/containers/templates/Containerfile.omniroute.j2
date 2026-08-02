@@ -1,0 +1,20 @@
+FROM registry.fedoraproject.org/fedora:{{ securetty_fedora_version }}
+
+RUN dnf install -y --setopt=install_weak_deps=False \
+        nodejs npm curl jq \
+    && dnf clean all && rm -rf /var/cache/dnf
+
+ARG QUARANTINE_DAYS={{ securetty_quarantine_days }}
+COPY install.sh /tmp/install.sh
+RUN chmod +x /tmp/install.sh && /tmp/install.sh && rm /tmp/install.sh
+
+RUN groupadd -g 1000 omniroute \
+    && useradd -u 1000 -g 1000 -m -s /bin/bash omniroute \
+    && mkdir -p /data && chown omniroute:omniroute /data
+
+USER omniroute
+WORKDIR /data
+
+EXPOSE 4000
+
+CMD ["omniroute", "serve", "--port", "4000", "--no-open"]

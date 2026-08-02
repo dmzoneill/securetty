@@ -1,0 +1,7 @@
+---
+- name: Template securetty aliases
+  ansible.builtin.template:
+    src: securetty-aliases.sh.j2
+    dest: "{{ securetty_home }}/.bashrc.d/scripts.d/99-securetty.sh"
+    mode: "0755"
+    owner: "{{ securetty_user }}"

@@ -1,0 +1,17 @@
+---
+- name: Copy secret scanner script
+  ansible.builtin.copy:
+    src: scan-secrets.sh
+    dest: "{{ securetty_dir }}/scripts/scan-secrets.sh"
+    mode: "0755"
+
+- name: Run secret scanner
+  ansible.builtin.shell: |
+    bash {{ securetty_dir }}/scripts/scan-secrets.sh
+  register: scan_result
+  changed_when: false
+  failed_when: false
+
+- name: Show scan results
+  ansible.builtin.debug:
+    msg: "{{ scan_result.stdout_lines }}"

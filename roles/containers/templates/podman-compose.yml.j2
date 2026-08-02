@@ -1,0 +1,457 @@
+version: "3.8"
+
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Containerfile
+    container_name: securetty
+    hostname: securetty
+
+    # Non-root, minimal capabilities for Wayland/devkit
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    cap_add:
+      - SYS_NICE        # mutter compositor scheduling
+    security_opt:
+      - no-new-privileges:true
+      - label=disable
+    userns_mode: keep-id
+
+    # GPU access for mutter/gnome-shell devkit
+    devices:
+      - /dev/dri:/dev/dri
+
+    # Read-only root filesystem — explicit writable mounts below
+    read_only: true
+
+    volumes:
+      # =================================================================
+      # Source repos — same path as host, rw
+      # =================================================================
+      - {{ securetty_home }}/src:{{ securetty_home }}/src
+
+      # Host tool symlinks (~/bin → ~/src/*/scripts)
+      - {{ securetty_home }}/bin:{{ securetty_home }}/bin:ro
+
+      # Kubernetes/OpenShift config
+      - {{ securetty_home }}/.kube:{{ securetty_home }}/.kube
+
+      # AWS config
+      - {{ securetty_home }}/.aws:{{ securetty_home }}/.aws:ro
+
+      # GCP credentials (Vertex AI auth)
+      - {{ securetty_home }}/.config/gcloud:{{ securetty_home }}/.config/gcloud:ro
+
+      # Claude config
+      - {{ securetty_home }}/.claude.json:{{ securetty_home }}/.claude.json
+
+      # Audio (PipeWire/PulseAudio for notification sounds)
+      - /run/user/1000/pipewire-0:/run/user/1000/pipewire-0
+      - /run/user/1000/pulse:/run/user/1000/pulse
+
+      # Pipenv virtualenvs
+      - {{ securetty_home }}/.local/share/virtualenvs:{{ securetty_home }}/.local/share/virtualenvs
+
+      # Legacy workspace
+      - ./workspace:/workspace:Z
+
+      # Package installs in named volumes — never touch host
+      - node_modules:/workspace/node_modules
+      - pip_cache:{{ securetty_home }}/.cache/pip
+      - venv:/workspace/.venv
+
+      # AI agent config dirs — full mount for persistence
+{% for dir in securetty_agent_config_dirs %}
+      - {{ securetty_home }}/{{ dir }}:{{ securetty_home }}/{{ dir }}
+{% endfor %}
+
+      # --- xdg-open relay socket (URLs sent to host browser) ---
+      - /run/user/1000/securetty-open.sock:/run/securetty-open.sock
+
+      # --- SSH: restricted agent (only dmzoneill-2024, no private key in container) ---
+      - /run/user/1000/securetty-ssh-agent.sock:/run/ssh-agent.sock:ro
+      - {{ securetty_home }}/.ssh/config:{{ securetty_home }}/.ssh/config:ro
+      - {{ securetty_home }}/.ssh/known_hosts:{{ securetty_home }}/.ssh/known_hosts:ro
+
+      # --- GPG agent forwarding (extra-socket, no key export) ---
+      - ${GPG_AGENT_EXTRA_SOCK:-/dev/null}:/run/gpg-agent.sock:ro
+      - {{ securetty_home }}/.gnupg/pubring.kbx:{{ securetty_home }}/.gnupg/pubring.kbx:ro
+      - {{ securetty_home }}/.gnupg/trustdb.gpg:{{ securetty_home }}/.gnupg/trustdb.gpg:ro
+      - {{ securetty_home }}/.gitconfig:{{ securetty_home }}/.gitconfig:ro
+
+      # Writable tmpfs for runtime
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 512M
+      - type: tmpfs
+        target: {{ securetty_home }}/.npm
+        tmpfs:
+          size: 256M
+      - type: tmpfs
+        target: {{ securetty_home }}/.cache
+        tmpfs:
+          size: 1G
+      - type: tmpfs
+        target: {{ securetty_home }}/.local/bin
+        tmpfs:
+          size: 128M
+
+    working_dir: {{ securetty_home }}/src
+    stdin_open: true
+    tty: true
+
+    networks:
+      - internal
+
+    # DNS via relay container at static IP (forwards to host DNS incl VPN)
+    dns:
+      - {{ securetty_dns_relay_ip }}
+
+    pid: "private"
+    ipc: "private"
+
+    environment:
+      - HOME={{ securetty_home }}
+      - USER={{ securetty_user }}
+      - XDG_RUNTIME_DIR=/run/user/1000
+      - WAYLAND_DISPLAY=wayland-0
+      - NODE_ENV=development
+      - npm_config_ignore_scripts=true
+      - PIP_NO_CACHE_DIR=0
+      - VIRTUAL_ENV=/workspace/.venv
+      - PATH={{ securetty_home }}/bin:/workspace/.venv/bin:/workspace/node_modules/.bin:/usr/local/bin:/usr/bin:/bin
+      # Agent forwarding
+      - SSH_AUTH_SOCK=/run/ssh-agent.sock
+      - GPG_AGENT_INFO=/run/gpg-agent.sock
+      # API keys (from .env file or host env)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - XAI_API_KEY=${XAI_API_KEY:-}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - COPILOT_TOKEN=${COPILOT_TOKEN:-}
+      - SOURCEGRAPH_ACCESS_TOKEN=${SOURCEGRAPH_ACCESS_TOKEN:-}
+      # Service endpoints (sibling containers)
+      - OMNIROUTE_BASE_URL=http://omniroute:4000
+      - HEADROOM_URL=http://headroom:8787
+      - OLLAMA_HOST=http://ollama:11434
+      - CLOUDCLI_URL=http://cloudcli:3001
+      # Egress proxy — all outbound traffic routed through allowlist
+      - HTTP_PROXY=http://egress-proxy:3128
+      - HTTPS_PROXY=http://egress-proxy:3128
+      - http_proxy=http://egress-proxy:3128
+      - https_proxy=http://egress-proxy:3128
+      - NO_PROXY=localhost,127.0.0.1,omniroute,headroom,cloudcli,ollama,egress-proxy
+
+    deploy:
+      resources:
+        limits:
+          cpus: "{{ securetty_resources.dev.cpus }}"
+          memory: {{ securetty_resources.dev.memory }}
+
+    # CMD set in Containerfile (/bin/bash), ENTRYPOINT shows age banner
+    depends_on:
+      - dns-relay
+      - egress-proxy
+      - omniroute
+      - headroom
+      - cloudcli
+      - ollama
+
+  # =================================================================
+  # Omniroute — unified AI provider router (160+ providers)
+  # All agents route through this. Shared across containers.
+  # =================================================================
+  omniroute:
+    build:
+      context: ./omniroute
+      dockerfile: Containerfile
+    container_name: securetty-omniroute
+    hostname: omniroute
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+      - label=disable
+    read_only: true
+    env_file:
+      - .env.omniroute
+    environment:
+      - HTTP_PROXY=http://egress-proxy:3128
+      - HTTPS_PROXY=http://egress-proxy:3128
+      - http_proxy=http://egress-proxy:3128
+      - https_proxy=http://egress-proxy:3128
+      - NO_PROXY=localhost,127.0.0.1,ollama
+      - INITIAL_PASSWORD=${OMNIROUTE_INITIAL_PASSWORD:-}
+    volumes:
+      - {{ securetty_home }}/.omniroute:/data
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 128M
+    networks:
+      - internal
+    ports:
+      - "127.0.0.1:4000:4000"
+    deploy:
+      resources:
+        limits:
+          cpus: "{{ securetty_resources.omniroute.cpus }}"
+          memory: {{ securetty_resources.omniroute.memory }}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:4000/"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # =================================================================
+  # Headroom — token compression MCP server
+  # Agents connect via MCP config. Shared across containers.
+  # =================================================================
+  headroom:
+    build:
+      context: ./headroom
+      dockerfile: Containerfile
+    container_name: securetty-headroom
+    hostname: headroom
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+      - label=disable
+    read_only: true
+    volumes:
+      - headroom_data:/data
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 128M
+    networks:
+      - internal
+    deploy:
+      resources:
+        limits:
+          cpus: "{{ securetty_resources.headroom.cpus }}"
+          memory: {{ securetty_resources.headroom.memory }}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3.12", "-c", "import socket; s=socket.socket(); s.connect(('localhost',8787)); s.close()"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # =================================================================
+  # DNS relay — forwards DNS from internal to host resolvers (incl VPN)
+  # On both networks so internal containers can resolve .redhat.com
+  # =================================================================
+  dns-relay:
+    build:
+      context: ./dns-relay
+      dockerfile: Containerfile
+    container_name: securetty-dns-relay
+    hostname: dns-relay
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+      - label=disable
+    read_only: true
+    networks:
+      internal:
+        ipv4_address: {{ securetty_dns_relay_ip }}
+      external: {}
+    deploy:
+      resources:
+        limits:
+          cpus: "{{ securetty_resources.dns_relay.cpus }}"
+          memory: {{ securetty_resources.dns_relay.memory }}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "dnsmasq", "--test"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # =================================================================
+  # Egress proxy — allowlist-only outbound access
+  # All containers route through this. Blocks exfiltration.
+  # =================================================================
+  egress-proxy:
+    build:
+      context: ./egress-proxy
+      dockerfile: Containerfile
+    container_name: securetty-egress-proxy
+    hostname: egress-proxy
+    user: "101:101"
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+      - label=disable
+    read_only: true
+    volumes:
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 64M
+    networks:
+      - internal
+      - external
+    deploy:
+      resources:
+        limits:
+          cpus: "{{ securetty_resources.egress_proxy.cpus }}"
+          memory: {{ securetty_resources.egress_proxy.memory }}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/9901"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # =================================================================
+  # CloudCLI — Claude Code Web UI
+  # Replaces systemd cloudcli.service from host
+  # =================================================================
+  cloudcli:
+    build:
+      context: ./cloudcli
+      dockerfile: Containerfile
+    container_name: securetty-cloudcli
+    hostname: cloudcli
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+      - label=disable
+    read_only: true
+    volumes:
+      - cloudcli_data:/data
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 128M
+    networks:
+      - internal
+    ports:
+      - "127.0.0.1:3001:3001"
+    env_file:
+      - .env.cloudcli
+    environment:
+      - HOST=0.0.0.0
+      - SERVER_PORT=3001
+      - HOME=/data
+      - HTTP_PROXY=http://egress-proxy:3128
+      - HTTPS_PROXY=http://egress-proxy:3128
+      - http_proxy=http://egress-proxy:3128
+      - https_proxy=http://egress-proxy:3128
+      - NO_PROXY=localhost,127.0.0.1
+    deploy:
+      resources:
+        limits:
+          cpus: "{{ securetty_resources.cloudcli.cpus }}"
+          memory: {{ securetty_resources.cloudcli.memory }}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3001/"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # =================================================================
+  # Ollama — local LLM server
+  # Replaces systemd ollama.service from host
+  # GPU + NPU passthrough for inference
+  # =================================================================
+  ollama:
+    build:
+      context: ./ollama
+      dockerfile: Containerfile
+    container_name: securetty-ollama
+    hostname: ollama
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+      - label=disable
+    devices:
+      - /dev/dri:/dev/dri
+      - /dev/accel/accel0:/dev/accel/accel0
+    volumes:
+      - ollama_models:/data/models
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 256M
+    networks:
+      - internal
+    ports:
+      - "127.0.0.1:11434:11434"
+    environment:
+      - OLLAMA_MODELS=/data/models
+      - OLLAMA_HOST=0.0.0.0:11434
+    deploy:
+      resources:
+        limits:
+          cpus: "{{ securetty_resources.ollama.cpus }}"
+          memory: {{ securetty_resources.ollama.memory }}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:11434/"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  node_modules:
+  pip_cache:
+  venv:
+  claude_cache:
+  claude_debug:
+  claude_downloads:
+  amp_config:
+  kilo_config:
+  aider_config:
+  grok_state:
+  forge_state:
+  omniroute_data:
+  headroom_data:
+  cloudcli_data:
+  ollama_models:
+
+networks:
+  # Internal: NO internet gateway. Containers can talk to each other
+  # and to egress-proxy, but cannot reach the internet directly.
+  # DNS forwarded to host for VPN resolution (.redhat.com etc)
+  internal:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: {{ securetty_internal_subnet }}
+          gateway: {{ securetty_internal_gateway }}
+
+  # External: has internet + VPN via host routing.
+  # ONLY egress-proxy connects here.
+  # All outbound traffic goes through Squid allowlist.
+  external:
+    driver: bridge

@@ -1,0 +1,16 @@
+---
+- name: securetty — sandboxed AI development environment
+  hosts: localhost
+  gather_facts: true
+
+  roles:
+    - { role: prereqs, tags: [prereqs, setup] }
+    - { role: env, tags: [env, setup] }
+    - { role: egress, tags: [egress, build, setup] }
+    - { role: ssh, tags: [ssh, setup] }
+    - { role: containers, tags: [containers, build, up, setup] }
+    - { role: omniroute, tags: [omniroute, setup] }
+    - { role: ollama, tags: [ollama, setup] }
+    - { role: aliases, tags: [aliases, setup] }
+    - { role: scan, tags: [scan] }
+    - { role: migrate, tags: [migrate, never] }

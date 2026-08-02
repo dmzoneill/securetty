@@ -1,0 +1,30 @@
+---
+- name: Wait for ollama to be healthy
+  ansible.builtin.uri:
+    url: http://localhost:11434/
+    method: GET
+    status_code: 200
+  register: ollama_health
+  until: ollama_health.status == 200
+  retries: 30
+  delay: 5
+  tags:
+    - ollama
+
+- name: Get existing ollama models
+  ansible.builtin.uri:
+    url: http://localhost:11434/api/tags
+    method: GET
+    status_code: 200
+  register: ollama_existing_models
+  tags:
+    - ollama
+
+- name: Pull missing ollama models
+  ansible.builtin.shell: podman exec securetty-ollama ollama pull {{ item }}
+  loop: "{{ securetty_ollama_models }}"
+  when: item not in (ollama_existing_models.json.models | default([]) | map(attribute='name') | list)
+  async: 3600
+  poll: 30
+  tags:
+    - ollama

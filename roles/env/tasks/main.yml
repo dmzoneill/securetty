@@ -1,0 +1,27 @@
+---
+# env — generate .env files for container services
+
+- name: Ensure scripts directory exists
+  ansible.builtin.file:
+    path: "{{ securetty_dir }}/scripts"
+    state: directory
+    owner: "{{ securetty_user }}"
+    mode: "0755"
+  tags: [env]
+
+- name: Template generate-env.sh
+  ansible.builtin.template:
+    src: generate-env.sh.j2
+    dest: "{{ securetty_dir }}/scripts/generate-env.sh"
+    owner: "{{ securetty_user }}"
+    mode: "0755"
+  tags: [env]
+
+- name: Run generate-env.sh to produce .env files
+  ansible.builtin.command:
+    cmd: "{{ securetty_dir }}/scripts/generate-env.sh"
+    chdir: "{{ securetty_dir }}"
+  become: true
+  become_user: "{{ securetty_user }}"
+  changed_when: true
+  tags: [env]

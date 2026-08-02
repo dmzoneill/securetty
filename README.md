@@ -140,18 +140,16 @@ All agents run with skip-permissions flags by default (sandbox is the container 
 ## Quick Start
 
 ```bash
-# 1. Build and start services
-make env                    # Generate .env from pass + shell profile
-make build                  # Build all container images
-make up                     # Start services + pull ollama models
+# Full setup — builds, configures, installs aliases
+make setup
 
-# 2. Configure omniroute providers
-make setup-omniroute        # Add providers (OpenAI, Groq, OpenRouter, etc.)
+# Or step by step
+make build          # Build container images
+make up             # Start services
+make omniroute      # Configure providers
+make aliases        # Install shell aliases
 
-# 3. Install shell aliases
-make install-aliases        # Installs to ~/.bashrc.d/scripts.d/99-securetty.sh
-
-# 4. Use
+# Use
 claude ~/src/myproject      # Personal mode (omniroute)
 claude-work ~/src/myproject # Work mode (Vertex AI)
 codex "fix tests"           # Codex via omniroute
@@ -160,25 +158,22 @@ gemini-work                 # Gemini via Vertex
 
 ## Commands
 
-### Makefile
+All commands are thin wrappers around `ansible-playbook site.yml --tags <tag>`.
 
 | Command | Description |
 |---------|-------------|
-| `make env` | Generate .env from host env + pass + shell profile |
-| `make build` | Build all container images |
-| `make rebuild` | Force rebuild (no cache, fresh delayed versions) |
-| `make up` | Start services + configure omniroute + pull models |
+| `make setup` | Full setup (all roles) |
+| `make build` | Build container images |
+| `make up` | Start services |
+| `make env` | Regenerate .env files |
+| `make aliases` | Install shell aliases |
+| `make omniroute` | Configure omniroute providers |
+| `make ollama` | Pull ollama models |
+| `make scan` | Scan history for leaked secrets |
+| `make migrate` | Remove AI agents from host |
 | `make down` | Stop all containers |
-| `make shell` | Shell into persistent dev container |
-| `make setup-omniroute` | Configure omniroute providers via API |
-| `make install-aliases` | Install shell aliases for all agents |
-| `make scan-secrets` | Scan AI history for leaked keys |
-| `make migrate` | Remove AI agents from host (interactive) |
-| `make lockdown` | Air-gap container network |
-| `make unlock` | Reconnect network |
-| `make status` | Show container/network/volume state |
-| `make age` | Show image age and agent versions |
-| `make nuke` | Remove containers + all volumes |
+| `make nuke` | Remove containers + volumes |
+| `make status` | Show container status |
 
 ### Shell Aliases
 
@@ -231,53 +226,50 @@ Dashboard: http://localhost:4000
 
 ```
 securetty/
-├── Containerfile              # Dev container (14 AI agents + dev tools)
-├── podman-compose.yml         # 7 service containers
-├── Makefile                   # Build/setup/migrate commands
-├── securetty                  # CLI wrapper script
-├── cloudcli/Containerfile     # Claude Code Web UI
-├── dns-relay/
-│   ├── Containerfile
-│   └── dnsmasq.conf
-├── egress-proxy/
-│   ├── Containerfile          # Envoy proxy
-│   ├── envoy.yaml             # SNI allowlist + HTTP CONNECT
-│   └── allowed-domains.txt    # Allowlisted domains
-├── headroom/Containerfile     # Token compression
-├── ollama/Containerfile       # Local LLM
-├── omniroute/
-│   ├── Containerfile
-│   └── install.sh
-└── scripts/
-    ├── entrypoint.sh          # Container entrypoint (age banner)
-    ├── generate-env.sh        # .env from pass + shell profile
-    ├── install-delayed.sh     # Delayed ingestion installer
-    ├── install.sh             # Project dependency installer
-    ├── lockdown-network.sh    # Air-gap network
-    ├── migrate-from-host.sh   # Remove agents from host
-    ├── open-relay-host.sh     # xdg-open URL relay
-    ├── reconnect-network.sh   # Restore network
-    ├── scan-secrets.sh        # Secret scanner
-    ├── securetty-aliases.sh   # Shell aliases (personal + work modes)
-    ├── setup-host.sh          # Host prerequisites check
-    ├── setup-omniroute.sh     # Provider configuration
-    ├── ssh-agent-restricted.sh # Single-key SSH agent
-    └── xdg-open               # URL relay shim
+├── ansible.cfg                # Ansible configuration
+├── inventory.yml              # Localhost inventory
+├── site.yml                   # Main playbook (10 roles)
+├── Makefile                   # Thin make wrappers
+├── group_vars/
+│   └── all.yml                # All configurable variables
+├── roles/
+│   ├── prereqs/               # System deps, config dirs, validation
+│   ├── env/                   # .env generation from pass + profile
+│   ├── containers/            # Build images, compose, start services
+│   │   ├── templates/         # Containerfile.*.j2, podman-compose.yml.j2
+│   │   └── files/             # entrypoint.sh, install-delayed.sh, xdg-open
+│   ├── egress/                # Envoy SNI allowlist template
+│   ├── ssh/                   # Restricted SSH agent
+│   ├── omniroute/             # Provider setup via API
+│   ├── ollama/                # Model pulling
+│   ├── aliases/               # Shell aliases template
+│   ├── scan/                  # Secret scanner
+│   └── migrate/               # Host agent removal
+├── scripts/                   # Static files used inside containers
+│   ├── entrypoint.sh
+│   ├── install-delayed.sh
+│   ├── install.sh
+│   ├── open-relay-host.sh
+│   ├── scan-secrets.sh
+│   └── xdg-open
+└── README.md
 ```
 
 ## Adding a New AI Agent
 
-1. Add npm/pip package to `scripts/install-delayed.sh`
-2. Add alias functions to `scripts/securetty-aliases.sh`
-3. Add egress domains to `egress-proxy/envoy.yaml` (SNI allowlist)
-4. Add API key to `scripts/generate-env.sh` KEYS array
-5. Add `_lazy_pass` entry to `~/.bashrc.d/scripts.d/13-free-ai-providers.sh`
-6. `make rebuild && make install-aliases`
+1. Add to `group_vars/all.yml`:
+   - `securetty_npm_agents` or `securetty_pip_agents` (package name)
+   - `securetty_agents` (alias config: name, skip flag, short alias)
+   - `securetty_allowed_domains` (provider API domains)
+   - `securetty_pass_keys` (if new API key needed)
+2. Add `_lazy_pass` to `~/.bashrc.d/scripts.d/13-free-ai-providers.sh`
+3. `make setup`
 
 ## Adding a New Provider to OmniRoute
 
-1. Get API key from provider
-2. `pass insert <provider>/key`
+1. Get API key, store: `pass insert <provider>/key`
+2. Add to `group_vars/all.yml`:
+   - `securetty_providers` (id, name, key_var, priority)
+   - `securetty_pass_keys` (var, path)
 3. Add `_lazy_pass` to `~/.bashrc.d/scripts.d/13-free-ai-providers.sh`
-4. Add provider to `scripts/setup-omniroute.sh`
-5. `make setup-omniroute`
+4. `make omniroute`

@@ -1,0 +1,78 @@
+---
+- name: Backup agent config directories
+  ansible.builtin.archive:
+    path: >-
+      {{ securetty_agent_config_dirs | map('regex_replace', '^', securetty_home + '/') | list }}
+    dest: "{{ securetty_home }}/securetty-host-backup-{{ ansible_date_time.date }}.tar.gz"
+    format: gz
+  ignore_errors: true
+
+- name: Remove npm global packages
+  ansible.builtin.shell: "npm uninstall -g {{ item }}"
+  loop: "{{ securetty_npm_remove }}"
+  ignore_errors: true
+  changed_when: true
+
+- name: Remove pip user packages
+  ansible.builtin.pip:
+    name: "{{ item }}"
+    state: absent
+    extra_args: "--user"
+  loop: "{{ securetty_pip_remove }}"
+  ignore_errors: true
+
+- name: Remove standalone binaries
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ securetty_binaries_remove }}"
+
+- name: Remove RPM packages
+  ansible.builtin.dnf:
+    name: "{{ item }}"
+    state: absent
+  loop: "{{ securetty_rpms_remove }}"
+  become: true
+  ignore_errors: true
+
+- name: Remove opencode directory
+  ansible.builtin.file:
+    path: "{{ securetty_home }}/.opencode"
+    state: absent
+
+- name: Disable user systemd services
+  ansible.builtin.systemd:
+    name: "{{ item.name }}.service"
+    state: stopped
+    enabled: false
+    scope: user
+  loop: "{{ securetty_services_disable | selectattr('scope', 'eq', 'user') | list }}"
+  ignore_errors: true
+
+- name: Disable system systemd services
+  ansible.builtin.systemd:
+    name: "{{ item.name }}.service"
+    state: stopped
+    enabled: false
+  loop: "{{ securetty_services_disable | selectattr('scope', 'eq', 'system') | list }}"
+  become: true
+  ignore_errors: true
+
+- name: Verify no agents remain in PATH
+  ansible.builtin.shell: "which {{ item }} 2>/dev/null || true"
+  loop:
+    - claude
+    - codex
+    - gemini
+    - cursor
+    - opencode
+    - omniroute
+    - headroom
+  register: verify_result
+  changed_when: false
+
+- name: Report remaining agents
+  ansible.builtin.debug:
+    msg: "Still found: {{ item.item }} at {{ item.stdout }}"
+  loop: "{{ verify_result.results }}"
+  when: item.stdout | length > 0

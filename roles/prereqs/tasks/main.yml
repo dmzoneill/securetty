@@ -1,0 +1,63 @@
+---
+# prereqs — ensure host prerequisites are in place before container build
+
+- name: Ensure podman is installed
+  ansible.builtin.dnf:
+    name:
+      - podman
+      - podman-compose
+    state: present
+  become: true
+  tags: [prereqs]
+
+- name: Create agent config directories
+  ansible.builtin.file:
+    path: "{{ securetty_home }}/{{ item }}"
+    state: directory
+    owner: "{{ securetty_user }}"
+    mode: "0755"
+  loop: "{{ securetty_agent_config_dirs }}"
+  tags: [prereqs]
+
+- name: Create ~/.claude.json if missing
+  ansible.builtin.file:
+    path: "{{ securetty_home }}/.claude.json"
+    state: touch
+    owner: "{{ securetty_user }}"
+    mode: "0600"
+    modification_time: preserve
+    access_time: preserve
+  tags: [prereqs]
+
+- name: Validate SSH key exists
+  ansible.builtin.stat:
+    path: "{{ securetty_home }}/.ssh/{{ securetty_ssh_key }}"
+  register: prereqs_ssh_key_stat
+  tags: [prereqs]
+
+- name: Fail if SSH key is missing
+  ansible.builtin.fail:
+    msg: "SSH key not found: {{ securetty_home }}/.ssh/{{ securetty_ssh_key }}"
+  when: not prereqs_ssh_key_stat.stat.exists
+  tags: [prereqs]
+
+- name: Validate pass entries exist
+  ansible.builtin.command:
+    cmd: "pass show {{ item.path }}"
+  loop: "{{ securetty_pass_keys }}"
+  loop_control:
+    label: "{{ item.var }}"
+  register: prereqs_pass_results
+  changed_when: false
+  failed_when: false
+  no_log: true
+  tags: [prereqs]
+
+- name: Warn about missing pass entries
+  ansible.builtin.debug:
+    msg: "WARNING: pass entry '{{ item.item.path }}' for {{ item.item.var }} is missing or unreadable"
+  loop: "{{ prereqs_pass_results.results }}"
+  loop_control:
+    label: "{{ item.item.var }}"
+  when: item.rc != 0
+  tags: [prereqs]

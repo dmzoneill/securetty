@@ -1,0 +1,8 @@
+---
+- name: Template envoy configuration
+  ansible.builtin.template:
+    src: envoy.yaml.j2
+    dest: "{{ securetty_dir }}/egress-proxy/envoy.yaml"
+    mode: "0644"
+  tags:
+    - egress

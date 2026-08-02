@@ -1,0 +1,55 @@
+#!/bin/bash
+# Start a restricted SSH agent on host with ONLY {{ securetty_ssh_key }} key.
+# Socket forwarded into container — private key never enters container.
+# Container can sign with this key but cannot access or export it.
+set -euo pipefail
+
+SOCKET_PATH="/run/user/$(id -u)/securetty-ssh-agent.sock"
+PID_FILE="/run/user/$(id -u)/securetty-ssh-agent.pid"
+KEY="$HOME/.ssh/{{ securetty_ssh_key }}"
+
+start() {
+    # Kill existing if running
+    stop 2>/dev/null || true
+
+    if [ ! -f "$KEY" ]; then
+        echo "[!] Key not found: $KEY"
+        exit 1
+    fi
+
+    # Start dedicated agent with specific socket path
+    eval "$(ssh-agent -a "$SOCKET_PATH")" >/dev/null
+    echo "$SSH_AGENT_PID" > "$PID_FILE"
+
+    # Add only the one key
+    SSH_AUTH_SOCK="$SOCKET_PATH" ssh-add "$KEY" 2>/dev/null
+
+    echo "[+] Restricted SSH agent started"
+    echo "    Socket: $SOCKET_PATH"
+    echo "    Key: $(ssh-keygen -lf "${KEY}.pub" 2>/dev/null | awk '{print $2, $3}')"
+    echo "    PID: $(cat "$PID_FILE")"
+}
+
+stop() {
+    if [ -f "$PID_FILE" ]; then
+        kill "$(cat "$PID_FILE")" 2>/dev/null || true
+        rm -f "$PID_FILE" "$SOCKET_PATH"
+        echo "[+] Restricted SSH agent stopped"
+    fi
+}
+
+status() {
+    if [ -S "$SOCKET_PATH" ] && [ -f "$PID_FILE" ]; then
+        echo "[+] Running (PID $(cat "$PID_FILE"))"
+        SSH_AUTH_SOCK="$SOCKET_PATH" ssh-add -l 2>/dev/null
+    else
+        echo "[-] Not running"
+    fi
+}
+
+case "${1:-start}" in
+    start)  start ;;
+    stop)   stop ;;
+    status) status ;;
+    *)      echo "Usage: $0 {start|stop|status}" ;;
+esac

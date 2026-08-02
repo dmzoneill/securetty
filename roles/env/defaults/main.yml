@@ -1,0 +1,3 @@
+---
+# Defaults for env role
+# All variables come from group_vars/all.yml

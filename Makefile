@@ -1,98 +1,58 @@
-.PHONY: env check-env build rebuild up down shell lockdown unlock \
-       scan-secrets migrate status age nuke install-aliases setup-omniroute help
+.PHONY: setup build up env aliases omniroute ollama scan migrate down nuke status help
 
 help:
-	@echo "securetty — sandboxed AI development environment"
+	@echo "securetty — sandboxed AI development environment (Ansible)"
 	@echo ""
 	@echo "Setup:"
-	@echo "  make env            Generate .env from .env.example"
-	@echo "  make check-env      Validate .env exists and has keys"
-	@echo "  make install-aliases  Install shell aliases (agent → container)"
-	@echo ""
-	@echo "Container:"
-	@echo "  make build          Build container image"
-	@echo "  make rebuild        Force rebuild (no cache, fresh delayed versions)"
-	@echo "  make up             Start container + services"
-	@echo "  make down           Stop everything"
-	@echo "  make shell          Open shell in new container"
-	@echo "  make nuke           Remove container + all volumes"
+	@echo "  make setup          Full setup (build, configure, aliases)"
+	@echo "  make build          Build container images only"
+	@echo "  make up             Start services only"
+	@echo "  make env            Regenerate .env files"
+	@echo "  make aliases        Install shell aliases"
+	@echo "  make omniroute      Configure omniroute providers"
+	@echo "  make ollama         Pull ollama models"
 	@echo ""
 	@echo "Security:"
-	@echo "  make lockdown       Air-gap container network"
-	@echo "  make unlock         Reconnect network"
-	@echo "  make scan-secrets   Scan history files for leaked secrets"
+	@echo "  make scan           Scan history for leaked secrets"
 	@echo "  make migrate        Remove AI agents from host"
 	@echo ""
-	@echo "Info:"
-	@echo "  make status         Show container/network/volume state"
-	@echo "  make age            Show image age and agent versions"
+	@echo "Lifecycle:"
+	@echo "  make down           Stop all containers"
+	@echo "  make nuke           Remove containers + volumes"
+	@echo "  make status         Show container status"
+
+setup:
+	ansible-playbook site.yml
+
+build:
+	ansible-playbook site.yml --tags build
+
+up:
+	ansible-playbook site.yml --tags up
 
 env:
-	@bash scripts/generate-env.sh .env
+	ansible-playbook site.yml --tags env
 
-check-env:
-	@if [ ! -f .env ]; then \
-		echo "ERROR: .env not found. Run: make env"; \
-		exit 1; \
-	fi
-	@keys_set=0; \
-	while IFS='=' read -r key val; do \
-		[ -z "$$key" ] && continue; \
-		case "$$key" in \#*) continue ;; esac; \
-		if [ -n "$$val" ]; then keys_set=$$((keys_set + 1)); fi; \
-	done < .env; \
-	if [ "$$keys_set" -eq 0 ]; then \
-		echo "WARNING: No API keys set in .env. Agents will need auth inside container."; \
-	else \
-		echo "$$keys_set API key(s) configured in .env"; \
-	fi
+aliases:
+	ansible-playbook site.yml --tags aliases
 
-build: check-env
-	./securetty build
+omniroute:
+	ansible-playbook site.yml --tags omniroute
 
-rebuild: check-env
-	./securetty rebuild
+ollama:
+	ansible-playbook site.yml --tags ollama
 
-up: env
-	./securetty up
-
-down:
-	./securetty down
-
-shell:
-	./securetty shell
-
-lockdown:
-	./securetty lockdown
-
-unlock:
-	./securetty unlock
-
-setup-omniroute:
-	bash scripts/setup-omniroute.sh
-
-scan-secrets:
-	bash scripts/scan-secrets.sh
+scan:
+	ansible-playbook site.yml --tags scan
 
 migrate:
-	bash scripts/migrate-from-host.sh
+	ansible-playbook site.yml --tags migrate
 
-status:
-	./securetty status
-
-age:
-	./securetty age
+down:
+	cd $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST)))) && podman-compose down
 
 nuke:
-	./securetty nuke
+	cd $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST)))) && podman-compose down -v
 
-install-aliases:
-	@target="$$HOME/.bashrc.d/scripts.d/99-securetty.sh"; \
-	cp scripts/securetty-aliases.sh "$$target"; \
-	chmod +x "$$target"; \
-	echo "Installed aliases to $$target"; \
-	echo "Source it: source $$target"; \
-	echo ""; \
-	echo "After migration, remove old aliases from 00-aliases.sh:"
-	@grep -n 'claude\|codex\|gemini\|headroom' "$$HOME/.bashrc.d/scripts.d/00-aliases.sh" 2>/dev/null \
-		| sed 's/^/  /' || true
+status:
+	@podman ps -a --format "table {{.Names}}\t{{.Status}}" | grep securetty || echo "No containers running"

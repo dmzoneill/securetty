@@ -1,0 +1,33 @@
+FROM registry.fedoraproject.org/fedora:{{ securetty_fedora_version }}
+
+RUN dnf install -y --setopt=install_weak_deps=False \
+        nodejs npm curl jq \
+    && dnf clean all && rm -rf /var/cache/dnf
+
+ARG QUARANTINE_DAYS={{ securetty_quarantine_days }}
+RUN CUTOFF_EPOCH=$(date -u -d "${QUARANTINE_DAYS} days ago" +%s) \
+    && PKG="@cloudcli-ai/cloudcli" \
+    && time_json=$(npm view "$PKG" time --json 2>/dev/null || echo "{}") \
+    && best_version=$(echo "$time_json" | jq -r --argjson cutoff "$CUTOFF_EPOCH" ' \
+        to_entries \
+        | map(select(.key != "created" and .key != "modified")) \
+        | map(select((.value | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) <= $cutoff)) \
+        | sort_by(.value) | reverse | .[0].key // empty' 2>/dev/null || echo "") \
+    && if [ -n "$best_version" ]; then \
+         echo "Installing $PKG@$best_version"; \
+         npm install -g "${PKG}@${best_version}"; \
+       else \
+         npm install -g "$PKG"; \
+       fi \
+    && npm cache clean --force 2>/dev/null || true
+
+RUN groupadd -g 1000 cloudcli \
+    && useradd -u 1000 -g 1000 -m -s /bin/bash cloudcli \
+    && mkdir -p /data/plugins && chown -R cloudcli:cloudcli /data
+
+USER cloudcli
+WORKDIR /data
+
+EXPOSE 3001
+
+CMD ["cloudcli"]

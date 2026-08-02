@@ -1,0 +1,21 @@
+FROM registry.fedoraproject.org/fedora:{{ securetty_fedora_version }}
+
+RUN dnf install -y --setopt=install_weak_deps=False \
+        curl jq procps-ng \
+    && dnf clean all && rm -rf /var/cache/dnf
+
+RUN curl -fsSL https://ollama.com/install.sh | sh
+
+RUN groupadd -g 1000 ollama \
+    && useradd -u 1000 -g 1000 -m -s /bin/bash ollama \
+    && mkdir -p /data/models && chown -R ollama:ollama /data
+
+USER ollama
+WORKDIR /data
+
+ENV OLLAMA_MODELS=/data/models
+ENV OLLAMA_HOST=0.0.0.0:11434
+
+EXPOSE 11434
+
+CMD ["ollama", "serve"]

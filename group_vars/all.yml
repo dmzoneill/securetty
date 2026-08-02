@@ -1,0 +1,348 @@
+---
+# =============================================================================
+# securetty configuration
+# =============================================================================
+
+securetty_user: daoneill
+securetty_home: "/home/{{ securetty_user }}"
+securetty_dir: "{{ securetty_home }}/src/securetty"
+securetty_fedora_version: 45
+securetty_quarantine_days: 7
+securetty_ssh_key: dmzoneill-2024
+
+# =============================================================================
+# Network
+# =============================================================================
+
+securetty_vpn_dns: 100.91.73.46
+securetty_home_dns: 192.168.88.1
+securetty_fallback_dns: 92.43.136.14
+securetty_internal_subnet: 10.89.100.0/24
+securetty_internal_gateway: 10.89.100.1
+securetty_dns_relay_ip: 10.89.100.53
+
+# =============================================================================
+# API keys (pass paths)
+# =============================================================================
+
+securetty_pass_keys:
+  - { var: AI_API_KEY, path: "openai.com/key" }
+  - { var: GEMINI_API_KEY, path: "google.com/ai-studio" }
+  - { var: MISTRAL_API_KEY, path: "mistral.ai/key" }
+  - { var: OPENROUTER_API_KEY, path: "openrouter.ai/key" }
+  - { var: GROQ_API_KEY, path: "groq.com/key" }
+  - { var: CEREBRAS_API_KEY, path: "cerebras.ai/key" }
+  - { var: SAMBANOVA_API_KEY, path: "sambanova.ai/key" }
+  - { var: GITHUB_TOKEN, path: "github.com/profile-readme" }
+  - { var: OMNIROUTE_API_KEY, path: "omniroute.ai/key" }
+  - { var: OMNIROUTE_INITIAL_PASSWORD, path: "omniroute.ai/dashboard-password" }
+  - { var: CLOUDFLARE_AI_TOKEN, path: "cloudflare.com/key-claude" }
+
+securetty_key_aliases:
+  - { var: OPENAI_API_KEY, source: AI_API_KEY }
+
+securetty_vertex_vars:
+  - CLAUDE_CODE_USE_VERTEX
+  - ANTHROPIC_VERTEX_PROJECT_ID
+  - GOOGLE_CLOUD_PROJECT
+  - GOOGLE_CLOUD_LOCATION
+  - CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC
+
+# =============================================================================
+# OmniRoute providers
+# =============================================================================
+
+securetty_providers:
+  - { id: openai, name: OpenAI, key_var: OPENAI_API_KEY, priority: 100, model: "gpt-4o" }
+  - { id: gemini, name: "Google AI Studio", key_var: GEMINI_API_KEY, priority: 100, model: "gemini-2.5-flash" }
+  - { id: mistral, name: Mistral, key_var: MISTRAL_API_KEY, priority: 100, model: "mistral-large-latest" }
+  - { id: openrouter, name: OpenRouter, key_var: OPENROUTER_API_KEY, priority: 50, model: "" }
+  - { id: groq, name: Groq, key_var: GROQ_API_KEY, priority: 50, model: "llama-3.3-70b-versatile" }
+  - { id: cerebras, name: Cerebras, key_var: CEREBRAS_API_KEY, priority: 50, model: "" }
+  - { id: sambanova, name: SambaNova, key_var: SAMBANOVA_API_KEY, priority: 50, model: "" }
+
+# =============================================================================
+# AI agents installed in container
+# =============================================================================
+
+securetty_npm_agents:
+  - "@anthropic-ai/claude-code"
+  - "@openai/codex"
+  - "@google/gemini-cli"
+  - "@cursor/cli"
+  - cline
+  - opencode-ai
+  - "@ampcode/cli"
+  - "@kilocode/cli"
+  - "@earendil-works/pi-ai"
+
+securetty_pip_agents:
+  - aider-chat
+  - openhands
+  - kimi-cli
+
+securetty_binary_agents:
+  - { name: goose, repo: "block/goose", install: "curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | GOOSE_BIN=/usr/local/bin bash" }
+  - { name: grok-build, repo: "xai-org/grok-build", install: "curl -fsSL https://x.ai/cli/install.sh | bash && ([ -f /root/.local/bin/grok ] && mv /root/.local/bin/grok /usr/local/bin/grok || true)" }
+  - { name: forge, repo: "anthropics/claude-code", install: "curl -fsSL https://forgecode.dev/cli | sh && ([ -f /root/.local/bin/forge ] && mv /root/.local/bin/forge /usr/local/bin/forge || true)" }
+  - { name: kiro-cli, repo: "aws/amazon-q-developer-cli", install: "curl -fsSL https://cli.kiro.dev/install | bash && ([ -f /root/.local/bin/kiro-cli ] && mv /root/.local/bin/kiro-cli /usr/local/bin/kiro-cli || true)" }
+
+# Agent aliases (personal + work modes)
+securetty_agents:
+  - { name: claude, skip: "--dangerously-skip-permissions", short: c, work: true }
+  - { name: codex, skip: "--dangerously-bypass-approvals-and-sandbox", short: cx, work: true }
+  - { name: gemini, skip: "", short: gm, work: true }
+  - { name: cursor, skip: "--yolo", short: cr, work: true }
+  - { name: cline, skip: "--yolo", short: cl, work: true }
+  - { name: opencode, skip: "", short: oc, work: true }
+  - { name: amp, skip: "", short: "", work: true }
+  - { name: kilo, skip: "", short: "", work: true }
+  - { name: aider, skip: "--yes", short: ai, work: true }
+  - { name: openhands, skip: "", short: oh, work: true }
+  - { name: goose, skip: "", short: gs, work: true }
+  - { name: grok, skip: "", short: gr, work: true }
+  - { name: forge, skip: "", short: fg, work: true }
+  - { name: kiro-cli, skip: "", short: ki, work: true }
+  - { name: pi-ai, skip: "", short: pi, work: true }
+  - { name: kimi, skip: "", short: km, work: true }
+
+# =============================================================================
+# Ollama models
+# =============================================================================
+
+securetty_ollama_models:
+  - qwen3:8b
+  - qwen3:32b
+  - deepseek-coder-v2:16b
+
+# =============================================================================
+# Egress allowed domains (Envoy SNI allowlist)
+# =============================================================================
+
+securetty_allowed_domains:
+  # AI provider APIs
+  - "*.anthropic.com"
+  - "*.claude.ai"
+  - "*.claude.com"
+  - "*.claudeusercontent.com"
+  - "*.openai.com"
+  - "*.chatgpt.com"
+  - "*.oaistatic.com"
+  - "*.googleapis.com"
+  - "*.google.com"
+  - "*.aistudio.google.com"
+  - "*.cursor.sh"
+  - "*.cursor.com"
+  - "*.cursorapi.com"
+  - "*.cursor-cdn.com"
+  - "*.todesktop.com"
+  - "*.kiro.dev"
+  - "*.amazonaws.com"
+  - "*.x.ai"
+  - "*.sourcegraph.com"
+  - "*.ampcode.com"
+  - "*.cline.bot"
+  - "*.openrouter.ai"
+  - "*.moonshot.cn"
+  - "*.kimi.com"
+  - "*.moonshotai.com"
+  # Git hosting
+  - "*.github.com"
+  - "*.githubusercontent.com"
+  - "*.github.io"
+  - "*.githubcopilot.com"
+  - "*.gitlab.com"
+  - "*.gitlab.cee.redhat.com"
+  # Package registries
+  - "*.npmjs.org"
+  - "*.npmjs.com"
+  - "*.yarnpkg.com"
+  - "*.pypi.org"
+  - "*.pythonhosted.org"
+  - "*.crates.io"
+  - "*.astral.sh"
+  # Container registries
+  - "*.quay.io"
+  - "*.docker.io"
+  - "*.docker.com"
+  - "*.registry.fedoraproject.org"
+  - "*.ghcr.io"
+  # Red Hat
+  - "*.redhat.com"
+  # Cloud providers
+  - "*.cloud.google.com"
+  # Sigstore
+  - "*.sigstore.dev"
+  # Ollama models
+  - "*.ollama.com"
+  # Jira
+  - "*.atlassian.net"
+  - "*.atlassian.com"
+  # Stripe (Kiro billing)
+  - "*.stripe.com"
+
+# =============================================================================
+# Host config dirs mounted into containers
+# =============================================================================
+
+securetty_agent_config_dirs:
+  - .claude
+  - .codex
+  - .gemini
+  - .cursor
+  - .kiro
+  - .cline
+  - .config/opencode
+  - .local/share/opencode
+  - .openhands
+  - .config/goose
+  - .grok
+  - .forge
+  - .amp
+  - .config/kilo
+  - .aider
+  - .config/gcloud
+
+# =============================================================================
+# Container resource limits
+# =============================================================================
+
+securetty_resources:
+  dev: { cpus: "4", memory: "8G" }
+  omniroute: { cpus: "2", memory: "1G" }
+  headroom: { cpus: "1", memory: "512M" }
+  cloudcli: { cpus: "2", memory: "1G" }
+  ollama: { cpus: "4", memory: "16G" }
+  egress_proxy: { cpus: "1", memory: "256M" }
+  dns_relay: { cpus: "0.5", memory: "64M" }
+
+# =============================================================================
+# System packages for dev container
+# =============================================================================
+
+securetty_dnf_packages:
+  - nodejs
+  - npm
+  - python3
+  - python3-pip
+  - python3-devel
+  - python3.12
+  - python3.12-devel
+  - git
+  - git-core
+  - curl
+  - jq
+  - make
+  - gcc
+  - g++
+  - findutils
+  - procps-ng
+  - which
+  - openssh-clients
+  - gnupg2
+  - unzip
+  - tar
+  - xz
+  - gnome-shell
+  - mutter-devkit
+  - dbus-daemon
+  - dbus-tools
+  - glib2
+  - glib2-devel
+  - gsettings-desktop-schemas
+  - mesa-dri-drivers
+  - mesa-libEGL
+  - xdg-utils
+  - socat
+  - gjs
+  - gnome-extensions-app
+  - dconf
+  - gh
+  - glab
+  - sshpass
+  - awscli2
+  - rpm-build
+  - dnf-plugins-core
+  - ansible-core
+  - python3-ansible-lint
+  - skopeo
+  - podman-remote
+  - sqlite
+  - tree
+  - man-db
+  - bind-utils
+  - nmap-ncat
+  - nmap
+  - iproute
+  - iputils
+  - hostname
+  - net-tools
+  - ncat
+  - ffmpeg
+  - ImageMagick
+  - pulseaudio-utils
+  - pipewire-pulseaudio
+  - sound-theme-freedesktop
+  - libxml2
+  - python3-lxml
+  - gettext
+  - sassc
+  - ruff
+  - python3-flake8
+  - yamllint
+  - python3-pytest
+  - pciutils
+  - lsof
+  - util-linux
+
+securetty_pip_tools:
+  - black
+  - pyright
+  - pipenv
+  - pandoc
+  - kubernetes
+
+# =============================================================================
+# Migration targets
+# =============================================================================
+
+securetty_npm_remove:
+  - "@anthropic-ai/claude-code"
+  - "@openai/codex"
+  - "@google/gemini-cli"
+  - "@cloudcli-ai/cloudcli"
+  - deepseek-cli
+  - task-master-ai
+  - omniroute
+  - sass
+
+securetty_pip_remove:
+  - anthropic
+  - litellm
+  - litellm-enterprise
+  - litellm-proxy-extras
+  - openai
+  - sentence-transformers
+  - headroom-ai
+
+securetty_binaries_remove:
+  - "{{ securetty_home }}/bin/cursor"
+  - "{{ securetty_home }}/.local/bin/claude"
+  - "{{ securetty_home }}/.local/bin/kiro-cli"
+  - "{{ securetty_home }}/.local/bin/kiro-cli-chat"
+  - "{{ securetty_home }}/.local/bin/kiro-cli-term"
+  - "{{ securetty_home }}/.local/bin/opencode-bash-wrapper"
+  - "{{ securetty_home }}/.local/bin/opencode-launcher"
+  - "{{ securetty_home }}/.local/bin/opencode-web"
+  - "{{ securetty_home }}/.local/bin/claude-auto-format.sh"
+  - "{{ securetty_home }}/.local/bin/claude-post-commit-hook.sh"
+  - "{{ securetty_home }}/.local/bin/cursor-agent"
+  - "{{ securetty_home }}/.local/bin/cursor-pre-commit-hook.sh"
+  - "{{ securetty_home }}/.local/bin/headroom"
+
+securetty_services_disable:
+  - { name: cloudcli, scope: user }
+  - { name: ollama, scope: system }
+
+securetty_rpms_remove:
+  - cursor

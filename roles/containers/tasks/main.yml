@@ -1,0 +1,166 @@
+---
+# containers role — build and run all securetty container images via podman-compose
+
+# 1. Create build directories
+- name: Create container build directories
+  ansible.builtin.file:
+    path: "{{ securetty_dir }}/{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - omniroute
+    - headroom
+    - cloudcli
+    - ollama
+    - egress-proxy
+    - dns-relay
+    - scripts
+
+# 2. Template all Containerfiles to their build dirs
+- name: Template dev Containerfile
+  ansible.builtin.template:
+    src: Containerfile.dev.j2
+    dest: "{{ securetty_dir }}/Containerfile"
+    mode: "0644"
+
+- name: Template omniroute Containerfile
+  ansible.builtin.template:
+    src: Containerfile.omniroute.j2
+    dest: "{{ securetty_dir }}/omniroute/Containerfile"
+    mode: "0644"
+
+- name: Template headroom Containerfile
+  ansible.builtin.template:
+    src: Containerfile.headroom.j2
+    dest: "{{ securetty_dir }}/headroom/Containerfile"
+    mode: "0644"
+
+- name: Template cloudcli Containerfile
+  ansible.builtin.template:
+    src: Containerfile.cloudcli.j2
+    dest: "{{ securetty_dir }}/cloudcli/Containerfile"
+    mode: "0644"
+
+- name: Template ollama Containerfile
+  ansible.builtin.template:
+    src: Containerfile.ollama.j2
+    dest: "{{ securetty_dir }}/ollama/Containerfile"
+    mode: "0644"
+
+- name: Template egress-proxy Containerfile
+  ansible.builtin.template:
+    src: Containerfile.egress-proxy.j2
+    dest: "{{ securetty_dir }}/egress-proxy/Containerfile"
+    mode: "0644"
+
+- name: Template dns-relay Containerfile
+  ansible.builtin.template:
+    src: Containerfile.dns-relay.j2
+    dest: "{{ securetty_dir }}/dns-relay/Containerfile"
+    mode: "0644"
+
+# 3. Template dnsmasq.conf to dns-relay/
+- name: Template dnsmasq.conf
+  ansible.builtin.template:
+    src: dnsmasq.conf.j2
+    dest: "{{ securetty_dir }}/dns-relay/dnsmasq.conf"
+    mode: "0644"
+
+# 4. Template podman-compose.yml
+- name: Template podman-compose.yml
+  ansible.builtin.template:
+    src: podman-compose.yml.j2
+    dest: "{{ securetty_dir }}/podman-compose.yml"
+    mode: "0644"
+
+# 5. Copy static files to scripts/
+- name: Copy static scripts
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ securetty_dir }}/scripts/{{ item }}"
+    mode: "0755"
+  loop:
+    - entrypoint.sh
+    - install-delayed.sh
+    - install.sh
+    - xdg-open
+    - open-relay-host.sh
+
+# 6. Copy omniroute install.sh
+- name: Copy omniroute install.sh
+  ansible.builtin.copy:
+    src: "{{ securetty_dir }}/omniroute/install.sh"
+    dest: "{{ securetty_dir }}/omniroute/install.sh"
+    mode: "0755"
+    remote_src: true
+  when: false  # Placeholder — omniroute/install.sh already exists at source
+
+- name: Template omniroute install.sh from source
+  ansible.builtin.copy:
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      QUARANTINE_DAYS="${QUARANTINE_DAYS:-7}"
+      CUTOFF_EPOCH=$(date -u -d "${QUARANTINE_DAYS} days ago" +%s)
+      PKG="omniroute"
+
+      echo "=== Installing $PKG (>= ${QUARANTINE_DAYS}d old) ==="
+
+      time_json=$(npm view "$PKG" time --json 2>/dev/null || echo "{}")
+      best_version=$(echo "$time_json" | jq -r --argjson cutoff "$CUTOFF_EPOCH" '
+          to_entries
+          | map(select(.key != "created" and .key != "modified"))
+          | map(select((.value | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) <= $cutoff))
+          | sort_by(.value) | reverse | .[0].key // empty
+      ' 2>/dev/null || echo "")
+
+      if [ -n "$best_version" ]; then
+          echo "Installing $PKG@$best_version"
+          npm install -g "${PKG}@${best_version}"
+      else
+          echo "No version older than ${QUARANTINE_DAYS}d, installing latest"
+          npm install -g "$PKG"
+      fi
+
+      npm cache clean --force 2>/dev/null || true
+    dest: "{{ securetty_dir }}/omniroute/install.sh"
+    mode: "0755"
+
+# 7. Build containers
+- name: Build all container images
+  ansible.builtin.shell: |
+    cd {{ securetty_dir }}
+    podman-compose build
+  tags:
+    - build
+
+# 8. Generate .env files
+- name: Generate .env files
+  ansible.builtin.shell: |
+    cd {{ securetty_dir }}
+    ./scripts/generate-env.sh
+  args:
+    creates: "{{ securetty_dir }}/.env.omniroute"
+
+# 9. Start SSH agent
+- name: Start restricted SSH agent
+  ansible.builtin.shell: |
+    {{ securetty_dir }}/scripts/ssh-agent-restricted.sh start
+  args:
+    creates: /run/user/{{ securetty_uid }}/securetty-ssh-agent.sock
+
+# 10. Start URL relay
+- name: Start URL relay daemon
+  ansible.builtin.shell: |
+    nohup {{ securetty_dir }}/scripts/open-relay-host.sh start &
+  args:
+    creates: /run/user/{{ securetty_uid }}/securetty-open.sock
+
+# 11. Start containers
+- name: Start all containers
+  ansible.builtin.shell: |
+    cd {{ securetty_dir }}
+    podman-compose up -d
+  tags:
+    - up
