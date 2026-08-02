@@ -408,8 +408,7 @@ services:
           size: 256M
     networks:
       - internal
-    dns:
-      - {{ securetty_dns_relay_ip }}
+      - external
     ports:
       - "127.0.0.1:11434:11434"
     environment:
