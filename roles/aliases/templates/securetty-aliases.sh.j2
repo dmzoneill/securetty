@@ -88,10 +88,10 @@ _securetty_run() {
         -e NODE_ENV=development \
         -e npm_config_ignore_scripts=true \
 {% for key in securetty_pass_keys %}
-        -e "{{ key.var }}=${{{ key.var }}:-}" \
+        -e "{{ key.var }}={% raw %}${{% endraw %}{{ key.var }}{% raw %}:-}{% endraw %}" \
 {% endfor %}
 {% for alias in securetty_key_aliases %}
-        -e "{{ alias.var }}=${{{ alias.source }}:-}" \
+        -e "{{ alias.var }}={% raw %}${{% endraw %}{{ alias.source }}{% raw %}:-}{% endraw %}" \
 {% endfor %}
         -e "OMNIROUTE_BASE_URL=http://securetty-omniroute:4000" \
         -e "HEADROOM_URL=http://securetty-headroom:8787" \

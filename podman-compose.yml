@@ -157,7 +157,7 @@ services:
       - HTTPS_PROXY=http://egress-proxy:3128
       - http_proxy=http://egress-proxy:3128
       - https_proxy=http://egress-proxy:3128
-      - NO_PROXY=localhost,127.0.0.1,omniroute,headroom,cloudcli,ollama,egress-proxy
+      - NO_PROXY=localhost,127.0.0.1,securetty-omniroute,securetty-headroom,securetty-cloudcli,securetty-ollama,securetty-egress-proxy,securetty-dns-relay,10.89.100.0/24,securetty-omniroute,securetty-headroom,securetty-cloudcli,securetty-ollama,securetty-egress-proxy,securetty-dns-relay,omniroute,headroom,cloudcli,ollama,egress-proxy,dns-relay,10.89.100.0/24
 
     deploy:
       resources:
@@ -198,7 +198,7 @@ services:
       - HTTPS_PROXY=http://egress-proxy:3128
       - http_proxy=http://egress-proxy:3128
       - https_proxy=http://egress-proxy:3128
-      - NO_PROXY=localhost,127.0.0.1,ollama
+      - NO_PROXY=localhost,127.0.0.1,securetty-omniroute,securetty-headroom,securetty-cloudcli,securetty-ollama,securetty-egress-proxy,securetty-dns-relay,10.89.100.0/24,securetty-omniroute,securetty-headroom,securetty-cloudcli,securetty-ollama,securetty-egress-proxy,securetty-dns-relay,10.89.100.0/24
       - INITIAL_PASSWORD=${OMNIROUTE_INITIAL_PASSWORD:-}
     volumes:
       - /home/daoneill/.omniroute:/data
@@ -379,7 +379,7 @@ services:
       - HTTPS_PROXY=http://egress-proxy:3128
       - http_proxy=http://egress-proxy:3128
       - https_proxy=http://egress-proxy:3128
-      - NO_PROXY=localhost,127.0.0.1
+      - NO_PROXY=localhost,127.0.0.1,securetty-omniroute,securetty-headroom,securetty-cloudcli,securetty-ollama,securetty-egress-proxy,securetty-dns-relay,10.89.100.0/24
     deploy:
       resources:
         limits:
@@ -421,8 +421,7 @@ services:
           size: 256M
     networks:
       - internal
-    dns:
-      - 10.89.100.53
+      - external
     ports:
       - "127.0.0.1:11434:11434"
     environment:
@@ -459,13 +458,13 @@ volumes:
   ollama_models:
 
 networks:
-  # Internal network — no internet gateway.
-  # DNS via dns-relay container (on both networks).
-  # Egress via Envoy proxy (on both networks).
-  # Direct outbound connections from containers are impossible.
+  # Container network — egress controlled via HTTP_PROXY env vars + Envoy SNI allowlist.
+  # NOTE: internal:true breaks inter-container connectivity on rootless podman + pasta.
+  # Egress enforcement relies on proxy env vars. OCI hooks (iptables) also don't work
+  # in rootless pasta namespaces (no netfilter support).
+  # For hard egress enforcement, run podman rootful or install slirp4netns.
   internal:
     driver: bridge
-    internal: true
     ipam:
       config:
         - subnet: 10.89.100.0/24

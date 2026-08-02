@@ -20,11 +20,18 @@
   tags:
     - ollama
 
-- name: Pull missing ollama models
-  ansible.builtin.shell: podman exec securetty-ollama ollama pull {{ item }}
+- name: Pull missing ollama models (background)
+  ansible.builtin.shell: |
+    podman exec -d securetty-ollama ollama pull {{ item }}
   loop: "{{ securetty_ollama_models }}"
   when: item not in (ollama_existing_models.json.models | default([]) | map(attribute='name') | list)
-  async: 3600
-  poll: 30
+  changed_when: true
+  ignore_errors: true
+  tags:
+    - ollama
+
+- name: Show model pull status
+  ansible.builtin.debug:
+    msg: "Models pulling in background. Check: podman exec securetty-ollama ollama list"
   tags:
     - ollama
