@@ -36,6 +36,25 @@
     msg: "VPN={{ securetty_vpn_dns }} Home={{ securetty_home_dns }} Fallback={{ securetty_fallback_dns }}"
   tags: [prereqs]
 
+- name: Ensure containers.conf.d directory exists
+  ansible.builtin.file:
+    path: "{{ securetty_home }}/.config/containers/containers.conf.d"
+    state: directory
+    mode: "0755"
+  tags: [prereqs]
+
+- name: Configure podman for securetty (DNS + hooks)
+  ansible.builtin.copy:
+    content: |
+      [containers]
+      dns_servers = ["8.8.8.8", "8.8.4.4"]
+
+      [engine]
+      hooks_dir = ["{{ securetty_dir }}/hooks"]
+    dest: "{{ securetty_home }}/.config/containers/containers.conf.d/securetty.conf"
+    mode: "0644"
+  tags: [prereqs]
+
 - name: Ensure podman is installed
   ansible.builtin.dnf:
     name:

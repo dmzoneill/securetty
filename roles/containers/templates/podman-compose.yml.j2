@@ -18,6 +18,8 @@ services:
       - no-new-privileges:true
       - label=disable
     userns_mode: keep-id
+    annotations:
+      securetty_firewall: "true"
 
     # GPU access for mutter/gnome-shell devkit
     devices:
@@ -444,11 +446,13 @@ volumes:
   ollama_models:
 
 networks:
-  # Internal network — containers communicate here.
-  # Egress control via Envoy proxy (HTTP_PROXY env vars).
-  # DNS inherits from host (VPN, public resolvers).
+  # Internal network — no internet gateway.
+  # DNS via dns-relay container (on both networks).
+  # Egress via Envoy proxy (on both networks).
+  # Direct outbound connections from containers are impossible.
   internal:
     driver: bridge
+    internal: true
     ipam:
       config:
         - subnet: {{ securetty_internal_subnet }}

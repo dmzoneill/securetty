@@ -49,6 +49,7 @@ _securetty_run() {
         --cap-add SYS_NICE \
         --security-opt no-new-privileges:true \
         --security-opt label=disable \
+        --annotation securetty_firewall=true \
         --read-only \
         --device /dev/dri \
         \

@@ -12,3 +12,27 @@
     mode: "0644"
   tags:
     - egress
+
+- name: Ensure hooks directory exists
+  ansible.builtin.file:
+    path: "{{ securetty_dir }}/hooks"
+    state: directory
+    mode: "0755"
+  tags:
+    - egress
+
+- name: Template OCI firewall hook script
+  ansible.builtin.template:
+    src: securetty-firewall.sh.j2
+    dest: "{{ securetty_dir }}/hooks/securetty-firewall.sh"
+    mode: "0755"
+  tags:
+    - egress
+
+- name: Template OCI hook definition
+  ansible.builtin.template:
+    src: securetty-hook.json.j2
+    dest: "{{ securetty_dir }}/hooks/securetty-hook.json"
+    mode: "0644"
+  tags:
+    - egress
