@@ -205,10 +205,10 @@ gemini-work                 # Gemini via Vertex
 |-----------|-------|---------|-------|
 | `securetty-dns-relay` | dnsmasq | DNS forwarding (VPN + public) | 53 (internal) |
 | `securetty-egress-proxy` | Envoy | SNI-filtered egress allowlist | 443, 3128, 22 (internal) |
-| `securetty-omniroute` | omniroute | AI provider router (736 models) | 4000 (host 127.0.0.2) |
+| `securetty-omniroute` | omniroute | AI provider router (736 models) | 4000 (host 127.0.0.3) |
 | `securetty-headroom` | headroom | Token compression MCP | 8787 (internal) |
-| `securetty-cloudcli` | cloudcli | Claude Code Web UI | 3001 (host 127.0.0.2) |
-| `securetty-ollama` | ollama | Local LLM server (GPU) | 11434 (host 127.0.0.2) |
+| `securetty-cloudcli` | cloudcli | Claude Code Web UI | 3001 (host 127.0.0.3) |
+| `securetty-ollama` | ollama | Local LLM server (GPU) | 11434 (host 127.0.0.3) |
 | `securetty` | dev | Persistent dev shell (optional) | — |
 | `securetty-<agent>-*` | dev | Ephemeral agent containers | — |
 
