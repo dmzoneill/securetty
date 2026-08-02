@@ -196,6 +196,7 @@ services:
           size: 128M
     networks:
       - internal
+      - external
     ports:
       - "127.0.0.1:4000:4000"
     deploy:
@@ -353,8 +354,7 @@ services:
           size: 128M
     networks:
       - internal
-    dns:
-      - {{ securetty_dns_relay_ip }}
+      - external
     ports:
       - "127.0.0.1:3001:3001"
     env_file:
