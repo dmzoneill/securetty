@@ -44,11 +44,12 @@
     body:
       provider: "{{ item.id }}"
       name: "{{ item.name }}"
-      apiKey: "{{ lookup('env', item.key_var) }}"
+      apiKey: "{{ lookup('pipe', 'grep ^' + item.key_var + '= ' + securetty_dir + '/.env | cut -d= -f2-') }}"
     status_code:
       - 200
       - 201
   loop: "{{ securetty_providers }}"
-  when: item.name not in (omniroute_existing_providers.json | map(attribute='name') | list)
+  when: item.name not in (omniroute_existing_providers.json.connections | default([]) | map(attribute='name') | list)
+  no_log: true
   tags:
     - omniroute

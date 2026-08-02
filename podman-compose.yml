@@ -9,7 +9,7 @@ services:
     hostname: securetty
 
     # Non-root, minimal capabilities for Wayland/devkit
-    user: "{{ securetty_uid }}:{{ securetty_gid }}"
+    user: "1000:1000"
     cap_drop:
       - ALL
     cap_add:
@@ -30,53 +30,66 @@ services:
       # =================================================================
       # Source repos — same path as host, rw
       # =================================================================
-      - {{ securetty_home }}/src:{{ securetty_home }}/src
+      - /home/daoneill/src:/home/daoneill/src
 
       # Host tool symlinks (~/bin → ~/src/*/scripts)
-      - {{ securetty_home }}/bin:{{ securetty_home }}/bin:ro
+      - /home/daoneill/bin:/home/daoneill/bin:ro
 
       # Kubernetes/OpenShift config
-      - {{ securetty_home }}/.kube:{{ securetty_home }}/.kube
+      - /home/daoneill/.kube:/home/daoneill/.kube
 
       # AWS config
-      - {{ securetty_home }}/.aws:{{ securetty_home }}/.aws:ro
+      - /home/daoneill/.aws:/home/daoneill/.aws:ro
 
       # Claude config
-      - {{ securetty_home }}/.claude.json:{{ securetty_home }}/.claude.json
+      - /home/daoneill/.claude.json:/home/daoneill/.claude.json
 
       # Audio (PipeWire/PulseAudio for notification sounds)
-      - /run/user/{{ securetty_uid }}/pipewire-0:/run/user/{{ securetty_uid }}/pipewire-0
-      - /run/user/{{ securetty_uid }}/pulse:/run/user/{{ securetty_uid }}/pulse
+      - /run/user/1000/pipewire-0:/run/user/1000/pipewire-0
+      - /run/user/1000/pulse:/run/user/1000/pulse
 
       # Pipenv virtualenvs
-      - {{ securetty_home }}/.local/share/virtualenvs:{{ securetty_home }}/.local/share/virtualenvs
+      - /home/daoneill/.local/share/virtualenvs:/home/daoneill/.local/share/virtualenvs
 
       # Legacy workspace
       - ./workspace:/workspace:Z
 
       # Package installs in named volumes — never touch host
       - node_modules:/workspace/node_modules
-      - pip_cache:{{ securetty_home }}/.cache/pip
+      - pip_cache:/home/daoneill/.cache/pip
       - venv:/workspace/.venv
 
       # AI agent config dirs — full mount for persistence
-{% for dir in securetty_agent_config_dirs %}
-      - {{ securetty_home }}/{{ dir }}:{{ securetty_home }}/{{ dir }}
-{% endfor %}
+      - /home/daoneill/.claude:/home/daoneill/.claude
+      - /home/daoneill/.codex:/home/daoneill/.codex
+      - /home/daoneill/.gemini:/home/daoneill/.gemini
+      - /home/daoneill/.cursor:/home/daoneill/.cursor
+      - /home/daoneill/.kiro:/home/daoneill/.kiro
+      - /home/daoneill/.cline:/home/daoneill/.cline
+      - /home/daoneill/.config/opencode:/home/daoneill/.config/opencode
+      - /home/daoneill/.local/share/opencode:/home/daoneill/.local/share/opencode
+      - /home/daoneill/.openhands:/home/daoneill/.openhands
+      - /home/daoneill/.config/goose:/home/daoneill/.config/goose
+      - /home/daoneill/.grok:/home/daoneill/.grok
+      - /home/daoneill/.forge:/home/daoneill/.forge
+      - /home/daoneill/.amp:/home/daoneill/.amp
+      - /home/daoneill/.config/kilo:/home/daoneill/.config/kilo
+      - /home/daoneill/.aider:/home/daoneill/.aider
+      - /home/daoneill/.config/gcloud:/home/daoneill/.config/gcloud
 
       # --- xdg-open relay socket (URLs sent to host browser) ---
-      - /run/user/{{ securetty_uid }}/securetty-open.sock:/run/securetty-open.sock
+      - /run/user/1000/securetty-open.sock:/run/securetty-open.sock
 
-      # --- SSH: restricted agent ({{ securetty_ssh_key }}, no private key in container) ---
-      - /run/user/{{ securetty_uid }}/securetty-ssh-agent.sock:/run/ssh-agent.sock:ro
-      - {{ securetty_home }}/.ssh/config:{{ securetty_home }}/.ssh/config:ro
-      - {{ securetty_home }}/.ssh/known_hosts:{{ securetty_home }}/.ssh/known_hosts:ro
+      # --- SSH: restricted agent (dmzoneill-2024, no private key in container) ---
+      - /run/user/1000/securetty-ssh-agent.sock:/run/ssh-agent.sock:ro
+      - /home/daoneill/.ssh/config:/home/daoneill/.ssh/config:ro
+      - /home/daoneill/.ssh/known_hosts:/home/daoneill/.ssh/known_hosts:ro
 
       # --- GPG agent forwarding (extra-socket, no key export) ---
       - ${GPG_AGENT_EXTRA_SOCK:-/dev/null}:/run/gpg-agent.sock:ro
-      - {{ securetty_home }}/.gnupg/pubring.kbx:{{ securetty_home }}/.gnupg/pubring.kbx:ro
-      - {{ securetty_home }}/.gnupg/trustdb.gpg:{{ securetty_home }}/.gnupg/trustdb.gpg:ro
-      - {{ securetty_home }}/.gitconfig:{{ securetty_home }}/.gitconfig:ro
+      - /home/daoneill/.gnupg/pubring.kbx:/home/daoneill/.gnupg/pubring.kbx:ro
+      - /home/daoneill/.gnupg/trustdb.gpg:/home/daoneill/.gnupg/trustdb.gpg:ro
+      - /home/daoneill/.gitconfig:/home/daoneill/.gitconfig:ro
 
       # Writable tmpfs for runtime
       - type: tmpfs
@@ -84,19 +97,19 @@ services:
         tmpfs:
           size: 512M
       - type: tmpfs
-        target: {{ securetty_home }}/.npm
+        target: /home/daoneill/.npm
         tmpfs:
           size: 256M
       - type: tmpfs
-        target: {{ securetty_home }}/.cache
+        target: /home/daoneill/.cache
         tmpfs:
           size: 1G
       - type: tmpfs
-        target: {{ securetty_home }}/.local/bin
+        target: /home/daoneill/.local/bin
         tmpfs:
           size: 128M
 
-    working_dir: {{ securetty_home }}/src
+    working_dir: /home/daoneill/src
     stdin_open: true
     tty: true
 
@@ -105,21 +118,21 @@ services:
 
     # DNS via relay container at static IP (forwards to host DNS incl VPN)
     dns:
-      - {{ securetty_dns_relay_ip }}
+      - 10.89.100.53
 
     pid: "private"
     ipc: "private"
 
     environment:
-      - HOME={{ securetty_home }}
-      - USER={{ securetty_user }}
-      - XDG_RUNTIME_DIR=/run/user/{{ securetty_uid }}
+      - HOME=/home/daoneill
+      - USER=daoneill
+      - XDG_RUNTIME_DIR=/run/user/1000
       - WAYLAND_DISPLAY=wayland-0
       - NODE_ENV=development
       - npm_config_ignore_scripts=true
       - PIP_NO_CACHE_DIR=0
       - VIRTUAL_ENV=/workspace/.venv
-      - PATH={{ securetty_home }}/bin:/workspace/.venv/bin:/workspace/node_modules/.bin:/usr/local/bin:/usr/bin:/bin
+      - PATH=/home/daoneill/bin:/workspace/.venv/bin:/workspace/node_modules/.bin:/usr/local/bin:/usr/bin:/bin
       # Agent forwarding
       - SSH_AUTH_SOCK=/run/ssh-agent.sock
       - GPG_AGENT_INFO=/run/gpg-agent.sock
@@ -147,8 +160,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "{{ securetty_resources.dev.cpus }}"
-          memory: {{ securetty_resources.dev.memory }}
+          cpus: "4"
+          memory: 8G
 
     # CMD set in Containerfile (/bin/bash), ENTRYPOINT shows age banner
     depends_on:
@@ -169,7 +182,7 @@ services:
       dockerfile: Containerfile
     container_name: securetty-omniroute
     hostname: omniroute
-    user: "{{ securetty_uid }}:{{ securetty_gid }}"
+    user: "1000:1000"
     cap_drop:
       - ALL
     security_opt:
@@ -186,7 +199,7 @@ services:
       - NO_PROXY=localhost,127.0.0.1,ollama
       - INITIAL_PASSWORD=${OMNIROUTE_INITIAL_PASSWORD:-}
     volumes:
-      - {{ securetty_home }}/.omniroute:/data
+      - /home/daoneill/.omniroute:/data
       - type: tmpfs
         target: /tmp
         tmpfs:
@@ -198,8 +211,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "{{ securetty_resources.omniroute.cpus }}"
-          memory: {{ securetty_resources.omniroute.memory }}
+          cpus: "2"
+          memory: 1G
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:4000/"]
@@ -218,7 +231,7 @@ services:
       dockerfile: Containerfile
     container_name: securetty-headroom
     hostname: headroom
-    user: "{{ securetty_uid }}:{{ securetty_gid }}"
+    user: "1000:1000"
     cap_drop:
       - ALL
     security_opt:
@@ -234,12 +247,12 @@ services:
     networks:
       - internal
     dns:
-      - {{ securetty_dns_relay_ip }}
+      - 10.89.100.53
     deploy:
       resources:
         limits:
-          cpus: "{{ securetty_resources.headroom.cpus }}"
-          memory: {{ securetty_resources.headroom.memory }}
+          cpus: "1"
+          memory: 512M
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python3.12", "-c", "import socket; s=socket.socket(); s.connect(('localhost',8787)); s.close()"]
@@ -268,13 +281,13 @@ services:
     read_only: true
     networks:
       internal:
-        ipv4_address: {{ securetty_dns_relay_ip }}
+        ipv4_address: 10.89.100.53
       external: {}
     deploy:
       resources:
         limits:
-          cpus: "{{ securetty_resources.dns_relay.cpus }}"
-          memory: {{ securetty_resources.dns_relay.memory }}
+          cpus: "0.5"
+          memory: 64M
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "dnsmasq", "--test"]
@@ -311,12 +324,12 @@ services:
       - internal
       - external
     dns:
-      - {{ securetty_dns_relay_ip }}
+      - 10.89.100.53
     deploy:
       resources:
         limits:
-          cpus: "{{ securetty_resources.egress_proxy.cpus }}"
-          memory: {{ securetty_resources.egress_proxy.memory }}
+          cpus: "1"
+          memory: 256M
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/9901"]
@@ -335,7 +348,7 @@ services:
       dockerfile: Containerfile
     container_name: securetty-cloudcli
     hostname: cloudcli
-    user: "{{ securetty_uid }}:{{ securetty_gid }}"
+    user: "1000:1000"
     cap_drop:
       - ALL
     security_opt:
@@ -351,7 +364,7 @@ services:
     networks:
       - internal
     dns:
-      - {{ securetty_dns_relay_ip }}
+      - 10.89.100.53
     ports:
       - "127.0.0.1:3001:3001"
     env_file:
@@ -368,8 +381,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "{{ securetty_resources.cloudcli.cpus }}"
-          memory: {{ securetty_resources.cloudcli.memory }}
+          cpus: "2"
+          memory: 1G
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:3001/"]
@@ -389,7 +402,7 @@ services:
       dockerfile: Containerfile
     container_name: securetty-ollama
     hostname: ollama
-    user: "{{ securetty_uid }}:{{ securetty_gid }}"
+    user: "1000:1000"
     cap_drop:
       - ALL
     security_opt:
@@ -407,7 +420,7 @@ services:
     networks:
       - internal
     dns:
-      - {{ securetty_dns_relay_ip }}
+      - 10.89.100.53
     ports:
       - "127.0.0.1:11434:11434"
     environment:
@@ -416,8 +429,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "{{ securetty_resources.ollama.cpus }}"
-          memory: {{ securetty_resources.ollama.memory }}
+          cpus: "4"
+          memory: 16G
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:11434/"]
@@ -451,8 +464,8 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: {{ securetty_internal_subnet }}
-          gateway: {{ securetty_internal_gateway }}
+        - subnet: 10.89.100.0/24
+          gateway: 10.89.100.1
 
   # External: has internet + VPN via host routing.
   # ONLY egress-proxy connects here.

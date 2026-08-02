@@ -177,6 +177,7 @@ securetty_allowed_domains:
   - "*.sigstore.dev"
   # Ollama models
   - "*.ollama.com"
+  - "*.ollama.ai"
   # Jira
   - "*.atlassian.net"
   - "*.atlassian.com"

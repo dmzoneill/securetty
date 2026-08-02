@@ -3,8 +3,8 @@
 
 - name: Set user UID/GID facts
   ansible.builtin.set_fact:
-    securetty_uid: "{{ ansible_user_uid }}"
-    securetty_gid: "{{ ansible_user_gid }}"
+    securetty_uid: "{{ ansible_facts['user_uid'] }}"
+    securetty_gid: "{{ ansible_facts['user_gid'] }}"
   tags: [prereqs]
 
 - name: Auto-detect DNS servers from system
@@ -77,8 +77,7 @@
   tags: [prereqs]
 
 - name: Validate pass entries exist
-  ansible.builtin.command:
-    cmd: "pass show {{ item.path }}"
+  ansible.builtin.shell: "pass show '{{ item.path }}' >/dev/null 2>&1"
   loop: "{{ securetty_pass_keys }}"
   loop_control:
     label: "{{ item.var }}"
@@ -95,4 +94,5 @@
   loop_control:
     label: "{{ item.item.var }}"
   when: item.rc != 0
+  no_log: true
   tags: [prereqs]

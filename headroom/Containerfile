@@ -1,0 +1,33 @@
+FROM registry.fedoraproject.org/fedora:45
+
+RUN dnf install -y --setopt=install_weak_deps=False \
+        python3.12 python3.12-devel \
+        curl jq \
+    && dnf clean all && rm -rf /var/cache/dnf
+
+RUN python3.12 -m ensurepip --upgrade 2>/dev/null || true
+
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && mv /root/.local/bin/uv /usr/local/bin/uv \
+    && mv /root/.local/bin/uvx /usr/local/bin/uvx 2>/dev/null || true
+
+ARG QUARANTINE_DAYS=7
+RUN CUTOFF_ISO=$(date -u -d "${QUARANTINE_DAYS} days ago" +%Y-%m-%dT%H:%M:%SZ) \
+    && echo "Installing headroom-ai + deps (>= ${QUARANTINE_DAYS}d old)" \
+    && uv pip install --python python3.12 --system --break-system-packages \
+        --exclude-newer "$CUTOFF_ISO" "headroom-ai[proxy]" \
+    || python3.12 -m pip install --break-system-packages "headroom-ai[proxy]"
+
+# Verify fastapi is installed
+RUN python3.12 -c "import fastapi; print(f'fastapi {fastapi.__version__}')"
+
+RUN groupadd -g 1000 headroom \
+    && useradd -u 1000 -g 1000 -m -s /bin/bash headroom \
+    && mkdir -p /data && chown headroom:headroom /data
+
+USER headroom
+WORKDIR /data
+
+EXPOSE 8787
+
+CMD ["headroom", "proxy", "--host", "0.0.0.0", "--port", "8787"]

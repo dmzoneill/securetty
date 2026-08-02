@@ -27,6 +27,9 @@ setup:
 build:
 	ansible-playbook site.yml --tags build
 
+rebuild:
+	ansible-playbook site.yml --tags build -e securetty_force_rebuild=true
+
 up:
 	ansible-playbook site.yml --tags up
 
