@@ -126,7 +126,7 @@
   ansible.builtin.shell: |
     cd {{ securetty_dir }}
     {{ securetty_compose_cmd }} build
-  when: images_exist.stdout == "missing" or securetty_force_rebuild | default(false)
+  when: images_exist.stdout == "missing" or (securetty_force_rebuild | default(false) | bool)
   tags:
     - build
 

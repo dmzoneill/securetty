@@ -118,10 +118,10 @@ RUN mkdir -p /home/${USERNAME}/.ssh \
     && cat > /home/${USERNAME}/.ssh/config.securetty <<'EOF'
 # Git SSH routed through egress-proxy (Envoy L4)
 Host github.com
-    ProxyCommand nc -X connect -x 10.89.100.2:3128 %h %p
+    ProxyCommand ncat --proxy-type http --proxy 10.89.100.2:3128 %h %p
 
 Host gitlab.com gitlab.cee.redhat.com
-    ProxyCommand nc -X connect -x 10.89.100.2:3128 %h %p
+    ProxyCommand ncat --proxy-type http --proxy 10.89.100.2:3128 %h %p
 EOF
 RUN chmod 700 /home/${USERNAME}/.ssh \
     && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/.ssh
