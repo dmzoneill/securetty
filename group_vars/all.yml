@@ -24,6 +24,13 @@ securetty_compose_cmd: "sudo podman-compose"
 securetty_internal_subnet: 10.89.100.0/24
 securetty_internal_gateway: 10.89.100.1
 
+# Static IPs for services on internal network
+securetty_ip_egress_proxy: 10.89.100.2
+securetty_ip_omniroute: 10.89.100.3
+securetty_ip_headroom: 10.89.100.4
+securetty_ip_cloudcli: 10.89.100.5
+securetty_ip_ollama: 10.89.100.6
+
 # =============================================================================
 # API keys (pass paths)
 # =============================================================================
