@@ -1,0 +1,358 @@
+version: "3.8"
+
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Containerfile
+    container_name: securetty
+    hostname: securetty
+
+    # Non-root, minimal capabilities for Wayland/devkit
+    user: "1000:1000"
+    userns_mode: keep-id
+    cap_drop:
+      - ALL
+    cap_add:
+      - SYS_NICE        # mutter compositor scheduling
+    security_opt:
+      - no-new-privileges:true
+      - label=disable
+
+    # GPU access for mutter/gnome-shell devkit
+    devices:
+      - /dev/dri:/dev/dri
+
+    # Read-only root filesystem — explicit writable mounts below
+    read_only: true
+
+    volumes:
+      # =================================================================
+      # Source repos — same path as host, rw
+      # =================================================================
+      - /home/daoneill/src:/home/daoneill/src
+
+      # Host tool symlinks (~/bin → ~/src/*/scripts)
+      - /home/daoneill/bin:/home/daoneill/bin:ro
+
+      # Kubernetes/OpenShift config
+      - /home/daoneill/.kube:/home/daoneill/.kube
+
+      # AWS config
+      - /home/daoneill/.aws:/home/daoneill/.aws:ro
+
+      # Claude config
+      - /home/daoneill/.claude.json:/home/daoneill/.claude.json
+
+      # Audio (PipeWire/PulseAudio for notification sounds)
+      - /run/user/1000/pipewire-0:/run/user/1000/pipewire-0
+      - /run/user/1000/pulse:/run/user/1000/pulse
+
+      # Pipenv virtualenvs
+      - /home/daoneill/.local/share/virtualenvs:/home/daoneill/.local/share/virtualenvs
+
+      # Legacy workspace
+      - ./workspace:/workspace:Z
+
+      # Package installs in named volumes — never touch host
+      - node_modules:/workspace/node_modules
+      - pip_cache:/home/daoneill/.cache/pip
+      - venv:/workspace/.venv
+
+      # AI agent config dirs — full mount for persistence
+      - /home/daoneill/.claude:/home/daoneill/.claude
+      - /home/daoneill/.codex:/home/daoneill/.codex
+      - /home/daoneill/.gemini:/home/daoneill/.gemini
+      - /home/daoneill/.cursor:/home/daoneill/.cursor
+      - /home/daoneill/.kiro:/home/daoneill/.kiro
+      - /home/daoneill/.cline:/home/daoneill/.cline
+      - /home/daoneill/.config/opencode:/home/daoneill/.config/opencode
+      - /home/daoneill/.local/share/opencode:/home/daoneill/.local/share/opencode
+      - /home/daoneill/.openhands:/home/daoneill/.openhands
+      - /home/daoneill/.config/goose:/home/daoneill/.config/goose
+      - /home/daoneill/.grok:/home/daoneill/.grok
+      - /home/daoneill/.forge:/home/daoneill/.forge
+      - /home/daoneill/.amp:/home/daoneill/.amp
+      - /home/daoneill/.config/kilo:/home/daoneill/.config/kilo
+      - /home/daoneill/.aider:/home/daoneill/.aider
+      - /home/daoneill/.config/gcloud:/home/daoneill/.config/gcloud
+
+      # --- xdg-open relay socket (URLs sent to host browser) ---
+      - /run/user/1000/securetty-open.sock:/run/securetty-open.sock
+
+      # --- SSH: restricted agent (dmzoneill-2024, no private key in container) ---
+      - /run/user/1000/securetty-ssh-agent.sock:/run/ssh-agent.sock:ro
+      - /home/daoneill/.ssh/config:/home/daoneill/.ssh/config:ro
+      - /home/daoneill/.ssh/known_hosts:/home/daoneill/.ssh/known_hosts:ro
+
+      # --- GPG agent forwarding (extra-socket, no key export) ---
+      - ${GPG_AGENT_EXTRA_SOCK:-/dev/null}:/run/gpg-agent.sock:ro
+      - /home/daoneill/.gnupg/pubring.kbx:/home/daoneill/.gnupg/pubring.kbx:ro
+      - /home/daoneill/.gnupg/trustdb.gpg:/home/daoneill/.gnupg/trustdb.gpg:ro
+      - /home/daoneill/.gitconfig:/home/daoneill/.gitconfig:ro
+
+      # Shared package caches (persist across containers)
+      - securetty-npm-cache:/home/daoneill/.npm
+      - securetty-pip-cache:/home/daoneill/.cache/pip
+      - securetty-uv-cache:/home/daoneill/.cache/uv
+      - securetty-cargo-cache:/home/daoneill/.cargo
+
+      # Writable tmpfs for runtime
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 512M
+      - type: tmpfs
+        target: /home/daoneill/.local/bin
+        tmpfs:
+          size: 128M
+
+    working_dir: /home/daoneill/src
+    stdin_open: true
+    tty: true
+
+    networks:
+      - securetty_net
+
+    pid: "private"
+    ipc: "private"
+
+    environment:
+      - HOME=/home/daoneill
+      - USER=daoneill
+      - XDG_RUNTIME_DIR=/run/user/1000
+      - WAYLAND_DISPLAY=wayland-0
+      - NODE_ENV=development
+      - npm_config_ignore_scripts=true
+      - PIP_NO_CACHE_DIR=0
+      - VIRTUAL_ENV=/workspace/.venv
+      - PATH=/home/daoneill/bin:/workspace/.venv/bin:/workspace/node_modules/.bin:/usr/local/bin:/usr/bin:/bin
+      # Agent forwarding
+      - SSH_AUTH_SOCK=/run/ssh-agent.sock
+      - GPG_AGENT_INFO=/run/gpg-agent.sock
+      # API keys (from .env file or host env)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - XAI_API_KEY=${XAI_API_KEY:-}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - COPILOT_TOKEN=${COPILOT_TOKEN:-}
+      - SOURCEGRAPH_ACCESS_TOKEN=${SOURCEGRAPH_ACCESS_TOKEN:-}
+      # Service endpoints (sibling containers)
+      - OMNIROUTE_BASE_URL=http://securetty-omniroute:4000
+      - HEADROOM_URL=http://securetty-headroom:8787
+      - OLLAMA_HOST=http://securetty-ollama:11434
+      - CLOUDCLI_URL=http://securetty-cloudcli:3001
+
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8G
+
+    # CMD set in Containerfile (/bin/bash), ENTRYPOINT shows age banner
+    depends_on:
+      - omniroute
+      - headroom
+      - cloudcli
+      - ollama
+
+  # =================================================================
+  # Omniroute — unified AI provider router (160+ providers)
+  # All agents route through this. Shared across containers.
+  # =================================================================
+  omniroute:
+    build:
+      context: ./omniroute
+      dockerfile: Containerfile
+    container_name: securetty-omniroute
+    hostname: omniroute
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+      - label=disable
+    read_only: true
+    env_file:
+      - .env.omniroute
+    environment:
+      - INITIAL_PASSWORD=${OMNIROUTE_INITIAL_PASSWORD:-}
+    volumes:
+      - /home/daoneill/.omniroute:/data
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 128M
+    networks:
+      - securetty_net
+    ports:
+      - "127.0.0.1:4000:4000"
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:4000/"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # =================================================================
+  # Headroom — token compression MCP server
+  # Agents connect via MCP config. Shared across containers.
+  # =================================================================
+  headroom:
+    build:
+      context: ./headroom
+      dockerfile: Containerfile
+    container_name: securetty-headroom
+    hostname: headroom
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+      - label=disable
+    read_only: true
+    volumes:
+      - headroom_data:/data
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 128M
+    networks:
+      - securetty_net
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3.12", "-c", "import socket; s=socket.socket(); s.connect(('localhost',8787)); s.close()"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # =================================================================
+  # CloudCLI — Claude Code Web UI
+  # Replaces systemd cloudcli.service from host
+  # =================================================================
+  cloudcli:
+    build:
+      context: ./cloudcli
+      dockerfile: Containerfile
+    container_name: securetty-cloudcli
+    hostname: cloudcli
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+      - label=disable
+    read_only: true
+    volumes:
+      - cloudcli_data:/data
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 128M
+    networks:
+      - securetty_net
+    ports:
+      - "127.0.0.1:3001:3001"
+    env_file:
+      - .env.cloudcli
+    environment:
+      - HOST=0.0.0.0
+      - SERVER_PORT=3001
+      - HOME=/data
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3001/"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # =================================================================
+  # Ollama — local LLM server
+  # Replaces systemd ollama.service from host
+  # GPU + NPU passthrough for inference
+  # =================================================================
+  ollama:
+    build:
+      context: ./ollama
+      dockerfile: Containerfile
+    container_name: securetty-ollama
+    hostname: ollama
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+      - label=disable
+    devices:
+      - /dev/dri:/dev/dri
+      - /dev/accel/accel0:/dev/accel/accel0
+    volumes:
+      - ollama_models:/data/models
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 256M
+    networks:
+      - securetty_net
+    ports:
+      - "127.0.0.1:11434:11434"
+    environment:
+      - OLLAMA_MODELS=/data/models
+      - OLLAMA_HOST=0.0.0.0:11434
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 16G
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:11434/"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  node_modules:
+  pip_cache:
+  venv:
+  securetty-npm-cache:
+  securetty-pip-cache:
+  securetty-uv-cache:
+  securetty-cargo-cache:
+  claude_cache:
+  claude_debug:
+  claude_downloads:
+  amp_config:
+  kilo_config:
+  aider_config:
+  grok_state:
+  forge_state:
+  omniroute_data:
+  headroom_data:
+  cloudcli_data:
+  ollama_models:
+
+networks:
+  securetty_net:
+    driver: bridge
