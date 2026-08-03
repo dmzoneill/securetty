@@ -25,11 +25,11 @@ _securetty_run() {
         bash "$SECURETTY_DIR/scripts/ssh-agent-restricted.sh" start 2>/dev/null
     fi
 
-    # Ensure services are running
+    # Ensure services are running (start only, no build)
     if [ "$({{ securetty_podman_cmd }} inspect securetty-omniroute --format '{{ '{{' }}.State.Running{{ '}}' }}' 2>/dev/null)" != "true" ] || \
        [ "$({{ securetty_podman_cmd }} inspect securetty-headroom --format '{{ '{{' }}.State.Running{{ '}}' }}' 2>/dev/null)" != "true" ]; then
         echo "Starting services..."
-        (cd "$SECURETTY_DIR" && {{ securetty_compose_cmd }} up -d egress-proxy omniroute headroom 2>/dev/null) || true
+        (cd "$SECURETTY_DIR" && {{ securetty_compose_cmd }} up -d --no-build 2>/dev/null) || true
         sleep 1
     fi
 
@@ -60,7 +60,6 @@ _securetty_run() {
         -v "/run/user/$(id -u)/securetty-ssh-agent.sock:/run/ssh-agent.sock:ro" \
         -v "{{ securetty_home }}/.ssh/config:{{ securetty_home }}/.ssh/config:ro" \
         -v "{{ securetty_home }}/.ssh/known_hosts:{{ securetty_home }}/.ssh/known_hosts:ro" \
-        -v "{{ securetty_home }}/.config/gcloud:{{ securetty_home }}/.config/gcloud:ro" \
         -v "{{ securetty_home }}/.claude.json:{{ securetty_home }}/.claude.json" \
 {% for dir in securetty_agent_config_dirs %}
         -v "{{ securetty_home }}/{{ dir }}:{{ securetty_home }}/{{ dir }}" \

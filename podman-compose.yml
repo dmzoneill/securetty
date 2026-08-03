@@ -320,6 +320,7 @@ services:
       - label=disable
     read_only: true
     volumes:
+      - /home/daoneill/src/securetty/egress-proxy/envoy.yaml:/etc/envoy/envoy.yaml:ro
       - type: tmpfs
         target: /tmp
         tmpfs:

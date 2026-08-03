@@ -19,6 +19,9 @@ static_resources:
             server_names:
 {% for domain in securetty_allowed_domains %}
               - "{{ domain }}"
+{% if domain.startswith('*.') %}
+              - "{{ domain[2:] }}"
+{% endif %}
 {% endfor %}
           filters:
             - name: envoy.filters.network.tcp_proxy
@@ -65,8 +68,18 @@ static_resources:
                 route_config:
                   name: local_route
                   virtual_hosts:
-                    - name: forward_proxy
-                      domains: ["*"]
+                    - name: allowed_proxy
+                      domains:
+{% for domain in securetty_allowed_domains %}
+                        - "{{ domain }}"
+                        - "{{ domain }}:443"
+                        - "{{ domain }}:80"
+{% if domain.startswith('*.') %}
+                        - "{{ domain[2:] }}"
+                        - "{{ domain[2:] }}:443"
+                        - "{{ domain[2:] }}:80"
+{% endif %}
+{% endfor %}
                       routes:
                         - match:
                             connect_matcher: {}
@@ -75,6 +88,15 @@ static_resources:
                             upgrade_configs:
                               - upgrade_type: CONNECT
                                 connect_config: {}
+                    - name: deny_proxy
+                      domains: ["*"]
+                      routes:
+                        - match:
+                            connect_matcher: {}
+                          direct_response:
+                            status: 403
+                            body:
+                              inline_string: "BLOCKED by securetty egress policy"
                 http_filters:
                   - name: envoy.filters.http.dynamic_forward_proxy
                     typed_config:

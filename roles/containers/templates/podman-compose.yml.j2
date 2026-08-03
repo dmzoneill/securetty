@@ -307,6 +307,7 @@ services:
       - label=disable
     read_only: true
     volumes:
+      - {{ securetty_dir }}/egress-proxy/envoy.yaml:/etc/envoy/envoy.yaml:ro
       - type: tmpfs
         target: /tmp
         tmpfs:
