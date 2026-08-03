@@ -77,6 +77,7 @@ securetty_binary_agents:
   - { name: grok-build, repo: "xai-org/grok-build", install: "curl -fsSL https://x.ai/cli/install.sh | bash && ([ -f /root/.local/bin/grok ] && mv /root/.local/bin/grok /usr/local/bin/grok || true)" }
   - { name: forge, repo: "anthropics/claude-code", install: "curl -fsSL https://forgecode.dev/cli | sh && ([ -f /root/.local/bin/forge ] && mv /root/.local/bin/forge /usr/local/bin/forge || true)" }
   - { name: kiro-cli, repo: "aws/amazon-q-developer-cli", install: "curl -fsSL https://cli.kiro.dev/install | bash && ([ -f /root/.local/bin/kiro-cli ] && mv /root/.local/bin/kiro-cli /usr/local/bin/kiro-cli || true)" }
+  - { name: jcode, repo: "1jehuang/jcode", install: "curl -fsSL https://raw.githubusercontent.com/1jehuang/jcode/master/scripts/install.sh | bash" }
 
 # Agent aliases (personal + work modes)
 securetty_agents:
@@ -96,6 +97,7 @@ securetty_agents:
   - { name: kiro-cli, skip: "", short: ki, work: true }
   - { name: pi-ai, skip: "", short: pi, work: true }
   - { name: kimi, skip: "", short: km, work: true }
+  - { name: jcode, skip: "", short: jc, work: true }
 
 # =============================================================================
 # Ollama models
@@ -284,6 +286,7 @@ securetty_dnf_packages:
   - pciutils
   - lsof
   - util-linux
+  - golang
 
 securetty_pip_tools:
   - black

@@ -79,6 +79,7 @@ _securetty_run() {
         -v securetty-pip-cache:{{ securetty_home }}/.cache/pip \
         -v securetty-uv-cache:{{ securetty_home }}/.cache/uv \
         -v securetty-cargo-cache:{{ securetty_home }}/.cargo \
+        -v securetty-go-cache:{{ securetty_home }}/go \
         --tmpfs {{ securetty_home }}/.cache/mesa_shader_cache:size=128M \
         \
         -w "${_SECURETTY_WORKDIR:-$(pwd)}" \

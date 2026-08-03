@@ -83,6 +83,7 @@ services:
       - securetty-pip-cache:{{ securetty_home }}/.cache/pip
       - securetty-uv-cache:{{ securetty_home }}/.cache/uv
       - securetty-cargo-cache:{{ securetty_home }}/.cargo
+      - securetty-go-cache:{{ securetty_home }}/go
 
       # Writable tmpfs for runtime
       - type: tmpfs
@@ -327,6 +328,7 @@ volumes:
   securetty-pip-cache:
   securetty-uv-cache:
   securetty-cargo-cache:
+  securetty-go-cache:
   claude_cache:
   claude_debug:
   claude_downloads:
