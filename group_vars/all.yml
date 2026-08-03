@@ -16,11 +16,6 @@ securetty_compose_cmd: "sudo podman-compose"
 # Network
 # =============================================================================
 
-# Auto-detected at runtime by prereqs role.
-# Override here only if auto-detection fails.
-# securetty_vpn_dns: ""
-# securetty_home_dns: ""
-# securetty_fallback_dns: ""
 securetty_internal_subnet: 10.89.100.0/24
 securetty_internal_gateway: 10.89.100.1
 
