@@ -3,8 +3,7 @@ FROM registry.fedoraproject.org/fedora:{{ securetty_fedora_version }}
 RUN dnf install -y --setopt=install_weak_deps=False dnsmasq \
     && dnf clean all && rm -rf /var/cache/dnf
 
-COPY dnsmasq.conf /etc/dnsmasq.d/securetty.conf
-
+# Config volume-mounted at runtime via compose
 EXPOSE 53/udp 53/tcp
 
 CMD ["dnsmasq", "--no-daemon", "--log-facility=-"]

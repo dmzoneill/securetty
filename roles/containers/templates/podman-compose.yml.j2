@@ -270,6 +270,8 @@ services:
       - no-new-privileges:true
       - label=disable
     read_only: true
+    volumes:
+      - {{ securetty_dir }}/dns-relay/dnsmasq.conf:/etc/dnsmasq.d/securetty.conf:ro
     networks:
       internal:
         ipv4_address: {{ securetty_dns_relay_ip }}

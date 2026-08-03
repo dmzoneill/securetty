@@ -1,7 +1,6 @@
 FROM docker.io/envoyproxy/envoy:v1.33-latest
 
-COPY envoy.yaml /etc/envoy/envoy.yaml
-
+# Config volume-mounted at runtime via compose
 USER envoy
 
 EXPOSE 443 3128 22 9901
