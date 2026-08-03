@@ -7,7 +7,7 @@ ARG QUARANTINE_DAYS=7
 
 # System packages (base image already has nodejs, npm, python3.12, curl, jq, uv)
 RUN dnf install -y --setopt=install_weak_deps=False \
-        gsettings-desktop-schemas golang sqlite nmap-ncat ansible-core xdg-utils libxml2 sassc dconf which mesa-dri-drivers gh dbus-daemon python3-pip net-tools python3-devel awscli2 gnome-shell python3 git gnome-extensions-app rpm-build lsof glib2 findutils util-linux gettext tar dbus-tools python3-lxml xz skopeo ncat ImageMagick gjs hostname man-db sshpass python3-pytest dnf-plugins-core ruff openssh-clients pciutils g++ iputils glib2-devel podman-remote glab git-core make yamllint pulseaudio-utils bind-utils mesa-libEGL iproute pipewire-pulseaudio socat sound-theme-freedesktop mutter-devkit gnupg2 unzip gcc nmap python3-flake8 python3-ansible-lint tree ffmpeg \
+        python3-flake8 util-linux which glib2-devel sound-theme-freedesktop podman-remote sqlite dbus-daemon git mesa-dri-drivers sshpass gjs ncat rpm-build ansible-core lsof gnupg2 mesa-libEGL dnf-plugins-core pulseaudio-utils make xz net-tools openssh-clients mutter-devkit glib2 dconf yamllint gsettings-desktop-schemas ffmpeg bind-utils nmap g++ gnome-extensions-app skopeo iproute gh gettext gcc gnome-shell ruff libxml2 golang python3-pip python3-ansible-lint dbus-tools pciutils tar nmap-ncat unzip python3-devel glab sassc pipewire-pulseaudio socat iputils git-core hostname python3-lxml awscli2 man-db ImageMagick python3 python3-pytest xdg-utils findutils tree \
     && dnf clean all \
     && rm -rf /var/cache/dnf
 

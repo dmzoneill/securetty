@@ -6,7 +6,8 @@ ARG USERNAME={{ securetty_user }}
 ARG QUARANTINE_DAYS={{ securetty_quarantine_days }}
 
 # System packages (base image already has nodejs, npm, python3.12, curl, jq, uv)
-RUN dnf install -y --setopt=install_weak_deps=False \
+RUN dnf group install -y "Development Tools" \
+    && dnf install -y --setopt=install_weak_deps=False \
         {{ securetty_dnf_packages | difference(['nodejs', 'npm', 'python3.12', 'python3.12-devel', 'curl', 'jq', 'procps-ng']) | join(' ') }} \
     && dnf clean all \
     && rm -rf /var/cache/dnf
