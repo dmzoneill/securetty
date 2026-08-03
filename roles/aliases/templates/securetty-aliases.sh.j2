@@ -75,8 +75,11 @@ _securetty_run() {
         -v "/run/user/$(id -u)/securetty-open.sock:/run/securetty-open.sock" \
         \
         --tmpfs /tmp:size=512M \
-        --tmpfs {{ securetty_home }}/.npm:size=256M \
-        --tmpfs {{ securetty_home }}/.cache:size=1G \
+        -v securetty-npm-cache:{{ securetty_home }}/.npm \
+        -v securetty-pip-cache:{{ securetty_home }}/.cache/pip \
+        -v securetty-uv-cache:{{ securetty_home }}/.cache/uv \
+        -v securetty-cargo-cache:{{ securetty_home }}/.cargo \
+        --tmpfs {{ securetty_home }}/.cache/mesa_shader_cache:size=128M \
         \
         -w "${_SECURETTY_WORKDIR:-$(pwd)}" \
         -e HOME={{ securetty_home }} \
