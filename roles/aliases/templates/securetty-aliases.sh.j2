@@ -49,6 +49,7 @@ _securetty_run() {
         --cap-add SYS_NICE \
         --security-opt no-new-privileges:true \
         --security-opt label=disable \
+        --dns {{ securetty_internal_gateway }} \
         --annotation securetty_firewall=true \
         --read-only \
         --device /dev/dri \
@@ -74,7 +75,6 @@ _securetty_run() {
         -v "${GPG_AGENT_EXTRA_SOCK:-/dev/null}:/run/gpg-agent.sock:ro" \
         -v "/run/user/$(id -u)/securetty-open.sock:/run/securetty-open.sock" \
         \
-        -v {{ securetty_dir }}/resolv.conf:/etc/resolv.conf:ro \
         --tmpfs /tmp:size=512M \
         --tmpfs {{ securetty_home }}/.npm:size=256M \
         --tmpfs {{ securetty_home }}/.cache:size=1G \
