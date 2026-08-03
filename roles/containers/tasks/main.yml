@@ -152,10 +152,19 @@
   args:
     creates: /run/user/{{ securetty_uid }}/securetty-open.sock
 
-# 11. Start containers
+# 11. Stop existing containers
+- name: Stop existing containers
+  ansible.builtin.shell: |
+    cd {{ securetty_dir }}
+    {{ securetty_compose_cmd }} down 2>/dev/null || true
+  tags:
+    - up
+  changed_when: true
+
+# 12. Start containers fresh
 - name: Start all containers
   ansible.builtin.shell: |
     cd {{ securetty_dir }}
-    {{ securetty_compose_cmd }} up -d
+    {{ securetty_compose_cmd }} up -d --no-build
   tags:
     - up

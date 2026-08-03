@@ -94,9 +94,6 @@ services:
       - /home/daoneill/.gnupg/trustdb.gpg:/home/daoneill/.gnupg/trustdb.gpg:ro
       - /home/daoneill/.gitconfig:/home/daoneill/.gitconfig:ro
 
-      # DNS via systemd-resolved on bridge gateway (DNSStubListenerExtra)
-      - /home/daoneill/src/securetty/resolv.conf:/etc/resolv.conf:ro
-
       # Writable tmpfs for runtime
       - type: tmpfs
         target: /tmp
@@ -121,6 +118,8 @@ services:
 
     networks:
       - internal
+    dns:
+      - 10.89.100.1
 
     pid: "private"
     ipc: "private"
