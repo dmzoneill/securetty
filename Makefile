@@ -25,25 +25,25 @@ setup:
 	ansible-playbook site.yml
 
 build:
-	ansible-playbook site.yml --tags build
+	ansible-playbook site.yml --tags prereqs,build
 
 rebuild:
-	ansible-playbook site.yml --tags build -e securetty_force_rebuild=true
+	ansible-playbook site.yml --tags prereqs,build -e securetty_force_rebuild=true
 
 up:
-	ansible-playbook site.yml --tags up
+	ansible-playbook site.yml --tags prereqs,up
 
 env:
-	ansible-playbook site.yml --tags env
+	ansible-playbook site.yml --tags prereqs,env
 
 aliases:
-	ansible-playbook site.yml --tags aliases
+	ansible-playbook site.yml --tags prereqs,aliases
 
 omniroute:
-	ansible-playbook site.yml --tags omniroute
+	ansible-playbook site.yml --tags prereqs,omniroute
 
 ollama:
-	ansible-playbook site.yml --tags ollama
+	ansible-playbook site.yml --tags prereqs,ollama
 
 scan:
 	ansible-playbook site.yml --tags scan
