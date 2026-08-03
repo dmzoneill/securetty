@@ -13,7 +13,6 @@
     - cloudcli
     - ollama
     - egress-proxy
-    - dns-relay
     - scripts
 
 # 2. Template all Containerfiles to their build dirs
@@ -53,20 +52,7 @@
     dest: "{{ securetty_dir }}/egress-proxy/Containerfile"
     mode: "0644"
 
-- name: Template dns-relay Containerfile
-  ansible.builtin.template:
-    src: Containerfile.dns-relay.j2
-    dest: "{{ securetty_dir }}/dns-relay/Containerfile"
-    mode: "0644"
-
-# 3. Template dnsmasq.conf to dns-relay/
-- name: Template dnsmasq.conf
-  ansible.builtin.template:
-    src: dnsmasq.conf.j2
-    dest: "{{ securetty_dir }}/dns-relay/dnsmasq.conf"
-    mode: "0644"
-
-# 4. Template podman-compose.yml
+# 3. Template podman-compose.yml
 - name: Template podman-compose.yml
   ansible.builtin.template:
     src: podman-compose.yml.j2

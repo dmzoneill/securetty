@@ -74,6 +74,7 @@ _securetty_run() {
         -v "${GPG_AGENT_EXTRA_SOCK:-/dev/null}:/run/gpg-agent.sock:ro" \
         -v "/run/user/$(id -u)/securetty-open.sock:/run/securetty-open.sock" \
         \
+        -v /run/systemd/resolve/resolv.conf:/etc/resolv.conf:ro \
         --tmpfs /tmp:size=512M \
         --tmpfs {{ securetty_home }}/.npm:size=256M \
         --tmpfs {{ securetty_home }}/.cache:size=1G \

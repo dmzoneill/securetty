@@ -94,6 +94,9 @@ services:
       - /home/daoneill/.gnupg/trustdb.gpg:/home/daoneill/.gnupg/trustdb.gpg:ro
       - /home/daoneill/.gitconfig:/home/daoneill/.gitconfig:ro
 
+      # Host DNS (live — updates with VPN state)
+      - /run/systemd/resolve/resolv.conf:/etc/resolv.conf:ro
+
       # Writable tmpfs for runtime
       - type: tmpfs
         target: /tmp
@@ -275,6 +278,7 @@ services:
       dockerfile: Containerfile
     container_name: securetty-dns-relay
     hostname: dns-relay
+    network_mode: host
     cap_drop:
       - ALL
     cap_add:
@@ -283,10 +287,8 @@ services:
       - no-new-privileges:true
       - label=disable
     read_only: true
-    networks:
-      internal:
-        ipv4_address: 10.89.100.53
-      external: {}
+    volumes:
+      - /home/daoneill/src/securetty/dns-relay/dnsmasq.conf:/etc/dnsmasq.d/securetty.conf:ro
     deploy:
       resources:
         limits:
@@ -467,6 +469,7 @@ networks:
   internal:
     driver: bridge
     internal: true
+    dns_enabled: false
     ipam:
       config:
         - subnet: 10.89.100.0/24

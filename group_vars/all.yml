@@ -23,7 +23,6 @@ securetty_compose_cmd: "sudo podman-compose"
 # securetty_fallback_dns: ""
 securetty_internal_subnet: 10.89.100.0/24
 securetty_internal_gateway: 10.89.100.1
-securetty_dns_relay_ip: 10.89.100.53
 
 # =============================================================================
 # API keys (pass paths)
@@ -98,7 +97,7 @@ securetty_agents:
   - { name: gemini, skip: "", short: gm, work: true }
   - { name: cursor, skip: "--yolo", short: cr, work: true }
   - { name: cline, skip: "--yolo", short: cl, work: true }
-  - { name: opencode, skip: "", short: oc, work: true }
+  - { name: opencode, skip: "", short: ocd, work: true }
   - { name: amp, skip: "", short: "", work: true }
   - { name: kilo, skip: "", short: "", work: true }
   - { name: aider, skip: "--yes", short: ai, work: true }
@@ -219,7 +218,6 @@ securetty_resources:
   cloudcli: { cpus: "2", memory: "1G" }
   ollama: { cpus: "4", memory: "16G" }
   egress_proxy: { cpus: "1", memory: "256M" }
-  dns_relay: { cpus: "0.5", memory: "64M" }
 
 # =============================================================================
 # System packages for dev container
