@@ -408,11 +408,12 @@ volumes:
 networks:
   # Internal network — no internet gateway.
   # Internal network — no internet gateway (rootful nftables enforced).
-  # DNS via host resolv.conf (mounted read-only, live VPN updates).
+  # DNS disabled (no aardvark) — systemd-resolved listens on gateway via DNSStubListenerExtra.
   # Egress via Envoy proxy.
   internal:
     driver: bridge
     internal: true
+    dns_enabled: false
     ipam:
       config:
         - subnet: {{ securetty_internal_subnet }}

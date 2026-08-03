@@ -61,6 +61,25 @@
   become: true
   tags: [prereqs]
 
+- name: Ensure resolved.conf.d directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/resolved.conf.d
+    state: directory
+    mode: "0755"
+  become: true
+  tags: [prereqs]
+
+- name: Configure systemd-resolved to listen on container bridge gateway
+  ansible.builtin.copy:
+    content: |
+      [Resolve]
+      DNSStubListenerExtra={{ securetty_internal_gateway }}
+    dest: /etc/systemd/resolved.conf.d/securetty.conf
+    mode: "0644"
+  become: true
+  notify: restart systemd-resolved
+  tags: [prereqs]
+
 - name: Ensure passwordless sudo for podman
   ansible.builtin.copy:
     content: |
