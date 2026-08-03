@@ -81,8 +81,8 @@ services:
       - {{ securetty_home }}/.gnupg/trustdb.gpg:{{ securetty_home }}/.gnupg/trustdb.gpg:ro
       - {{ securetty_home }}/.gitconfig:{{ securetty_home }}/.gitconfig:ro
 
-      # Host DNS (live — updates with VPN state)
-      - /run/systemd/resolve/resolv.conf:/etc/resolv.conf:ro
+      # DNS via systemd-resolved on bridge gateway (DNSStubListenerExtra)
+      - {{ securetty_dir }}/resolv.conf:/etc/resolv.conf:ro
 
       # Writable tmpfs for runtime
       - type: tmpfs

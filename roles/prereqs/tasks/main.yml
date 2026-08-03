@@ -80,6 +80,15 @@
   notify: restart systemd-resolved
   tags: [prereqs]
 
+- name: Generate container resolv.conf pointing to bridge gateway
+  ansible.builtin.copy:
+    content: |
+      nameserver {{ securetty_internal_gateway }}
+      search redhat.corp
+    dest: "{{ securetty_dir }}/resolv.conf"
+    mode: "0644"
+  tags: [prereqs]
+
 - name: Ensure passwordless sudo for podman
   ansible.builtin.copy:
     content: |
