@@ -1,0 +1,17 @@
+table inet securetty_egress {
+    set allowed_ipv4 {
+        type ipv4_addr
+        flags interval
+    }
+
+    chain forward {
+        type filter hook forward priority 0; policy accept;
+        ip saddr {{ securetty_internal_subnet }} ip daddr @allowed_ipv4 accept
+        ip saddr {{ securetty_internal_subnet }} ip daddr 100.90.0.0/15 accept
+        ip saddr {{ securetty_internal_subnet }} ip daddr {{ securetty_internal_gateway }} udp dport 53 accept
+        ip saddr {{ securetty_internal_subnet }} ip daddr {{ securetty_internal_gateway }} tcp dport 53 accept
+        ip saddr {{ securetty_internal_subnet }} ct state established,related accept
+        ip saddr {{ securetty_internal_subnet }} ip daddr {{ securetty_internal_subnet }} accept
+        ip saddr {{ securetty_internal_subnet }} drop
+    }
+}

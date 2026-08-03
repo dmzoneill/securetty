@@ -1,0 +1,17 @@
+#!/bin/bash
+# Resolve allowed domains to IPs and update nftables set
+set -euo pipefail
+nft flush set inet securetty_egress allowed_ipv4 2>/dev/null || true
+{% raw %}
+IPS=""
+{% endraw %}
+{% for domain in securetty_allowed_domains %}
+{% set bare = domain.replace('*.', '') %}
+for ip in $(dig +short "{{ bare }}" A 2>/dev/null); do
+    [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && IPS="$IPS $ip"
+done
+{% endfor %}
+for ip in $(echo "$IPS" | tr ' ' '\n' | sort -u); do
+    nft add element inet securetty_egress allowed_ipv4 "{ $ip }" 2>/dev/null || true
+done
+echo "Updated $(echo "$IPS" | tr ' ' '\n' | sort -u | wc -l) IPs in nftables set"

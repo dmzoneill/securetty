@@ -1,8 +1,0 @@
-FROM docker.io/envoyproxy/envoy:v1.33-latest
-
-# Config volume-mounted at runtime via compose
-USER envoy
-
-EXPOSE 443 3128 22 9901
-
-CMD ["envoy", "-c", "/etc/envoy/envoy.yaml", "--log-level", "warn"]

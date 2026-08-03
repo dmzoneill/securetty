@@ -61,34 +61,6 @@
   become: true
   tags: [prereqs]
 
-- name: Ensure resolved.conf.d directory exists
-  ansible.builtin.file:
-    path: /etc/systemd/resolved.conf.d
-    state: directory
-    mode: "0755"
-  become: true
-  tags: [prereqs]
-
-- name: Configure systemd-resolved to listen on container bridge gateway
-  ansible.builtin.copy:
-    content: |
-      [Resolve]
-      DNSStubListenerExtra={{ securetty_internal_gateway }}
-    dest: /etc/systemd/resolved.conf.d/securetty.conf
-    mode: "0644"
-  become: true
-  notify: restart systemd-resolved
-  tags: [prereqs]
-
-- name: Generate container resolv.conf pointing to bridge gateway
-  ansible.builtin.copy:
-    content: |
-      nameserver {{ securetty_internal_gateway }}
-      search redhat.corp
-    dest: "{{ securetty_dir }}/resolv.conf"
-    mode: "0644"
-  tags: [prereqs]
-
 - name: Add NAT masquerade for container bridge to VPN
   ansible.builtin.shell: |
     nft add rule ip nat POSTROUTING ip saddr 10.89.0.0/24 oifname "wt0" masquerade 2>/dev/null || \

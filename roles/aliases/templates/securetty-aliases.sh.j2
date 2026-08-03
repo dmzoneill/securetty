@@ -49,8 +49,6 @@ _securetty_run() {
         --cap-add SYS_NICE \
         --security-opt no-new-privileges:true \
         --security-opt label=disable \
-        --dns {{ securetty_internal_gateway }} \
-        --annotation securetty_firewall=true \
         --read-only \
         --device /dev/dri \
         \
@@ -93,15 +91,10 @@ _securetty_run() {
 {% for alias in securetty_key_aliases %}
         -e "{{ alias.var }}={% raw %}${{% endraw %}{{ alias.source }}{% raw %}:-}{% endraw %}" \
 {% endfor %}
-        -e "OMNIROUTE_BASE_URL=http://{{ securetty_ip_omniroute }}:4000" \
-        -e "HEADROOM_URL=http://{{ securetty_ip_headroom }}:8787" \
-        -e "OLLAMA_HOST=http://{{ securetty_ip_ollama }}:11434" \
-        -e "CLOUDCLI_URL=http://{{ securetty_ip_cloudcli }}:3001" \
-        -e "HTTP_PROXY=http://{{ securetty_ip_egress_proxy }}:3128" \
-        -e "HTTPS_PROXY=http://{{ securetty_ip_egress_proxy }}:3128" \
-        -e "http_proxy=http://{{ securetty_ip_egress_proxy }}:3128" \
-        -e "https_proxy=http://{{ securetty_ip_egress_proxy }}:3128" \
-        -e "NO_PROXY=localhost,127.0.0.1,securetty-omniroute,securetty-headroom,securetty-cloudcli,securetty-ollama,securetty-egress-proxy" \
+        -e "OMNIROUTE_BASE_URL=http://securetty-omniroute:4000" \
+        -e "HEADROOM_URL=http://securetty-headroom:8787" \
+        -e "OLLAMA_HOST=http://securetty-ollama:11434" \
+        -e "CLOUDCLI_URL=http://securetty-cloudcli:3001" \
         \
         --network securetty_internal \
         \
@@ -132,13 +125,13 @@ _securetty_run_personal() {
     local omni_key="${OMNIROUTE_API_KEY:-}"
     _SECURETTY_EXTRA_ENV=(
         -e "CLAUDE_CODE_USE_VERTEX="
-        -e "ANTHROPIC_BASE_URL=http://{{ securetty_ip_omniroute }}:4000"
+        -e "ANTHROPIC_BASE_URL=http://securetty-omniroute:4000"
         -e "ANTHROPIC_API_KEY=${omni_key}"
-        -e "OPENAI_BASE_URL=http://{{ securetty_ip_omniroute }}:4000/v1"
+        -e "OPENAI_BASE_URL=http://securetty-omniroute:4000/v1"
         -e "OPENAI_API_KEY=${omni_key}"
         -e "GEMINI_API_KEY="
         -e "GOOGLE_API_KEY=${omni_key}"
-        -e "OPENAI_API_BASE=http://{{ securetty_ip_omniroute }}:4000/v1"
+        -e "OPENAI_API_BASE=http://securetty-omniroute:4000/v1"
     )
     _securetty_run "$agent" "$@"
 }

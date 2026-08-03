@@ -19,8 +19,6 @@ services:
       - label=disable
     # Rootful: user mapping handled by user: directive
     # userns_mode: keep-id  # only needed for rootless
-    annotations:
-      securetty_firewall: "true"
 
     # GPU access for mutter/gnome-shell devkit
     devices:
@@ -105,8 +103,6 @@ services:
 
     networks:
       - internal
-    dns:
-      - {{ securetty_internal_gateway }}
 
     pid: "private"
     ipc: "private"
@@ -134,16 +130,10 @@ services:
       - COPILOT_TOKEN=${COPILOT_TOKEN:-}
       - SOURCEGRAPH_ACCESS_TOKEN=${SOURCEGRAPH_ACCESS_TOKEN:-}
       # Service endpoints (sibling containers)
-      - OMNIROUTE_BASE_URL=http://{{ securetty_ip_omniroute }}:4000
-      - HEADROOM_URL=http://{{ securetty_ip_headroom }}:8787
-      - OLLAMA_HOST=http://{{ securetty_ip_ollama }}:11434
-      - CLOUDCLI_URL=http://{{ securetty_ip_cloudcli }}:3001
-      # Egress proxy — all outbound traffic routed through allowlist
-      - HTTP_PROXY=http://{{ securetty_ip_egress_proxy }}:3128
-      - HTTPS_PROXY=http://{{ securetty_ip_egress_proxy }}:3128
-      - http_proxy=http://{{ securetty_ip_egress_proxy }}:3128
-      - https_proxy=http://{{ securetty_ip_egress_proxy }}:3128
-      - NO_PROXY=localhost,127.0.0.1,securetty-omniroute,securetty-headroom,securetty-cloudcli,securetty-ollama,securetty-egress-proxy,10.89.100.0/24,securetty-omniroute,securetty-headroom,securetty-cloudcli,securetty-ollama,securetty-egress-proxy,omniroute,headroom,cloudcli,ollama,egress-proxy,10.89.100.0/24
+      - OMNIROUTE_BASE_URL=http://securetty-omniroute:4000
+      - HEADROOM_URL=http://securetty-headroom:8787
+      - OLLAMA_HOST=http://securetty-ollama:11434
+      - CLOUDCLI_URL=http://securetty-cloudcli:3001
 
     deploy:
       resources:
@@ -153,7 +143,6 @@ services:
 
     # CMD set in Containerfile (/bin/bash), ENTRYPOINT shows age banner
     depends_on:
-      - egress-proxy
       - omniroute
       - headroom
       - cloudcli
@@ -179,11 +168,6 @@ services:
     env_file:
       - .env.omniroute
     environment:
-      - HTTP_PROXY=http://{{ securetty_ip_egress_proxy }}:3128
-      - HTTPS_PROXY=http://{{ securetty_ip_egress_proxy }}:3128
-      - http_proxy=http://{{ securetty_ip_egress_proxy }}:3128
-      - https_proxy=http://{{ securetty_ip_egress_proxy }}:3128
-      - NO_PROXY=localhost,127.0.0.1,securetty-omniroute,securetty-headroom,securetty-cloudcli,securetty-ollama,securetty-egress-proxy,10.89.100.0/24,securetty-omniroute,securetty-headroom,securetty-cloudcli,securetty-ollama,securetty-egress-proxy,10.89.100.0/24
       - INITIAL_PASSWORD=${OMNIROUTE_INITIAL_PASSWORD:-}
     volumes:
       - {{ securetty_home }}/.omniroute:/data
@@ -192,8 +176,7 @@ services:
         tmpfs:
           size: 128M
     networks:
-      internal:
-        ipv4_address: {{ securetty_ip_omniroute }}
+      internal: {}
       external: {}
     ports:
       - "127.0.0.1:4000:4000"
@@ -234,8 +217,7 @@ services:
         tmpfs:
           size: 128M
     networks:
-      internal:
-        ipv4_address: {{ securetty_ip_headroom }}
+      internal: {}
     deploy:
       resources:
         limits:
@@ -248,48 +230,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-
-  # =================================================================
-  # Egress proxy — allowlist-only outbound access
-  # All containers route through this. Blocks exfiltration.
-  # =================================================================
-  egress-proxy:
-    build:
-      context: ./egress-proxy
-      dockerfile: Containerfile
-    container_name: securetty-egress-proxy
-    hostname: egress-proxy
-    user: "101:101"
-    cap_drop:
-      - ALL
-    cap_add:
-      - NET_BIND_SERVICE
-    security_opt:
-      - no-new-privileges:true
-      - label=disable
-    read_only: true
-    volumes:
-      - {{ securetty_dir }}/egress-proxy/envoy.yaml:/etc/envoy/envoy.yaml:ro
-      - type: tmpfs
-        target: /tmp
-        tmpfs:
-          size: 64M
-    networks:
-      internal:
-        ipv4_address: {{ securetty_ip_egress_proxy }}
-      external: {}
-    deploy:
-      resources:
-        limits:
-          cpus: "{{ securetty_resources.egress_proxy.cpus }}"
-          memory: {{ securetty_resources.egress_proxy.memory }}
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/9901"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
 
   # =================================================================
   # CloudCLI — Claude Code Web UI
@@ -315,8 +255,7 @@ services:
         tmpfs:
           size: 128M
     networks:
-      internal:
-        ipv4_address: {{ securetty_ip_cloudcli }}
+      internal: {}
       external: {}
     ports:
       - "127.0.0.1:3001:3001"
@@ -326,11 +265,6 @@ services:
       - HOST=0.0.0.0
       - SERVER_PORT=3001
       - HOME=/data
-      - HTTP_PROXY=http://{{ securetty_ip_egress_proxy }}:3128
-      - HTTPS_PROXY=http://{{ securetty_ip_egress_proxy }}:3128
-      - http_proxy=http://{{ securetty_ip_egress_proxy }}:3128
-      - https_proxy=http://{{ securetty_ip_egress_proxy }}:3128
-      - NO_PROXY=localhost,127.0.0.1,securetty-omniroute,securetty-headroom,securetty-cloudcli,securetty-ollama,securetty-egress-proxy,10.89.100.0/24
     deploy:
       resources:
         limits:
@@ -371,8 +305,7 @@ services:
         tmpfs:
           size: 256M
     networks:
-      internal:
-        ipv4_address: {{ securetty_ip_ollama }}
+      internal: {}
       external: {}
     ports:
       - "127.0.0.1:11434:11434"
@@ -410,21 +343,17 @@ volumes:
   ollama_models:
 
 networks:
-  # Internal network — no internet gateway.
   # Internal network — no internet gateway (rootful nftables enforced).
-  # DNS disabled (no aardvark) — systemd-resolved listens on gateway via DNSStubListenerExtra.
-  # Egress via Envoy proxy.
+  # Aardvark DNS enabled for container name resolution.
   internal:
     driver: bridge
     internal: true
-    dns_enabled: false
     ipam:
       config:
         - subnet: {{ securetty_internal_subnet }}
           gateway: {{ securetty_internal_gateway }}
 
   # External: has internet + VPN via host routing.
-  # ONLY egress-proxy connects here.
-  # All outbound traffic goes through Squid allowlist.
+  # Services needing outbound access (omniroute, cloudcli, ollama) connect here.
   external:
     driver: bridge
