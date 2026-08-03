@@ -7,24 +7,6 @@
     securetty_gid: "{{ ansible_facts['user_gid'] }}"
   tags: [prereqs]
 
-- name: Add NAT masquerade for container bridge to VPN
-  ansible.builtin.shell: |
-    nft add rule ip nat POSTROUTING ip saddr 10.89.0.0/24 oifname "wt0" masquerade 2>/dev/null || \
-    iptables -t nat -A POSTROUTING -s 10.89.0.0/24 -o wt0 -j MASQUERADE 2>/dev/null || true
-  become: true
-  changed_when: true
-  tags: [prereqs]
-
-- name: Ensure passwordless sudo for podman
-  ansible.builtin.copy:
-    content: |
-      {{ securetty_user }} ALL=(ALL) NOPASSWD: /usr/bin/podman, /usr/bin/podman-compose
-    dest: /etc/sudoers.d/securetty-podman
-    mode: "0440"
-    validate: "visudo -cf %s"
-  become: true
-  tags: [prereqs]
-
 - name: Ensure podman is installed
   ansible.builtin.dnf:
     name:

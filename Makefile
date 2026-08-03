@@ -52,10 +52,10 @@ migrate:
 	ansible-playbook site.yml --tags migrate
 
 down:
-	cd $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST)))) && sudo podman-compose down
+	cd $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST)))) && podman-compose down
 
 nuke:
-	cd $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST)))) && sudo podman-compose down -v
+	cd $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST)))) && podman-compose down -v
 
 status:
-	@sudo podman ps -a --format "table {{.Names}}\t{{.Status}}" | grep securetty || echo "No containers running"
+	@podman ps -a --format "table {{.Names}}\t{{.Status}}" | grep securetty || echo "No containers running"

@@ -45,6 +45,7 @@ _securetty_run() {
         --name "securetty-${agent}-$$" \
         --hostname "securetty-${agent}" \
         --user "$(id -u):$(id -g)" \
+        --userns=keep-id \
         --cap-drop ALL \
         --cap-add SYS_NICE \
         --security-opt no-new-privileges:true \
@@ -95,8 +96,6 @@ _securetty_run() {
         -e "HEADROOM_URL=http://securetty-headroom:8787" \
         -e "OLLAMA_HOST=http://securetty-ollama:11434" \
         -e "CLOUDCLI_URL=http://securetty-cloudcli:3001" \
-        \
-        --network securetty_internal \
         \
         "$SECURETTY_IMAGE" \
         "$agent" "$@"

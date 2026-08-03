@@ -10,6 +10,7 @@ services:
 
     # Non-root, minimal capabilities for Wayland/devkit
     user: "{{ securetty_uid }}:{{ securetty_gid }}"
+    userns_mode: keep-id
     cap_drop:
       - ALL
     cap_add:
@@ -17,8 +18,6 @@ services:
     security_opt:
       - no-new-privileges:true
       - label=disable
-    # Rootful: user mapping handled by user: directive
-    # userns_mode: keep-id  # only needed for rootless
 
     # GPU access for mutter/gnome-shell devkit
     devices:
@@ -102,7 +101,7 @@ services:
     tty: true
 
     networks:
-      - internal
+      - securetty_net
 
     pid: "private"
     ipc: "private"
@@ -176,8 +175,7 @@ services:
         tmpfs:
           size: 128M
     networks:
-      internal: {}
-      external: {}
+      - securetty_net
     ports:
       - "127.0.0.1:4000:4000"
     deploy:
@@ -217,7 +215,7 @@ services:
         tmpfs:
           size: 128M
     networks:
-      internal: {}
+      - securetty_net
     deploy:
       resources:
         limits:
@@ -255,8 +253,7 @@ services:
         tmpfs:
           size: 128M
     networks:
-      internal: {}
-      external: {}
+      - securetty_net
     ports:
       - "127.0.0.1:3001:3001"
     env_file:
@@ -305,8 +302,7 @@ services:
         tmpfs:
           size: 256M
     networks:
-      internal: {}
-      external: {}
+      - securetty_net
     ports:
       - "127.0.0.1:11434:11434"
     environment:
@@ -343,17 +339,5 @@ volumes:
   ollama_models:
 
 networks:
-  # Internal network — no internet gateway (rootful nftables enforced).
-  # Aardvark DNS enabled for container name resolution.
-  internal:
-    driver: bridge
-    internal: true
-    ipam:
-      config:
-        - subnet: {{ securetty_internal_subnet }}
-          gateway: {{ securetty_internal_gateway }}
-
-  # External: has internet + VPN via host routing.
-  # Services needing outbound access (omniroute, cloudcli, ollama) connect here.
-  external:
+  securetty_net:
     driver: bridge
