@@ -1,0 +1,6 @@
+---
+- name: securetty — scan AI history for leaked secrets
+  hosts: localhost
+  gather_facts: true
+  roles:
+    - scan

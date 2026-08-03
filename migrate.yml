@@ -1,0 +1,7 @@
+---
+- name: securetty — remove AI agents from host
+  hosts: localhost
+  gather_facts: true
+  roles:
+    - prereqs
+    - migrate

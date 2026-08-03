@@ -46,10 +46,10 @@ ollama:
 	ansible-playbook site.yml --tags prereqs,ollama
 
 scan:
-	ansible-playbook site.yml --tags scan
+	ansible-playbook scan.yml
 
 migrate:
-	ansible-playbook site.yml --tags migrate
+	ansible-playbook migrate.yml
 
 down:
 	cd $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST)))) && podman-compose down

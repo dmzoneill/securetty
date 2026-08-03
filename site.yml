@@ -11,5 +11,3 @@
     - { role: omniroute, tags: [omniroute, setup] }
     - { role: ollama, tags: [ollama, setup] }
     - { role: aliases, tags: [aliases, setup] }
-    - { role: scan, tags: [scan] }
-    - { role: migrate, tags: [migrate, never] }
