@@ -195,7 +195,7 @@ services:
     networks:
       internal:
         ipv4_address: {{ securetty_ip_omniroute }}
-      - external
+      external: {}
     ports:
       - "127.0.0.1:4000:4000"
     deploy:
@@ -278,7 +278,7 @@ services:
     networks:
       internal:
         ipv4_address: {{ securetty_ip_egress_proxy }}
-      - external
+      external: {}
     deploy:
       resources:
         limits:
@@ -318,7 +318,7 @@ services:
     networks:
       internal:
         ipv4_address: {{ securetty_ip_cloudcli }}
-      - external
+      external: {}
     ports:
       - "127.0.0.1:3001:3001"
     env_file:
@@ -374,7 +374,7 @@ services:
     networks:
       internal:
         ipv4_address: {{ securetty_ip_ollama }}
-      - external
+      external: {}
     ports:
       - "127.0.0.1:11434:11434"
     environment:

@@ -148,15 +148,15 @@ services:
       - COPILOT_TOKEN=${COPILOT_TOKEN:-}
       - SOURCEGRAPH_ACCESS_TOKEN=${SOURCEGRAPH_ACCESS_TOKEN:-}
       # Service endpoints (sibling containers)
-      - OMNIROUTE_BASE_URL=http://omniroute:4000
-      - HEADROOM_URL=http://headroom:8787
-      - OLLAMA_HOST=http://ollama:11434
-      - CLOUDCLI_URL=http://cloudcli:3001
+      - OMNIROUTE_BASE_URL=http://10.89.100.3:4000
+      - HEADROOM_URL=http://10.89.100.4:8787
+      - OLLAMA_HOST=http://10.89.100.6:11434
+      - CLOUDCLI_URL=http://10.89.100.5:3001
       # Egress proxy — all outbound traffic routed through allowlist
-      - HTTP_PROXY=http://egress-proxy:3128
-      - HTTPS_PROXY=http://egress-proxy:3128
-      - http_proxy=http://egress-proxy:3128
-      - https_proxy=http://egress-proxy:3128
+      - HTTP_PROXY=http://10.89.100.2:3128
+      - HTTPS_PROXY=http://10.89.100.2:3128
+      - http_proxy=http://10.89.100.2:3128
+      - https_proxy=http://10.89.100.2:3128
       - NO_PROXY=localhost,127.0.0.1,securetty-omniroute,securetty-headroom,securetty-cloudcli,securetty-ollama,securetty-egress-proxy,10.89.100.0/24,securetty-omniroute,securetty-headroom,securetty-cloudcli,securetty-ollama,securetty-egress-proxy,omniroute,headroom,cloudcli,ollama,egress-proxy,10.89.100.0/24
 
     deploy:
@@ -193,10 +193,10 @@ services:
     env_file:
       - .env.omniroute
     environment:
-      - HTTP_PROXY=http://egress-proxy:3128
-      - HTTPS_PROXY=http://egress-proxy:3128
-      - http_proxy=http://egress-proxy:3128
-      - https_proxy=http://egress-proxy:3128
+      - HTTP_PROXY=http://10.89.100.2:3128
+      - HTTPS_PROXY=http://10.89.100.2:3128
+      - http_proxy=http://10.89.100.2:3128
+      - https_proxy=http://10.89.100.2:3128
       - NO_PROXY=localhost,127.0.0.1,securetty-omniroute,securetty-headroom,securetty-cloudcli,securetty-ollama,securetty-egress-proxy,10.89.100.0/24,securetty-omniroute,securetty-headroom,securetty-cloudcli,securetty-ollama,securetty-egress-proxy,10.89.100.0/24
       - INITIAL_PASSWORD=${OMNIROUTE_INITIAL_PASSWORD:-}
     volumes:
@@ -206,7 +206,8 @@ services:
         tmpfs:
           size: 128M
     networks:
-      - internal
+      internal:
+        ipv4_address: 10.89.100.3
       - external
     ports:
       - "127.0.0.1:4000:4000"
@@ -247,7 +248,8 @@ services:
         tmpfs:
           size: 128M
     networks:
-      - internal
+      internal:
+        ipv4_address: 10.89.100.4
     deploy:
       resources:
         limits:
@@ -287,7 +289,8 @@ services:
         tmpfs:
           size: 64M
     networks:
-      - internal
+      internal:
+        ipv4_address: 10.89.100.2
       - external
     deploy:
       resources:
@@ -326,7 +329,8 @@ services:
         tmpfs:
           size: 128M
     networks:
-      - internal
+      internal:
+        ipv4_address: 10.89.100.5
       - external
     ports:
       - "127.0.0.1:3001:3001"
@@ -336,10 +340,10 @@ services:
       - HOST=0.0.0.0
       - SERVER_PORT=3001
       - HOME=/data
-      - HTTP_PROXY=http://egress-proxy:3128
-      - HTTPS_PROXY=http://egress-proxy:3128
-      - http_proxy=http://egress-proxy:3128
-      - https_proxy=http://egress-proxy:3128
+      - HTTP_PROXY=http://10.89.100.2:3128
+      - HTTPS_PROXY=http://10.89.100.2:3128
+      - http_proxy=http://10.89.100.2:3128
+      - https_proxy=http://10.89.100.2:3128
       - NO_PROXY=localhost,127.0.0.1,securetty-omniroute,securetty-headroom,securetty-cloudcli,securetty-ollama,securetty-egress-proxy,10.89.100.0/24
     deploy:
       resources:
@@ -381,7 +385,8 @@ services:
         tmpfs:
           size: 256M
     networks:
-      - internal
+      internal:
+        ipv4_address: 10.89.100.6
       - external
     ports:
       - "127.0.0.1:11434:11434"

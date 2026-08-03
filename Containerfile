@@ -94,16 +94,16 @@ RUN mkdir -p \
     && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME} /workspace
 
 # Proxy config for tools that don't honor env vars
-RUN echo 'proxy = "http://securetty-egress-proxy:3128"' > /etc/curlrc \
+RUN echo 'proxy = "http://10.89.100.2:3128"' > /etc/curlrc \
     && mkdir -p /etc/wgetrc.d \
-    && echo 'http_proxy = http://securetty-egress-proxy:3128' > /etc/wgetrc \
-    && echo 'https_proxy = http://securetty-egress-proxy:3128' >> /etc/wgetrc \
+    && echo 'http_proxy = http://10.89.100.2:3128' > /etc/wgetrc \
+    && echo 'https_proxy = http://10.89.100.2:3128' >> /etc/wgetrc \
     && echo 'use_proxy = on' >> /etc/wgetrc \
     && mkdir -p /etc/pip.conf.d \
-    && printf '[global]\nproxy = http://securetty-egress-proxy:3128\n' > /etc/pip.conf \
-    && npm config set --global proxy http://securetty-egress-proxy:3128 \
-    && npm config set --global https-proxy http://securetty-egress-proxy:3128 \
-    && git config --system http.proxy http://securetty-egress-proxy:3128
+    && printf '[global]\nproxy = http://10.89.100.2:3128\n' > /etc/pip.conf \
+    && npm config set --global proxy http://10.89.100.2:3128 \
+    && npm config set --global https-proxy http://10.89.100.2:3128 \
+    && git config --system http.proxy http://10.89.100.2:3128
 
 # No-op stubs for hooks that reference host-only scripts
 RUN touch /home/${USERNAME}/.local/bin/claude-post-commit-hook.sh \
@@ -118,10 +118,10 @@ RUN mkdir -p /home/${USERNAME}/.ssh \
     && cat > /home/${USERNAME}/.ssh/config.securetty <<'EOF'
 # Git SSH routed through egress-proxy (Envoy L4)
 Host github.com
-    ProxyCommand nc -X connect -x egress-proxy:3128 %h %p
+    ProxyCommand nc -X connect -x 10.89.100.2:3128 %h %p
 
 Host gitlab.com gitlab.cee.redhat.com
-    ProxyCommand nc -X connect -x egress-proxy:3128 %h %p
+    ProxyCommand nc -X connect -x 10.89.100.2:3128 %h %p
 EOF
 RUN chmod 700 /home/${USERNAME}/.ssh \
     && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/.ssh
