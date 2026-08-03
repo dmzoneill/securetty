@@ -1,8 +1,4 @@
-FROM registry.fedoraproject.org/fedora:{{ securetty_fedora_version }}
-
-RUN dnf install -y --setopt=install_weak_deps=False \
-        nodejs npm curl jq \
-    && dnf clean all && rm -rf /var/cache/dnf
+FROM localhost/securetty_base:latest
 
 ARG QUARANTINE_DAYS={{ securetty_quarantine_days }}
 RUN CUTOFF_EPOCH=$(date -u -d "${QUARANTINE_DAYS} days ago" +%s) \

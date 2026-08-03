@@ -1,18 +1,15 @@
-FROM registry.fedoraproject.org/fedora:45
+FROM localhost/securetty_base:latest
 
 ARG UID=1000
 ARG GID=1000
 ARG USERNAME=daoneill
 ARG QUARANTINE_DAYS=7
 
-# System packages
+# System packages (base image already has nodejs, npm, python3.12, curl, jq, uv)
 RUN dnf install -y --setopt=install_weak_deps=False \
-        nodejs npm python3 python3-pip python3-devel python3.12 python3.12-devel git git-core curl jq make gcc g++ findutils procps-ng which openssh-clients gnupg2 unzip tar xz gnome-shell mutter-devkit dbus-daemon dbus-tools glib2 glib2-devel gsettings-desktop-schemas mesa-dri-drivers mesa-libEGL xdg-utils socat gjs gnome-extensions-app dconf gh glab sshpass awscli2 rpm-build dnf-plugins-core ansible-core python3-ansible-lint skopeo podman-remote sqlite tree man-db bind-utils nmap-ncat nmap iproute iputils hostname net-tools ncat ffmpeg ImageMagick pulseaudio-utils pipewire-pulseaudio sound-theme-freedesktop libxml2 python3-lxml gettext sassc ruff python3-flake8 yamllint python3-pytest pciutils lsof util-linux \
+        gsettings-desktop-schemas golang sqlite nmap-ncat ansible-core xdg-utils libxml2 sassc dconf which mesa-dri-drivers gh dbus-daemon python3-pip net-tools python3-devel awscli2 gnome-shell python3 git gnome-extensions-app rpm-build lsof glib2 findutils util-linux gettext tar dbus-tools python3-lxml xz skopeo ncat ImageMagick gjs hostname man-db sshpass python3-pytest dnf-plugins-core ruff openssh-clients pciutils g++ iputils glib2-devel podman-remote glab git-core make yamllint pulseaudio-utils bind-utils mesa-libEGL iproute pipewire-pulseaudio socat sound-theme-freedesktop mutter-devkit gnupg2 unzip gcc nmap python3-flake8 python3-ansible-lint tree ffmpeg \
     && dnf clean all \
     && rm -rf /var/cache/dnf
-
-# Ensure python3.12 has pip
-RUN python3.12 -m ensurepip --upgrade 2>/dev/null || true
 
 # pip-only tools (not in Fedora repos)
 RUN python3.12 -m pip install --break-system-packages black
@@ -26,11 +23,6 @@ RUN node_ver=$(node -v | sed 's/v//' | cut -d. -f1) \
     && if [ "$node_ver" -lt 22 ]; then \
          echo "ERROR: Node $node_ver < 22, Codex/Cline require 22+"; exit 1; \
        fi
-
-# Install uv (for pip --exclude-newer support)
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
-    && mv /root/.local/bin/uv /usr/local/bin/uv \
-    && mv /root/.local/bin/uvx /usr/local/bin/uvx 2>/dev/null || true
 
 # =============================================================================
 # Delayed agent installation — versions >= QUARANTINE_DAYS old

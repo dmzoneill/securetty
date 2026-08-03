@@ -8,6 +8,7 @@
     state: directory
     mode: "0755"
   loop:
+    - base
     - omniroute
     - headroom
     - cloudcli
@@ -15,6 +16,13 @@
     - scripts
 
 # 2. Template all Containerfiles to their build dirs
+- name: Template base Containerfile
+  ansible.builtin.template:
+    src: Containerfile.base.j2
+    dest: "{{ securetty_dir }}/base/Containerfile"
+    mode: "0644"
+  register: base_containerfile
+
 - name: Template dev Containerfile
   ansible.builtin.template:
     src: Containerfile.dev.j2
@@ -107,7 +115,28 @@
     mode: "0755"
 
 # 7. Build containers (only when templates changed)
-- name: Check if images need rebuilding
+
+# Build base image first — all service images depend on it
+- name: Check if base image needs rebuilding
+  ansible.builtin.shell: |
+    {{ securetty_podman_cmd }} image exists securetty_base 2>/dev/null && echo "exists" || echo "missing"
+  register: base_image_exists
+  changed_when: false
+  tags:
+    - build
+
+- name: Build base image
+  ansible.builtin.shell: |
+    cd {{ securetty_dir }}
+    {{ securetty_podman_cmd }} build -t securetty_base -f base/Containerfile base/
+  when: >
+    base_image_exists.stdout == "missing"
+    or (base_containerfile is changed)
+    or (securetty_force_rebuild | default(false) | bool)
+  tags:
+    - build
+
+- name: Check if service images need rebuilding
   ansible.builtin.shell: |
     {{ securetty_podman_cmd }} image exists securetty_dev 2>/dev/null && echo "exists" || echo "missing"
   register: images_exist
@@ -115,7 +144,7 @@
   tags:
     - build
 
-- name: Build all container images
+- name: Build all service images
   ansible.builtin.shell: |
     cd {{ securetty_dir }}
     {{ securetty_compose_cmd }} build

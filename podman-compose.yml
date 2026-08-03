@@ -96,6 +96,7 @@ services:
       - securetty-pip-cache:/home/daoneill/.cache/pip
       - securetty-uv-cache:/home/daoneill/.cache/uv
       - securetty-cargo-cache:/home/daoneill/.cargo
+      - securetty-go-cache:/home/daoneill/go
 
       # Writable tmpfs for runtime
       - type: tmpfs
@@ -340,6 +341,7 @@ volumes:
   securetty-pip-cache:
   securetty-uv-cache:
   securetty-cargo-cache:
+  securetty-go-cache:
   claude_cache:
   claude_debug:
   claude_downloads:

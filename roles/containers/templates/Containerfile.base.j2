@@ -1,0 +1,21 @@
+FROM registry.fedoraproject.org/fedora:{{ securetty_fedora_version }}
+
+# =============================================================================
+# securetty base image — shared runtime for all service containers
+# Includes: nodejs, npm, python3.12, curl, jq, uv
+# =============================================================================
+
+RUN dnf install -y --setopt=install_weak_deps=False \
+        nodejs npm \
+        python3.12 python3.12-devel \
+        curl jq procps-ng \
+    && dnf clean all \
+    && rm -rf /var/cache/dnf
+
+# Ensure python3.12 has pip
+RUN python3.12 -m ensurepip --upgrade 2>/dev/null || true
+
+# Install uv (for pip --exclude-newer support)
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && mv /root/.local/bin/uv /usr/local/bin/uv \
+    && mv /root/.local/bin/uvx /usr/local/bin/uvx 2>/dev/null || true

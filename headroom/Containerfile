@@ -1,15 +1,4 @@
-FROM registry.fedoraproject.org/fedora:45
-
-RUN dnf install -y --setopt=install_weak_deps=False \
-        python3.12 python3.12-devel \
-        curl jq \
-    && dnf clean all && rm -rf /var/cache/dnf
-
-RUN python3.12 -m ensurepip --upgrade 2>/dev/null || true
-
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
-    && mv /root/.local/bin/uv /usr/local/bin/uv \
-    && mv /root/.local/bin/uvx /usr/local/bin/uvx 2>/dev/null || true
+FROM localhost/securetty_base:latest
 
 ARG QUARANTINE_DAYS=7
 RUN CUTOFF_ISO=$(date -u -d "${QUARANTINE_DAYS} days ago" +%Y-%m-%dT%H:%M:%SZ) \

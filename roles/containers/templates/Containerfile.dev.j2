@@ -1,18 +1,15 @@
-FROM registry.fedoraproject.org/fedora:{{ securetty_fedora_version }}
+FROM localhost/securetty_base:latest
 
 ARG UID={{ securetty_uid }}
 ARG GID={{ securetty_gid }}
 ARG USERNAME={{ securetty_user }}
 ARG QUARANTINE_DAYS={{ securetty_quarantine_days }}
 
-# System packages
+# System packages (base image already has nodejs, npm, python3.12, curl, jq, uv)
 RUN dnf install -y --setopt=install_weak_deps=False \
-        {{ securetty_dnf_packages | join(' ') }} \
+        {{ securetty_dnf_packages | difference(['nodejs', 'npm', 'python3.12', 'python3.12-devel', 'curl', 'jq', 'procps-ng']) | join(' ') }} \
     && dnf clean all \
     && rm -rf /var/cache/dnf
-
-# Ensure python3.12 has pip
-RUN python3.12 -m ensurepip --upgrade 2>/dev/null || true
 
 # pip-only tools (not in Fedora repos)
 {% for tool in securetty_pip_tools %}
@@ -24,11 +21,6 @@ RUN node_ver=$(node -v | sed 's/v//' | cut -d. -f1) \
     && if [ "$node_ver" -lt 22 ]; then \
          echo "ERROR: Node $node_ver < 22, Codex/Cline require 22+"; exit 1; \
        fi
-
-# Install uv (for pip --exclude-newer support)
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
-    && mv /root/.local/bin/uv /usr/local/bin/uv \
-    && mv /root/.local/bin/uvx /usr/local/bin/uvx 2>/dev/null || true
 
 # =============================================================================
 # Delayed agent installation — versions >= QUARANTINE_DAYS old
