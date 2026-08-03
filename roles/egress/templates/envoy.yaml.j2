@@ -74,10 +74,12 @@ static_resources:
                         - "{{ domain }}"
                         - "{{ domain }}:443"
                         - "{{ domain }}:80"
+                        - "{{ domain }}:22"
 {% if domain.startswith('*.') %}
                         - "{{ domain[2:] }}"
                         - "{{ domain[2:] }}:443"
                         - "{{ domain[2:] }}:80"
+                        - "{{ domain[2:] }}:22"
 {% endif %}
 {% endfor %}
                       routes:
