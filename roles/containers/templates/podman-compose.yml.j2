@@ -44,6 +44,9 @@ services:
       # Claude config
       - {{ securetty_home }}/.claude.json:{{ securetty_home }}/.claude.json
 
+      # Downloads
+      - {{ securetty_home }}/Downloads:{{ securetty_home }}/Downloads
+
       # Audio (PipeWire/PulseAudio for notification sounds)
       - /run/user/{{ securetty_uid }}/pipewire-0:/run/user/{{ securetty_uid }}/pipewire-0
       - /run/user/{{ securetty_uid }}/pulse:/run/user/{{ securetty_uid }}/pulse

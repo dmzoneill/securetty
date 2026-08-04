@@ -67,6 +67,7 @@ _securetty_run() {
         -v "{{ securetty_home }}/bin:{{ securetty_home }}/bin:ro" \
         -v "{{ securetty_home }}/.kube:{{ securetty_home }}/.kube" \
         -v "{{ securetty_home }}/.aws:{{ securetty_home }}/.aws:ro" \
+        -v "{{ securetty_home }}/Downloads:{{ securetty_home }}/Downloads" \
         -v "{{ securetty_home }}/.local/bin:{{ securetty_home }}/.local/bin:ro" \
         -v "{{ securetty_home }}/.local/share/virtualenvs:{{ securetty_home }}/.local/share/virtualenvs" \
         -v "/run/user/$(id -u):/run/user/$(id -u)" \
