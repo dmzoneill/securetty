@@ -33,7 +33,7 @@ rebuild:
 	ansible-playbook site.yml --tags prereqs,build -e securetty_force_rebuild=true
 
 rebuild-agents:
-	ansible-playbook site.yml --tags prereqs,build -e securetty_force_rebuild=true -e securetty_skip_devbase=true
+	ansible-playbook site.yml --tags prereqs,build -e securetty_force_rebuild=true -e securetty_skip_devbase=true -e securetty_dev_only=true
 
 up:
 	ansible-playbook site.yml --tags prereqs,up

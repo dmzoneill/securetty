@@ -9,6 +9,11 @@ ARG QUARANTINE_DAYS={{ securetty_quarantine_days }}
 COPY devbase/redhatter-ca.crt /etc/pki/ca-trust/source/anchors/redhatter-ca.crt
 RUN update-ca-trust
 
+# pip-only tools (not in Fedora repos)
+{% for tool in securetty_pip_tools %}
+RUN python3.12 -m pip install --break-system-packages {{ tool }}
+{% endfor %}
+
 # =============================================================================
 # Delayed agent installation — versions >= QUARANTINE_DAYS old
 # =============================================================================

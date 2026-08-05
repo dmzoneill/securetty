@@ -9,6 +9,18 @@ ARG QUARANTINE_DAYS=7
 COPY devbase/redhatter-ca.crt /etc/pki/ca-trust/source/anchors/redhatter-ca.crt
 RUN update-ca-trust
 
+# pip-only tools (not in Fedora repos)
+RUN python3.12 -m pip install --break-system-packages black
+RUN python3.12 -m pip install --break-system-packages pyright
+RUN python3.12 -m pip install --break-system-packages pipenv
+RUN python3.12 -m pip install --break-system-packages pandoc
+RUN python3.12 -m pip install --break-system-packages kubernetes
+RUN python3.12 -m pip install --break-system-packages fastmcp
+RUN python3.12 -m pip install --break-system-packages httpx
+RUN python3.12 -m pip install --break-system-packages requests
+RUN python3.12 -m pip install --break-system-packages google-api-python-client
+RUN python3.12 -m pip install --break-system-packages google-auth-oauthlib
+
 # =============================================================================
 # Delayed agent installation — versions >= QUARANTINE_DAYS old
 # =============================================================================

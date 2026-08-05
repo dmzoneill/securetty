@@ -5,6 +5,18 @@
 SECURETTY_IMAGE="${SECURETTY_IMAGE:-securetty_dev}"
 SECURETTY_DIR="${SECURETTY_DIR:-{{ securetty_dir }}}"
 
+_securetty_patch_dns() {
+    local conf="/run/user/$(id -u)/containers/networks/aardvark-dns/{{ securetty_network_name }}"
+    [ -f "$conf" ] || return 0
+    if grep -q '8.8.8.8,8.8.4.4' "$conf" 2>/dev/null; then
+        sed -i 's/8.8.8.8,8.8.4.4/169.254.1.1/g' "$conf"
+        sed -i 's/169.254.1.1,169.254.1.1/169.254.1.1/g' "$conf"
+        local pid
+        pid=$(cat "/run/user/$(id -u)/containers/networks/aardvark-dns/aardvark.pid" 2>/dev/null)
+        [ -n "$pid" ] && kill -HUP "$pid" 2>/dev/null
+    fi
+}
+
 _securetty_run() {
     local agent="$1"
     shift
@@ -76,6 +88,9 @@ ENVEOF
         printf '%s\n' "${_SECURETTY_EXTRA_ENVLINES[@]}" >> "$envfile"
     fi
 
+    # Patch aardvark DNS after container registers (background, silent)
+    { sleep 1 && _securetty_patch_dns; } &>/dev/null & disown
+
     {{ securetty_podman_cmd }} run --rm -it \
         --env-file "$envfile" \
         --network {{ securetty_network_name }} \
@@ -99,6 +114,7 @@ ENVEOF
         -v "{{ securetty_home }}/.ssh/config:{{ securetty_home }}/.ssh/config:ro" \
         -v "{{ securetty_home }}/.ssh/known_hosts:{{ securetty_home }}/.ssh/known_hosts:ro" \
         -v "{{ securetty_home }}/.claude.json:{{ securetty_home }}/.claude.json" \
+        -v "{{ securetty_home }}/.mcp.json:{{ securetty_home }}/.mcp.json:ro" \
 {% for dir in securetty_agent_config_dirs %}
         -v "{{ securetty_home }}/{{ dir }}:{{ securetty_home }}/{{ dir }}" \
 {% endfor %}

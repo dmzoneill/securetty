@@ -12,11 +12,6 @@ RUN dnf group install -y development-tools \
     && dnf clean all \
     && rm -rf /var/cache/dnf
 
-# pip-only tools (not in Fedora repos)
-{% for tool in securetty_pip_tools %}
-RUN python3.12 -m pip install --break-system-packages {{ tool }}
-{% endfor %}
-
 # Verify Node >= 22 (required by Codex CLI, Cline)
 RUN node_ver=$(node -v | sed 's/v//' | cut -d. -f1) \
     && if [ "$node_ver" -lt 22 ]; then \

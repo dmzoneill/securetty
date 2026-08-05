@@ -8,16 +8,9 @@ FROM localhost/securetty_base:latest
 # Development Tools group + all system packages
 RUN dnf group install -y development-tools \
     && dnf install -y --setopt=install_weak_deps=False \
-        pulseaudio-utils lsof util-linux glib2 openssh-clients gsettings-desktop-schemas gettext make xdg-utils ansible-core mutter-devkit gjs tar hostname findutils ncat mesa-dri-drivers git-core iputils sqlite dbus-tools nmap-ncat pciutils python3-devel ImageMagick dbus-daemon python3-flake8 podman-remote yamllint unzip socat sshpass ffmpeg dnf-plugins-core awscli2 python3-ansible-lint iproute golang glib2-devel net-tools python3-pytest tree git python3 gcc mesa-libEGL dconf bind-utils xz gnome-extensions-app which ruff python3-pip gnupg2 sound-theme-freedesktop rpm-build gnome-shell pipewire-pulseaudio libxml2 skopeo man-db g++ gh sassc python3-lxml glab nmap \
+        hostname net-tools python3 awscli2 gettext pulseaudio-utils util-linux python3-pytest python3-ansible-lint yamllint xdg-utils mutter-devkit glib2 g++ gh skopeo dconf unzip sassc findutils dbus-tools tar rpm-build gcc gjs tree python3-lxml gnome-shell gnome-extensions-app sshpass ruff dnf-plugins-core socat iproute pciutils glab python3-pip ImageMagick ffmpeg git-core pipewire-pulseaudio gsettings-desktop-schemas sqlite golang podman-remote python3-devel xz nmap-ncat nmap libxml2 which glib2-devel iputils python3-flake8 git man-db lsof dbus-daemon ncat mesa-libEGL bind-utils mesa-dri-drivers sound-theme-freedesktop gnupg2 openssh-clients make ansible-core \
     && dnf clean all \
     && rm -rf /var/cache/dnf
-
-# pip-only tools (not in Fedora repos)
-RUN python3.12 -m pip install --break-system-packages black
-RUN python3.12 -m pip install --break-system-packages pyright
-RUN python3.12 -m pip install --break-system-packages pipenv
-RUN python3.12 -m pip install --break-system-packages pandoc
-RUN python3.12 -m pip install --break-system-packages kubernetes
 
 # Verify Node >= 22 (required by Codex CLI, Cline)
 RUN node_ver=$(node -v | sed 's/v//' | cut -d. -f1) \

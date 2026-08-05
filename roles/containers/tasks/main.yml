@@ -185,11 +185,23 @@
   tags:
     - build
 
+- name: Build dev image only
+  ansible.builtin.shell: |
+    cd {{ securetty_dir }}
+    {{ securetty_compose_cmd }} build dev
+  when: >
+    (securetty_dev_only | default(false) | bool)
+    and (images_exist.stdout == "missing" or (securetty_force_rebuild | default(false) | bool))
+  tags:
+    - build
+
 - name: Build all service images
   ansible.builtin.shell: |
     cd {{ securetty_dir }}
     {{ securetty_compose_cmd }} build
-  when: images_exist.stdout == "missing" or (securetty_force_rebuild | default(false) | bool)
+  when: >
+    (not (securetty_dev_only | default(false) | bool))
+    and (images_exist.stdout == "missing" or (securetty_force_rebuild | default(false) | bool))
   tags:
     - build
 

@@ -364,6 +364,11 @@ securetty_pip_tools:
   - pipenv
   - pandoc
   - kubernetes
+  - fastmcp
+  - httpx
+  - requests
+  - google-api-python-client
+  - google-auth-oauthlib
 
 # =============================================================================
 # Migration targets

@@ -44,6 +44,7 @@ services:
 
       # Claude config
       - {{ securetty_home }}/.claude.json:{{ securetty_home }}/.claude.json
+      - {{ securetty_home }}/.mcp.json:{{ securetty_home }}/.mcp.json:ro
 
       # Downloads
       - {{ securetty_home }}/Downloads:{{ securetty_home }}/Downloads
