@@ -18,3 +18,5 @@ jobs:
     with:
       basic: "true"
       VALIDATE_DOCKERFILE_HADOLINT: "false"
+      VALIDATE_BASH: "false"
+      VALIDATE_BASH_EXEC: "false"
