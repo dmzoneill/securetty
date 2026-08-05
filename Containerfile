@@ -78,6 +78,7 @@ RUN mkdir -p \
     /home/${USERNAME}/.amp \
     /home/${USERNAME}/.config/kilo \
     /home/${USERNAME}/.aider \
+    /home/${USERNAME}/.kimi \
     /home/${USERNAME}/.config/gcloud \
     /home/${USERNAME}/.local/bin \
     && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME} /workspace

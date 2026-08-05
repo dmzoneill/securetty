@@ -125,7 +125,6 @@ securetty_npm_agents:
   - "@anthropic-ai/claude-code"
   - "@openai/codex"
   - "@google/gemini-cli"
-  - "@cursor/cli"
   - cline
   - opencode-ai
   - "@ampcode/cli"
@@ -265,6 +264,7 @@ securetty_agent_config_dirs:
   - .amp
   - .config/kilo
   - .aider
+  - .kimi
   - .config/gcloud
 
 # =============================================================================

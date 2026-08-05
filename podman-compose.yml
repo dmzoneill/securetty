@@ -44,6 +44,7 @@ services:
 
       # Claude config
       - /home/daoneill/.claude.json:/home/daoneill/.claude.json
+      - /home/daoneill/.mcp.json:/home/daoneill/.mcp.json:ro
 
       # Downloads
       - /home/daoneill/Downloads:/home/daoneill/Downloads
@@ -71,6 +72,7 @@ services:
       - /home/daoneill/.amp:/home/daoneill/.amp
       - /home/daoneill/.config/kilo:/home/daoneill/.config/kilo
       - /home/daoneill/.aider:/home/daoneill/.aider
+      - /home/daoneill/.kimi:/home/daoneill/.kimi
       - /home/daoneill/.config/gcloud:/home/daoneill/.config/gcloud
 
       # --- xdg-open relay socket (URLs sent to host browser) ---

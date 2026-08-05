@@ -241,6 +241,29 @@
   tags:
     - up
 
+# 11b. Verify all agent binaries exist in dev image
+- name: Verify agent binaries in dev image
+  ansible.builtin.shell: |
+    MISSING=""
+    for bin in claude codex gemini cline opencode amp kilo aider openhands goose grok forge kiro-cli pi-ai kimi jcode; do
+      {{ securetty_podman_cmd }} run --rm securetty_dev which $bin >/dev/null 2>&1 || MISSING="$MISSING $bin"
+    done
+    if [ -n "$MISSING" ]; then
+      echo "WARNING: Missing agents:$MISSING"
+    else
+      echo "All agents verified"
+    fi
+  register: agent_verify
+  changed_when: false
+  tags:
+    - build
+
+- name: Show agent verification
+  ansible.builtin.debug:
+    msg: "{{ agent_verify.stdout }}"
+  tags:
+    - build
+
 # 12. Stop existing containers
 - name: Stop existing containers
   ansible.builtin.shell: |

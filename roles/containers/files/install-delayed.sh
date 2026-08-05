@@ -134,6 +134,35 @@ done
 echo ""
 echo "=== Binary agents (GitHub release >= ${QUARANTINE_DAYS}d old) ==="
 
+_rescue_binary() {
+    local name="$1"
+    # Already a real file (not symlink to missing target)?
+    [ -x "/usr/local/bin/$name" ] && [ ! -L "/usr/local/bin/$name" ] && return 0
+    # If symlink, resolve and copy actual binary
+    if [ -L "/usr/local/bin/$name" ]; then
+        local target
+        target=$(readlink -f "/usr/local/bin/$name" 2>/dev/null)
+        if [ -f "$target" ]; then
+            rm -f "/usr/local/bin/$name"
+            cp "$target" "/usr/local/bin/$name"
+            chmod +x "/usr/local/bin/$name"
+            echo "  resolved symlink $name from $target"
+            return 0
+        fi
+    fi
+    # Search common install locations
+    local found
+    found=$(find /root/.local/bin /root/.grok /root/.jcode /home -maxdepth 6 -name "$name" -type f ! -path '*/node_modules/*' 2>/dev/null | head -1)
+    if [ -n "$found" ]; then
+        cp "$(readlink -f "$found")" "/usr/local/bin/$name"
+        chmod +x "/usr/local/bin/$name"
+        echo "  rescued $name from $found"
+    else
+        echo "  WARN: $name not found anywhere after install"
+    fi
+}
+export -f _rescue_binary
+
 install_github_binary() {
     local name="$1" repo="$2" install_cmd="$3"
     echo ""
@@ -170,19 +199,23 @@ install_github_binary() {
 
 # Goose
 install_github_binary "goose" "block/goose" \
-    "curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | GOOSE_BIN=/usr/local/bin bash"
+    "curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh > /tmp/goose-install.sh && GOOSE_BIN=/usr/local/bin bash /tmp/goose-install.sh 2>/dev/null; rm -f /tmp/goose-install.sh; _rescue_binary goose"
 
 # Grok Build
 install_github_binary "grok-build" "xai-org/grok-build" \
-    "curl -fsSL https://x.ai/cli/install.sh | bash && ([ -f /root/.local/bin/grok ] && mv /root/.local/bin/grok /usr/local/bin/grok || true)"
+    "curl -fsSL https://x.ai/cli/install.sh > /tmp/grok-install.sh && bash /tmp/grok-install.sh 2>/dev/null; rm -f /tmp/grok-install.sh; _rescue_binary grok"
 
 # Forge
 install_github_binary "forge" "anthropics/claude-code" \
-    "curl -fsSL https://forgecode.dev/cli | sh && ([ -f /root/.local/bin/forge ] && mv /root/.local/bin/forge /usr/local/bin/forge || true)"
+    "curl -fsSL https://forgecode.dev/cli > /tmp/forge-install.sh && sh /tmp/forge-install.sh 2>/dev/null; rm -f /tmp/forge-install.sh; _rescue_binary forge"
 
 # Kiro CLI
 install_github_binary "kiro-cli" "aws/amazon-q-developer-cli" \
-    "curl -fsSL https://cli.kiro.dev/install | bash && ([ -f /root/.local/bin/kiro-cli ] && mv /root/.local/bin/kiro-cli /usr/local/bin/kiro-cli || true)"
+    "curl -fsSL https://cli.kiro.dev/install > /tmp/kiro-install.sh && bash /tmp/kiro-install.sh 2>/dev/null; rm -f /tmp/kiro-install.sh; _rescue_binary kiro-cli"
+
+# JCode
+install_github_binary "jcode" "1jehuang/jcode" \
+    "curl -fsSL https://raw.githubusercontent.com/1jehuang/jcode/master/scripts/install.sh > /tmp/jcode-install.sh && bash /tmp/jcode-install.sh 2>/dev/null; rm -f /tmp/jcode-install.sh; _rescue_binary jcode"
 
 # =============================================================================
 # Final manifest
