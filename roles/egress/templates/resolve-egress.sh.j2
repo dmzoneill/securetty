@@ -13,8 +13,17 @@ DOMAINS=(
 {% raw %}
 IPS=""
 for domain in "${DOMAINS[@]}"; do
+    # Resolve the base domain
     resolved=$(dig +short "$domain" A 2>/dev/null | grep -E '^[0-9]+\.' || true)
     IPS+=" $resolved"
+
+    # For wildcard-origin domains, also resolve common service subdomains
+    # This catches CDN/cloud providers that use different IPs per subdomain
+    for prefix in www api oauth2 accounts storage; do
+        sub="${prefix}.${domain}"
+        resolved=$(dig +short "$sub" A 2>/dev/null | grep -E '^[0-9]+\.' || true)
+        IPS+=" $resolved"
+    done
 done
 
 UNIQUE=$(echo "$IPS" | tr ' ' '\n' | sort -u | grep -v '^$' || true)
@@ -28,6 +37,15 @@ $NETNS_CMD nft flush set inet securetty_egress allowed_ipv4 2>/dev/null || true
 for ip in $UNIQUE; do
     $NETNS_CMD nft add element inet securetty_egress allowed_ipv4 "{ $ip }" 2>/dev/null || true
 done
+{% endraw %}
 
-echo "Loaded $COUNT IPs into securetty_egress allowed_ipv4 set"
+# Add known cloud provider CIDR ranges that wildcard domains resolve to
+# Google Cloud / googleapis (Vertex AI, OAuth, storage)
+{% for cidr in securetty_allowed_cidrs | default([]) %}
+$NETNS_CMD nft add element inet securetty_egress allowed_ipv4 "{ {{ cidr }} }" 2>/dev/null || true
+{% endfor %}
+
+{% raw %}
+FINAL=$($NETNS_CMD nft list set inet securetty_egress allowed_ipv4 2>/dev/null | grep -c 'elements' || echo "0")
+echo "Loaded $COUNT IPs + CIDRs into securetty_egress allowed_ipv4 set"
 {% endraw %}

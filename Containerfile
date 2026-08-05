@@ -5,6 +5,10 @@ ARG GID=1000
 ARG USERNAME=daoneill
 ARG QUARANTINE_DAYS=7
 
+# Red Hat internal CA (for gitlab.cee.redhat.com etc.)
+COPY devbase/redhatter-ca.crt /etc/pki/ca-trust/source/anchors/redhatter-ca.crt
+RUN update-ca-trust
+
 # =============================================================================
 # Delayed agent installation — versions >= QUARANTINE_DAYS old
 # =============================================================================

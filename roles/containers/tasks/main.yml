@@ -80,6 +80,20 @@
     - install.sh
     - xdg-open
     - open-relay-host.sh
+    - headroom-entrypoint.sh
+
+- name: Copy Red Hat CA to devbase build dir
+  ansible.builtin.copy:
+    src: /etc/pki/ca-trust/extracted/pem/directory-hash/Red_Hat_IT_Root_CA.pem
+    dest: "{{ securetty_dir }}/devbase/redhatter-ca.crt"
+    mode: "0644"
+    remote_src: true
+
+- name: Copy headroom entrypoint to build dir
+  ansible.builtin.copy:
+    src: headroom-entrypoint.sh
+    dest: "{{ securetty_dir }}/headroom/entrypoint.sh"
+    mode: "0755"
 
 # 6. Copy omniroute install.sh
 - name: Copy omniroute install.sh

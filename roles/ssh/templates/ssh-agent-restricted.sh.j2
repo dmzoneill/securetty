@@ -6,27 +6,30 @@ set -euo pipefail
 
 SOCKET_PATH="/run/user/$(id -u)/securetty-ssh-agent.sock"
 PID_FILE="/run/user/$(id -u)/securetty-ssh-agent.pid"
-KEY="$HOME/.ssh/{{ securetty_ssh_key }}"
+KEYS=(
+{% for key in securetty_ssh_keys %}
+    "$HOME/.ssh/{{ key }}"
+{% endfor %}
+)
 
 start() {
     # Kill existing if running
     stop 2>/dev/null || true
 
-    if [ ! -f "$KEY" ]; then
-        echo "[!] Key not found: $KEY"
-        exit 1
-    fi
-
     # Start dedicated agent with specific socket path
     eval "$(ssh-agent -a "$SOCKET_PATH")" >/dev/null
     echo "$SSH_AGENT_PID" > "$PID_FILE"
 
-    # Add only the one key
-    SSH_AUTH_SOCK="$SOCKET_PATH" ssh-add "$KEY" 2>/dev/null
+    # Add allowed keys
+    for KEY in "${KEYS[@]}"; do
+        if [ -f "$KEY" ]; then
+            SSH_AUTH_SOCK="$SOCKET_PATH" ssh-add "$KEY" 2>/dev/null
+            echo "    Key: $(ssh-keygen -lf "${KEY}.pub" 2>/dev/null | awk '{print $2, $3}')"
+        fi
+    done
 
     echo "[+] Restricted SSH agent started"
     echo "    Socket: $SOCKET_PATH"
-    echo "    Key: $(ssh-keygen -lf "${KEY}.pub" 2>/dev/null | awk '{print $2, $3}')"
     echo "    PID: $(cat "$PID_FILE")"
 }
 

@@ -9,6 +9,9 @@ securetty_dir: "{{ securetty_home }}/src/securetty"
 securetty_fedora_version: 45
 securetty_quarantine_days: 7
 securetty_ssh_key: dmzoneill-2024
+securetty_ssh_keys:
+  - dmzoneill-2024
+  - id_ecdsa
 securetty_podman_cmd: "podman"
 securetty_compose_cmd: "podman-compose"
 
@@ -17,6 +20,27 @@ securetty_network_name: "securetty"
 securetty_subnet: "10.89.100.0/24"
 securetty_gateway: "10.89.100.1"
 securetty_bridge_interface: "securetty0"
+
+# CIDR ranges for cloud providers with wildcard domains
+# Google Cloud / googleapis (Vertex AI, OAuth, storage, aiplatform)
+securetty_allowed_cidrs:
+  - "142.250.0.0/15"
+  - "142.251.0.0/16"
+  - "172.217.0.0/16"
+  - "172.253.0.0/16"
+  - "216.58.0.0/16"
+  - "74.125.0.0/16"
+  - "173.194.0.0/16"
+  - "64.233.160.0/19"
+  - "66.102.0.0/20"
+  - "108.177.0.0/17"
+  - "209.85.128.0/17"
+  - "35.190.0.0/16"
+  - "35.191.0.0/16"
+  # AWS (for amazonaws.com services — Kiro, GitLab ELB)
+  - "3.0.0.0/8"
+  - "52.0.0.0/8"
+  - "54.0.0.0/8"
 
 # =============================================================================
 # API keys (pass paths)

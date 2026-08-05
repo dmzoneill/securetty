@@ -14,9 +14,12 @@ RUN groupadd -g {{ securetty_uid }} headroom \
     && useradd -u {{ securetty_uid }} -g {{ securetty_gid }} -m -s /bin/bash headroom \
     && mkdir -p /data && chown headroom:headroom /data
 
+COPY entrypoint.sh /usr/local/bin/headroom-entrypoint.sh
+RUN chmod +x /usr/local/bin/headroom-entrypoint.sh
+
 USER headroom
 WORKDIR /data
 
-EXPOSE 8787
+EXPOSE 8787 8788
 
-CMD ["headroom", "proxy", "--host", "0.0.0.0", "--port", "8787"]
+CMD ["/usr/local/bin/headroom-entrypoint.sh"]
