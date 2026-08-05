@@ -12,6 +12,12 @@ securetty_ssh_key: dmzoneill-2024
 securetty_podman_cmd: "podman"
 securetty_compose_cmd: "podman-compose"
 
+# Network
+securetty_network_name: "securetty"
+securetty_subnet: "10.89.100.0/24"
+securetty_gateway: "10.89.100.1"
+securetty_bridge_interface: "securetty0"
+
 # =============================================================================
 # API keys (pass paths)
 # =============================================================================
@@ -28,9 +34,11 @@ securetty_pass_keys:
   - { var: OMNIROUTE_API_KEY, path: "omniroute.ai/key" }
   - { var: OMNIROUTE_INITIAL_PASSWORD, path: "omniroute.ai/dashboard-password" }
   - { var: CLOUDFLARE_AI_TOKEN, path: "cloudflare.com/key-claude" }
+  - { var: GITLAB_TOKEN, path: "redhat.com/gitlab-notifier" }
 
 securetty_key_aliases:
   - { var: OPENAI_API_KEY, source: AI_API_KEY }
+  - { var: GITLAB_API_TOKEN, source: GITLAB_TOKEN }
 
 securetty_vertex_vars:
   - CLAUDE_CODE_USE_VERTEX

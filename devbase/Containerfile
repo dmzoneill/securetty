@@ -1,0 +1,26 @@
+FROM localhost/securetty_base:latest
+
+# =============================================================================
+# securetty devbase — system packages + dev tools (cached intermediate layer)
+# Rarely changes. Rebuild only when adding/removing system packages.
+# =============================================================================
+
+# Development Tools group + all system packages
+RUN dnf group install -y development-tools \
+    && dnf install -y --setopt=install_weak_deps=False \
+        util-linux pipewire-pulseaudio ansible-core yamllint unzip gnome-extensions-app glib2-devel gh hostname sqlite gnome-shell socat gsettings-desktop-schemas python3 xz dconf findutils podman-remote xdg-utils openssh-clients nmap dbus-daemon which libxml2 ImageMagick python3-ansible-lint mutter-devkit sound-theme-freedesktop glib2 net-tools make mesa-libEGL glab python3-pytest python3-devel pulseaudio-utils mesa-dri-drivers awscli2 dbus-tools python3-pip nmap-ncat python3-lxml sassc pciutils gjs python3-flake8 g++ iproute dnf-plugins-core ncat tree rpm-build ruff gnupg2 lsof git skopeo bind-utils iputils golang gcc sshpass ffmpeg gettext tar man-db git-core \
+    && dnf clean all \
+    && rm -rf /var/cache/dnf
+
+# pip-only tools (not in Fedora repos)
+RUN python3.12 -m pip install --break-system-packages black
+RUN python3.12 -m pip install --break-system-packages pyright
+RUN python3.12 -m pip install --break-system-packages pipenv
+RUN python3.12 -m pip install --break-system-packages pandoc
+RUN python3.12 -m pip install --break-system-packages kubernetes
+
+# Verify Node >= 22 (required by Codex CLI, Cline)
+RUN node_ver=$(node -v | sed 's/v//' | cut -d. -f1) \
+    && if [ "$node_ver" -lt 22 ]; then \
+         echo "ERROR: Node $node_ver < 22, Codex/Cline require 22+"; exit 1; \
+       fi

@@ -81,7 +81,9 @@ VERTEX_VARS=(
         OMNIROUTE_API_KEY
         OMNIROUTE_INITIAL_PASSWORD
         CLOUDFLARE_AI_TOKEN
+        GITLAB_TOKEN
         OPENAI_API_KEY
+        GITLAB_API_TOKEN
     )
 
 
@@ -145,7 +147,9 @@ ENV_DIR="$(dirname "$ENV_FILE")"
     grep -E '^OMNIROUTE_API_KEY=' "$ENV_FILE" 2>/dev/null || true
     grep -E '^OMNIROUTE_INITIAL_PASSWORD=' "$ENV_FILE" 2>/dev/null || true
     grep -E '^CLOUDFLARE_AI_TOKEN=' "$ENV_FILE" 2>/dev/null || true
+    grep -E '^GITLAB_TOKEN=' "$ENV_FILE" 2>/dev/null || true
     grep -E '^OPENAI_API_KEY=' "$ENV_FILE" 2>/dev/null || true
+    grep -E '^GITLAB_API_TOKEN=' "$ENV_FILE" 2>/dev/null || true
     grep -E '^STORAGE_ENCRYPTION_KEY=' "$ENV_FILE" 2>/dev/null || true
     grep -E '^(CLAUDE_CODE_USE_VERTEX|ANTHROPIC_VERTEX_PROJECT_ID|GOOGLE_CLOUD_PROJECT|GOOGLE_CLOUD_LOCATION)=' "$ENV_FILE" 2>/dev/null || true
     echo "OLLAMA_HOST=http://ollama:11434"

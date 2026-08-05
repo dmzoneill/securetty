@@ -1,0 +1,64 @@
+---
+# egress role — nftables egress whitelist in rootless-netns
+# Network created by containers role (must exist before compose up)
+
+# 1. Template nftables loader script
+- name: Template nftables loader script
+  ansible.builtin.template:
+    src: securetty-egress.nft.j2
+    dest: "{{ securetty_dir }}/scripts/securetty-egress.sh"
+    mode: "0755"
+  tags:
+    - egress
+
+# 2. Template domain resolver script
+- name: Template egress resolver script
+  ansible.builtin.template:
+    src: resolve-egress.sh.j2
+    dest: "{{ securetty_dir }}/scripts/resolve-egress.sh"
+    mode: "0755"
+  tags:
+    - egress
+
+# 3. Load nftables ruleset into persistent rootless-netns
+- name: Load nftables egress rules
+  ansible.builtin.shell: |
+    {{ securetty_podman_cmd }} unshare nsenter \
+      --net=/run/user/{{ securetty_uid }}/containers/networks/rootless-netns/rootless-netns \
+      bash {{ securetty_dir }}/scripts/securetty-egress.sh
+  tags:
+    - egress
+
+# 4. Resolve domains and populate IP set
+- name: Resolve allowed domains to IPs
+  ansible.builtin.shell: |
+    bash {{ securetty_dir }}/scripts/resolve-egress.sh
+  register: resolve_result
+  changed_when: true
+  tags:
+    - egress
+
+- name: Show resolver results
+  ansible.builtin.debug:
+    msg: "{{ resolve_result.stdout_lines | default([]) }}"
+  tags:
+    - egress
+
+# 5. Fix aardvark DNS — netavark hardcodes 8.8.8.8 for rootless,
+#    replace with pasta forwarder (169.254.1.1) so VPN split DNS works
+- name: Patch aardvark DNS to use host resolver
+  ansible.builtin.shell: |
+    CONF="/run/user/{{ securetty_uid }}/containers/networks/aardvark-dns/{{ securetty_network_name }}"
+    if [ -f "$CONF" ]; then
+      sed -i 's/8.8.8.8,8.8.4.4/169.254.1.1/g' "$CONF"
+      sed -i 's/169.254.1.1,169.254.1.1/169.254.1.1/g' "$CONF"
+      AARDVARK_PID=$(cat /run/user/{{ securetty_uid }}/containers/networks/aardvark-dns/aardvark.pid 2>/dev/null)
+      kill -HUP $AARDVARK_PID 2>/dev/null || true
+      echo "Patched aardvark DNS to use host resolver via pasta"
+    else
+      echo "Aardvark config not found — containers not running?"
+    fi
+  changed_when: true
+  tags:
+    - egress
+    - up

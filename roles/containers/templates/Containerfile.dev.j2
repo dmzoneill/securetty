@@ -1,27 +1,9 @@
-FROM localhost/securetty_base:latest
+FROM localhost/securetty_devbase:latest
 
 ARG UID={{ securetty_uid }}
 ARG GID={{ securetty_gid }}
 ARG USERNAME={{ securetty_user }}
 ARG QUARANTINE_DAYS={{ securetty_quarantine_days }}
-
-# System packages (base image already has nodejs, npm, python3.12, curl, jq, uv)
-RUN dnf group install -y "Development Tools" \
-    && dnf install -y --setopt=install_weak_deps=False \
-        {{ securetty_dnf_packages | difference(['nodejs', 'npm', 'python3.12', 'python3.12-devel', 'curl', 'jq', 'procps-ng']) | join(' ') }} \
-    && dnf clean all \
-    && rm -rf /var/cache/dnf
-
-# pip-only tools (not in Fedora repos)
-{% for tool in securetty_pip_tools %}
-RUN python3.12 -m pip install --break-system-packages {{ tool }}
-{% endfor %}
-
-# Verify Node >= 22 (required by Codex CLI, Cline)
-RUN node_ver=$(node -v | sed 's/v//' | cut -d. -f1) \
-    && if [ "$node_ver" -lt 22 ]; then \
-         echo "ERROR: Node $node_ver < 22, Codex/Cline require 22+"; exit 1; \
-       fi
 
 # =============================================================================
 # Delayed agent installation — versions >= QUARANTINE_DAYS old
@@ -70,6 +52,9 @@ RUN mkdir -p \
 {% endfor %}
     /home/${USERNAME}/.local/bin \
     && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME} /workspace
+
+# Container-specific machine-id (don't leak host identity)
+RUN rm -f /etc/machine-id && dbus-uuidgen > /etc/machine-id
 
 # No-op stubs for hooks that reference host-only scripts
 RUN touch /home/${USERNAME}/.local/bin/claude-post-commit-hook.sh \

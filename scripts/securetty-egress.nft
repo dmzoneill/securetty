@@ -1,0 +1,31 @@
+table inet securetty_egress {
+    set allowed_ipv4 {
+        type ipv4_addr
+        flags interval
+    }
+
+    chain forward {
+        type filter hook forward priority -1; policy accept;
+
+        # Only filter traffic from securetty subnet
+        ip saddr != 10.89.100.0/24 accept
+
+        # Allow inter-container
+        ip saddr 10.89.100.0/24 ip daddr 10.89.100.0/24 accept
+
+        # Allow DNS to gateway
+        ip saddr 10.89.100.0/24 ip daddr 10.89.100.1 meta l4proto { tcp, udp } th dport 53 accept
+
+        # Allow VPN subnet (NetBird/WireGuard CGNAT range)
+        ip saddr 10.89.100.0/24 ip daddr 100.64.0.0/10 accept
+
+        # Allow resolved destinations
+        ip saddr 10.89.100.0/24 ip daddr @allowed_ipv4 accept
+
+        # Allow established/related
+        ip saddr 10.89.100.0/24 ct state established,related accept
+
+        # Drop everything else from securetty
+        ip saddr 10.89.100.0/24 counter drop
+    }
+}

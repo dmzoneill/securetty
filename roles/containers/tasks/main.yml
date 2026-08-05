@@ -9,6 +9,7 @@
     mode: "0755"
   loop:
     - base
+    - devbase
     - omniroute
     - headroom
     - cloudcli
@@ -22,6 +23,13 @@
     dest: "{{ securetty_dir }}/base/Containerfile"
     mode: "0644"
   register: base_containerfile
+
+- name: Template devbase Containerfile
+  ansible.builtin.template:
+    src: Containerfile.devbase.j2
+    dest: "{{ securetty_dir }}/devbase/Containerfile"
+    mode: "0644"
+  register: devbase_containerfile
 
 - name: Template dev Containerfile
   ansible.builtin.template:
@@ -130,9 +138,28 @@
     cd {{ securetty_dir }}
     {{ securetty_podman_cmd }} build -t securetty_base -f base/Containerfile base/
   when: >
-    base_image_exists.stdout == "missing"
-    or (base_containerfile is changed)
-    or (securetty_force_rebuild | default(false) | bool)
+    (not (securetty_skip_devbase | default(false) | bool))
+    and (base_image_exists.stdout == "missing"
+         or (securetty_force_rebuild | default(false) | bool))
+  tags:
+    - build
+
+- name: Check if devbase image needs rebuilding
+  ansible.builtin.shell: |
+    {{ securetty_podman_cmd }} image exists securetty_devbase 2>/dev/null && echo "exists" || echo "missing"
+  register: devbase_image_exists
+  changed_when: false
+  tags:
+    - build
+
+- name: Build devbase image
+  ansible.builtin.shell: |
+    cd {{ securetty_dir }}
+    {{ securetty_podman_cmd }} build -t securetty_devbase -f devbase/Containerfile devbase/
+  when: >
+    (not (securetty_skip_devbase | default(false) | bool))
+    and (devbase_image_exists.stdout == "missing"
+         or (securetty_force_rebuild | default(false) | bool))
   tags:
     - build
 
@@ -174,7 +201,21 @@
   args:
     creates: /run/user/{{ securetty_uid }}/securetty-open.sock
 
-# 11. Stop existing containers
+# 11. Create securetty network (must exist before compose up)
+- name: Create securetty network
+  ansible.builtin.shell: |
+    {{ securetty_podman_cmd }} network create {{ securetty_network_name }} \
+      --driver bridge \
+      --subnet {{ securetty_subnet }} \
+      --gateway {{ securetty_gateway }} \
+      --interface-name {{ securetty_bridge_interface }} \
+      --dns 169.254.1.1 \
+      --ignore
+  changed_when: false
+  tags:
+    - up
+
+# 12. Stop existing containers
 - name: Stop existing containers
   ansible.builtin.shell: |
     cd {{ securetty_dir }}

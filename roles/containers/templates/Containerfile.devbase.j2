@@ -1,0 +1,24 @@
+FROM localhost/securetty_base:latest
+
+# =============================================================================
+# securetty devbase — system packages + dev tools (cached intermediate layer)
+# Rarely changes. Rebuild only when adding/removing system packages.
+# =============================================================================
+
+# Development Tools group + all system packages
+RUN dnf group install -y development-tools \
+    && dnf install -y --setopt=install_weak_deps=False \
+        {{ securetty_dnf_packages | difference(['nodejs', 'npm', 'python3.12', 'python3.12-devel', 'curl', 'jq', 'procps-ng']) | join(' ') }} \
+    && dnf clean all \
+    && rm -rf /var/cache/dnf
+
+# pip-only tools (not in Fedora repos)
+{% for tool in securetty_pip_tools %}
+RUN python3.12 -m pip install --break-system-packages {{ tool }}
+{% endfor %}
+
+# Verify Node >= 22 (required by Codex CLI, Cline)
+RUN node_ver=$(node -v | sed 's/v//' | cut -d. -f1) \
+    && if [ "$node_ver" -lt 22 ]; then \
+         echo "ERROR: Node $node_ver < 22, Codex/Cline require 22+"; exit 1; \
+       fi

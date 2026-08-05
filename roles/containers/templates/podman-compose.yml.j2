@@ -18,6 +18,7 @@ services:
     security_opt:
       - no-new-privileges:true
       - label=disable
+      - "mask=/proc/mounts:/proc/self/mounts:/proc/self/mountinfo:/proc/cmdline:/proc/partitions:/proc/diskstats:/proc/version:/sys/class/dmi"
 
     # GPU access for mutter/gnome-shell devkit
     devices:
@@ -53,14 +54,6 @@ services:
 
       # Pipenv virtualenvs
       - {{ securetty_home }}/.local/share/virtualenvs:{{ securetty_home }}/.local/share/virtualenvs
-
-      # Legacy workspace
-      - ./workspace:/workspace:Z
-
-      # Package installs in named volumes — never touch host
-      - node_modules:/workspace/node_modules
-      - pip_cache:{{ securetty_home }}/.cache/pip
-      - venv:/workspace/.venv
 
       # AI agent config dirs — full mount for persistence
 {% for dir in securetty_agent_config_dirs %}
@@ -324,22 +317,11 @@ services:
       start_period: 15s
 
 volumes:
-  node_modules:
-  pip_cache:
-  venv:
   securetty-npm-cache:
   securetty-pip-cache:
   securetty-uv-cache:
   securetty-cargo-cache:
   securetty-go-cache:
-  claude_cache:
-  claude_debug:
-  claude_downloads:
-  amp_config:
-  kilo_config:
-  aider_config:
-  grok_state:
-  forge_state:
   omniroute_data:
   headroom_data:
   cloudcli_data:
@@ -347,4 +329,5 @@ volumes:
 
 networks:
   securetty_net:
-    driver: bridge
+    external: true
+    name: {{ securetty_network_name }}

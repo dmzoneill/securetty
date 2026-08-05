@@ -18,6 +18,7 @@ services:
     security_opt:
       - no-new-privileges:true
       - label=disable
+      - "mask=/proc/mounts:/proc/self/mounts:/proc/self/mountinfo:/proc/cmdline:/proc/partitions:/proc/diskstats:/proc/version:/sys/class/dmi"
 
     # GPU access for mutter/gnome-shell devkit
     devices:
@@ -44,20 +45,15 @@ services:
       # Claude config
       - /home/daoneill/.claude.json:/home/daoneill/.claude.json
 
+      # Downloads
+      - /home/daoneill/Downloads:/home/daoneill/Downloads
+
       # Audio (PipeWire/PulseAudio for notification sounds)
       - /run/user/1000/pipewire-0:/run/user/1000/pipewire-0
       - /run/user/1000/pulse:/run/user/1000/pulse
 
       # Pipenv virtualenvs
       - /home/daoneill/.local/share/virtualenvs:/home/daoneill/.local/share/virtualenvs
-
-      # Legacy workspace
-      - ./workspace:/workspace:Z
-
-      # Package installs in named volumes — never touch host
-      - node_modules:/workspace/node_modules
-      - pip_cache:/home/daoneill/.cache/pip
-      - venv:/workspace/.venv
 
       # AI agent config dirs — full mount for persistence
       - /home/daoneill/.claude:/home/daoneill/.claude
@@ -334,22 +330,11 @@ services:
       start_period: 15s
 
 volumes:
-  node_modules:
-  pip_cache:
-  venv:
   securetty-npm-cache:
   securetty-pip-cache:
   securetty-uv-cache:
   securetty-cargo-cache:
   securetty-go-cache:
-  claude_cache:
-  claude_debug:
-  claude_downloads:
-  amp_config:
-  kilo_config:
-  aider_config:
-  grok_state:
-  forge_state:
   omniroute_data:
   headroom_data:
   cloudcli_data:
@@ -357,4 +342,5 @@ volumes:
 
 networks:
   securetty_net:
-    driver: bridge
+    external: true
+    name: securetty

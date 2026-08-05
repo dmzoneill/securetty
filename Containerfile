@@ -1,28 +1,9 @@
-FROM localhost/securetty_base:latest
+FROM localhost/securetty_devbase:latest
 
 ARG UID=1000
 ARG GID=1000
 ARG USERNAME=daoneill
 ARG QUARANTINE_DAYS=7
-
-# System packages (base image already has nodejs, npm, python3.12, curl, jq, uv)
-RUN dnf install -y --setopt=install_weak_deps=False \
-        python3-flake8 util-linux which glib2-devel sound-theme-freedesktop podman-remote sqlite dbus-daemon git mesa-dri-drivers sshpass gjs ncat rpm-build ansible-core lsof gnupg2 mesa-libEGL dnf-plugins-core pulseaudio-utils make xz net-tools openssh-clients mutter-devkit glib2 dconf yamllint gsettings-desktop-schemas ffmpeg bind-utils nmap g++ gnome-extensions-app skopeo iproute gh gettext gcc gnome-shell ruff libxml2 golang python3-pip python3-ansible-lint dbus-tools pciutils tar nmap-ncat unzip python3-devel glab sassc pipewire-pulseaudio socat iputils git-core hostname python3-lxml awscli2 man-db ImageMagick python3 python3-pytest xdg-utils findutils tree \
-    && dnf clean all \
-    && rm -rf /var/cache/dnf
-
-# pip-only tools (not in Fedora repos)
-RUN python3.12 -m pip install --break-system-packages black
-RUN python3.12 -m pip install --break-system-packages pyright
-RUN python3.12 -m pip install --break-system-packages pipenv
-RUN python3.12 -m pip install --break-system-packages pandoc
-RUN python3.12 -m pip install --break-system-packages kubernetes
-
-# Verify Node >= 22 (required by Codex CLI, Cline)
-RUN node_ver=$(node -v | sed 's/v//' | cut -d. -f1) \
-    && if [ "$node_ver" -lt 22 ]; then \
-         echo "ERROR: Node $node_ver < 22, Codex/Cline require 22+"; exit 1; \
-       fi
 
 # =============================================================================
 # Delayed agent installation — versions >= QUARANTINE_DAYS old
@@ -84,6 +65,9 @@ RUN mkdir -p \
     /home/${USERNAME}/.config/gcloud \
     /home/${USERNAME}/.local/bin \
     && chown -R ${USERNAME}:${USERNAME} /home/${USERNAME} /workspace
+
+# Container-specific machine-id (don't leak host identity)
+RUN rm -f /etc/machine-id && dbus-uuidgen > /etc/machine-id
 
 # No-op stubs for hooks that reference host-only scripts
 RUN touch /home/${USERNAME}/.local/bin/claude-post-commit-hook.sh \

@@ -15,7 +15,7 @@ _securetty_run() {
     # Generate fresh .env from host environment + config files
     bash "$SECURETTY_DIR/scripts/generate-env.sh" "$SECURETTY_DIR/.env" 2>/dev/null
 
-    # Source generated .env so podman run picks up the values
+    # Source generated .env so values are available
     set -a
     source "$SECURETTY_DIR/.env" 2>/dev/null || true
     set +a
@@ -40,8 +40,42 @@ _securetty_run() {
         sleep 0.3
     fi
 
+    # Write env vars to temp file (not visible in ps aux)
+    local envfile
+    envfile=$(mktemp /run/user/$(id -u)/securetty-env.XXXXXX)
+    chmod 0600 "$envfile"
+    trap "rm -f '$envfile'" EXIT
+
+    cat > "$envfile" <<ENVEOF
+HOME={{ securetty_home }}
+USER={{ securetty_user }}
+SSH_AUTH_SOCK=/run/ssh-agent.sock
+GPG_AGENT_INFO=/run/gpg-agent.sock
+XDG_RUNTIME_DIR=/run/user/$(id -u)
+NODE_ENV=development
+npm_config_ignore_scripts=true
+{% for key in securetty_pass_keys %}
+{{ key.var }}={% raw %}${{% endraw %}{{ key.var }}{% raw %}:-}{% endraw %}
+
+{% endfor %}
+{% for alias in securetty_key_aliases %}
+{{ alias.var }}={% raw %}${{% endraw %}{{ alias.source }}{% raw %}:-}{% endraw %}
+
+{% endfor %}
+OMNIROUTE_BASE_URL=http://securetty-omniroute:4000
+HEADROOM_URL=http://securetty-headroom:8787
+OLLAMA_HOST=http://securetty-ollama:11434
+CLOUDCLI_URL=http://securetty-cloudcli:3001
+ENVEOF
+
+    # Append mode-specific env vars (work/personal)
+    if [ -n "${_SECURETTY_EXTRA_ENVLINES+x}" ]; then
+        printf '%s\n' "${_SECURETTY_EXTRA_ENVLINES[@]}" >> "$envfile"
+    fi
+
     {{ securetty_podman_cmd }} run --rm -it \
-        ${_SECURETTY_EXTRA_ENV[@]+"${_SECURETTY_EXTRA_ENV[@]}"} \
+        --env-file "$envfile" \
+        --network {{ securetty_network_name }} \
         --name "securetty-${agent}-$$" \
         --hostname "securetty-${agent}" \
         --user "$(id -u):$(id -g)" \
@@ -50,6 +84,7 @@ _securetty_run() {
         --cap-add SYS_NICE \
         --security-opt no-new-privileges:true \
         --security-opt label=disable \
+        --security-opt "mask=/proc/mounts:/proc/self/mounts:/proc/self/mountinfo:/proc/cmdline:/proc/partitions:/proc/diskstats:/proc/version:/sys/class/dmi" \
         --read-only \
         --device /dev/dri \
         \
@@ -84,40 +119,25 @@ _securetty_run() {
         --tmpfs {{ securetty_home }}/.cache/mesa_shader_cache:size=128M \
         \
         -w "${_SECURETTY_WORKDIR:-$(pwd)}" \
-        -e HOME={{ securetty_home }} \
-        -e USER={{ securetty_user }} \
-        -e SSH_AUTH_SOCK=/run/ssh-agent.sock \
-        -e GPG_AGENT_INFO=/run/gpg-agent.sock \
-        -e XDG_RUNTIME_DIR=/run/user/$(id -u) \
-        -e NODE_ENV=development \
-        -e npm_config_ignore_scripts=true \
-{% for key in securetty_pass_keys %}
-        -e "{{ key.var }}={% raw %}${{% endraw %}{{ key.var }}{% raw %}:-}{% endraw %}" \
-{% endfor %}
-{% for alias in securetty_key_aliases %}
-        -e "{{ alias.var }}={% raw %}${{% endraw %}{{ alias.source }}{% raw %}:-}{% endraw %}" \
-{% endfor %}
-        -e "OMNIROUTE_BASE_URL=http://securetty-omniroute:4000" \
-        -e "HEADROOM_URL=http://securetty-headroom:8787" \
-        -e "OLLAMA_HOST=http://securetty-ollama:11434" \
-        -e "CLOUDCLI_URL=http://securetty-cloudcli:3001" \
         \
         "$SECURETTY_IMAGE" \
         "$agent" "$@"
+
+    rm -f "$envfile"
 }
 
 # Work mode: Vertex for Claude/Gemini
 _securetty_run_work() {
     local agent="$1"
     shift
-    _SECURETTY_EXTRA_ENV=(
-        -e "CLAUDE_CODE_USE_VERTEX=1"
-        -e "ANTHROPIC_VERTEX_PROJECT_ID=${ANTHROPIC_VERTEX_PROJECT_ID:-}"
-        -e "GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT:-}"
-        -e "GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-}"
-        -e "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1"
-        -e "ANTHROPIC_BASE_URL="
-        -e "GOOGLE_APPLICATION_CREDENTIALS={{ securetty_home }}/.config/gcloud/application_default_credentials.json"
+    _SECURETTY_EXTRA_ENVLINES=(
+        "CLAUDE_CODE_USE_VERTEX=1"
+        "ANTHROPIC_VERTEX_PROJECT_ID=${ANTHROPIC_VERTEX_PROJECT_ID:-}"
+        "GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT:-}"
+        "GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-}"
+        "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1"
+        "ANTHROPIC_BASE_URL="
+        "GOOGLE_APPLICATION_CREDENTIALS={{ securetty_home }}/.config/gcloud/application_default_credentials.json"
     )
     _securetty_run "$agent" "$@"
 }
@@ -127,15 +147,15 @@ _securetty_run_personal() {
     local agent="$1"
     shift
     local omni_key="${OMNIROUTE_API_KEY:-}"
-    _SECURETTY_EXTRA_ENV=(
-        -e "CLAUDE_CODE_USE_VERTEX="
-        -e "ANTHROPIC_BASE_URL=http://securetty-omniroute:4000"
-        -e "ANTHROPIC_API_KEY=${omni_key}"
-        -e "OPENAI_BASE_URL=http://securetty-omniroute:4000/v1"
-        -e "OPENAI_API_KEY=${omni_key}"
-        -e "GEMINI_API_KEY="
-        -e "GOOGLE_API_KEY=${omni_key}"
-        -e "OPENAI_API_BASE=http://securetty-omniroute:4000/v1"
+    _SECURETTY_EXTRA_ENVLINES=(
+        "CLAUDE_CODE_USE_VERTEX="
+        "ANTHROPIC_BASE_URL=http://securetty-omniroute:4000"
+        "ANTHROPIC_API_KEY=${omni_key}"
+        "OPENAI_BASE_URL=http://securetty-omniroute:4000/v1"
+        "OPENAI_API_KEY=${omni_key}"
+        "GEMINI_API_KEY="
+        "GOOGLE_API_KEY=${omni_key}"
+        "OPENAI_API_BASE=http://securetty-omniroute:4000/v1"
     )
     _securetty_run "$agent" "$@"
 }

@@ -1,4 +1,4 @@
-.PHONY: setup build up env aliases omniroute ollama scan migrate down nuke status help
+.PHONY: setup build rebuild rebuild-agents up env aliases egress omniroute ollama scan migrate down nuke status help
 
 help:
 	@echo "securetty — sandboxed AI development environment (Ansible)"
@@ -6,9 +6,11 @@ help:
 	@echo "Setup:"
 	@echo "  make setup          Full setup (build, configure, aliases)"
 	@echo "  make build          Build container images only"
+	@echo "  make rebuild-agents Rebuild dev+services only (skip base/devbase)"
 	@echo "  make up             Start services only"
 	@echo "  make env            Regenerate .env files"
 	@echo "  make aliases        Install shell aliases"
+	@echo "  make egress         Load egress whitelist rules"
 	@echo "  make omniroute      Configure omniroute providers"
 	@echo "  make ollama         Pull ollama models"
 	@echo ""
@@ -30,6 +32,9 @@ build:
 rebuild:
 	ansible-playbook site.yml --tags prereqs,build -e securetty_force_rebuild=true
 
+rebuild-agents:
+	ansible-playbook site.yml --tags prereqs,build -e securetty_force_rebuild=true -e securetty_skip_devbase=true
+
 up:
 	ansible-playbook site.yml --tags prereqs,up
 
@@ -38,6 +43,9 @@ env:
 
 aliases:
 	ansible-playbook site.yml --tags prereqs,aliases
+
+egress:
+	ansible-playbook site.yml --tags prereqs,egress
 
 omniroute:
 	ansible-playbook site.yml --tags prereqs,omniroute

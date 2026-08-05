@@ -1,0 +1,33 @@
+#!/bin/bash
+# Resolve securetty allowed domains to IPs and load into nftables set.
+set -euo pipefail
+
+NETNS_CMD="{{ securetty_podman_cmd }} unshare nsenter --net=/run/user/{{ securetty_uid }}/containers/networks/rootless-netns/rootless-netns"
+
+DOMAINS=(
+{% for domain in securetty_allowed_domains %}
+    "{{ domain | regex_replace('^\*\.', '') }}"
+{% endfor %}
+)
+
+{% raw %}
+IPS=""
+for domain in "${DOMAINS[@]}"; do
+    resolved=$(dig +short "$domain" A 2>/dev/null | grep -E '^[0-9]+\.' || true)
+    IPS+=" $resolved"
+done
+
+UNIQUE=$(echo "$IPS" | tr ' ' '\n' | sort -u | grep -v '^$' || true)
+COUNT=$(echo "$UNIQUE" | grep -c . || true)
+
+echo "Resolved $COUNT IPs from ${#DOMAINS[@]} domains"
+
+# Flush and repopulate the set
+$NETNS_CMD nft flush set inet securetty_egress allowed_ipv4 2>/dev/null || true
+
+for ip in $UNIQUE; do
+    $NETNS_CMD nft add element inet securetty_egress allowed_ipv4 "{ $ip }" 2>/dev/null || true
+done
+
+echo "Loaded $COUNT IPs into securetty_egress allowed_ipv4 set"
+{% endraw %}
