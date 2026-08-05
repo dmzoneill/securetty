@@ -55,6 +55,9 @@ DOMAINS=(
     "ollama.ai"
     "atlassian.net"
     "atlassian.com"
+    "slack.com"
+    "enterprise.slack.com"
+    "feeditout.com"
     "stripe.com"
 )
 
@@ -101,9 +104,13 @@ $NETNS_CMD nft add element inet securetty_egress allowed_ipv4 "{ 108.177.0.0/17 
 $NETNS_CMD nft add element inet securetty_egress allowed_ipv4 "{ 209.85.128.0/17 }" 2>/dev/null || true
 $NETNS_CMD nft add element inet securetty_egress allowed_ipv4 "{ 35.190.0.0/16 }" 2>/dev/null || true
 $NETNS_CMD nft add element inet securetty_egress allowed_ipv4 "{ 35.191.0.0/16 }" 2>/dev/null || true
+$NETNS_CMD nft add element inet securetty_egress allowed_ipv4 "{ 140.82.112.0/20 }" 2>/dev/null || true
+$NETNS_CMD nft add element inet securetty_egress allowed_ipv4 "{ 192.30.252.0/22 }" 2>/dev/null || true
+$NETNS_CMD nft add element inet securetty_egress allowed_ipv4 "{ 185.199.108.0/22 }" 2>/dev/null || true
 $NETNS_CMD nft add element inet securetty_egress allowed_ipv4 "{ 3.0.0.0/8 }" 2>/dev/null || true
 $NETNS_CMD nft add element inet securetty_egress allowed_ipv4 "{ 52.0.0.0/8 }" 2>/dev/null || true
 $NETNS_CMD nft add element inet securetty_egress allowed_ipv4 "{ 54.0.0.0/8 }" 2>/dev/null || true
+$NETNS_CMD nft add element inet securetty_egress allowed_ipv4 "{ 18.0.0.0/8 }" 2>/dev/null || true
 
 
 FINAL=$($NETNS_CMD nft list set inet securetty_egress allowed_ipv4 2>/dev/null | grep -c 'elements' || echo "0")

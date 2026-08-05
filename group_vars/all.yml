@@ -37,10 +37,15 @@ securetty_allowed_cidrs:
   - "209.85.128.0/17"
   - "35.190.0.0/16"
   - "35.191.0.0/16"
+  # GitHub
+  - "140.82.112.0/20"
+  - "192.30.252.0/22"
+  - "185.199.108.0/22"
   # AWS (for amazonaws.com services — Kiro, GitLab ELB)
   - "3.0.0.0/8"
   - "52.0.0.0/8"
   - "54.0.0.0/8"
+  - "18.0.0.0/8"
 
 # =============================================================================
 # API keys (pass paths)
@@ -59,10 +64,38 @@ securetty_pass_keys:
   - { var: OMNIROUTE_INITIAL_PASSWORD, path: "omniroute.ai/dashboard-password" }
   - { var: CLOUDFLARE_AI_TOKEN, path: "cloudflare.com/key-claude" }
   - { var: GITLAB_TOKEN, path: "redhat.com/gitlab-notifier" }
+  - { var: JIRA_JPAT, path: "redhat.com/jira-ticket-closer" }
+  - { var: JIRA_URL, path: "bashrc.d/jira-url" }
+  - { var: JIRA_PROJECT_KEY, path: "bashrc.d/jira-project-key" }
+  - { var: JIRA_BOARD_ID, path: "bashrc.d/jira-board-id" }
+  - { var: JIRA_EMAIL, path: "bashrc.d/jira-email" }
+  - { var: JIRA_COMPONENT_NAME, path: "bashrc.d/jira-component" }
+  - { var: SLACK_HOST, path: "bashrc.d/slack-host" }
+  - { var: WORDPRESS_URL, path: "bashrc.d/wordpress-url" }
+  - { var: WORDPRESS_USERNAME, path: "bashrc.d/wordpress-username" }
+  - { var: WORDPRESS_PASSWORD, path: "feeditout.com/dave" }
+  - { var: WORDPRESS_APPLICATION, path: "feeditout.com/wp-application" }
 
 securetty_key_aliases:
   - { var: OPENAI_API_KEY, source: AI_API_KEY }
   - { var: GITLAB_API_TOKEN, source: GITLAB_TOKEN }
+  - { var: JIRA_AI_API_KEY, source: AI_API_KEY }
+
+# Static env vars (not secrets — hardcoded config values)
+securetty_static_env:
+  JIRA_EPIC_FIELD: "customfield_10014"
+  JIRA_EPIC_NAME_FIELD: "customfield_10011"
+  JIRA_STORY_POINTS_FIELD: "customfield_10028"
+  JIRA_SPRINT_FIELD: "customfield_10020"
+  JIRA_ACCEPTANCE_CRITERIA_FIELD: "customfield_10718"
+  JIRA_BLOCKED_FIELD: "customfield_10517"
+  JIRA_BLOCKED_REASON_FIELD: "customfield_10483"
+  JIRA_WORKSTREAM_FIELD: "customfield_10681"
+  JIRA_WORKSTREAM_VALUE: "Cloud Automation Analytics"
+  JIRA_PRIORITY: "Normal"
+  JIRA_AFFECTS_VERSION: "aa-latest"
+  JIRA_AI_PROVIDER: "vertex"
+  JIRA_AI_MODEL: "claude-sonnet-4-6@20250514"
 
 securetty_vertex_vars:
   - CLAUDE_CODE_USE_VERTEX
@@ -204,6 +237,11 @@ securetty_allowed_domains:
   # Jira
   - "*.atlassian.net"
   - "*.atlassian.com"
+  # Slack
+  - "*.slack.com"
+  - "*.enterprise.slack.com"
+  # WordPress
+  - "*.feeditout.com"
   # Stripe (Kiro billing)
   - "*.stripe.com"
 

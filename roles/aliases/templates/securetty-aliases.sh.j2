@@ -62,6 +62,9 @@ npm_config_ignore_scripts=true
 {{ alias.var }}={% raw %}${{% endraw %}{{ alias.source }}{% raw %}:-}{% endraw %}
 
 {% endfor %}
+{% for key, val in securetty_static_env.items() %}
+{{ key }}={{ val }}
+{% endfor %}
 OMNIROUTE_BASE_URL=http://securetty-omniroute:4000
 HEADROOM_URL=http://securetty-headroom:8787
 OLLAMA_HOST=http://securetty-ollama:11434

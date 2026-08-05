@@ -91,6 +91,19 @@ VERTEX_VARS=(
     done
 {% endraw %}
 
+    # Static env vars (hardcoded config, not secrets)
+{% for key, val in securetty_static_env.items() %}
+    echo "{{ key }}={{ val }}"
+{% endfor %}
+
+    # Slack credentials (extracted fresh from Chrome on host)
+    SLACK_CREDS_SCRIPT="{{ securetty_home }}/src/agent-mcp-skills/slack/get-slack-creds"
+    if [ -x "$SLACK_CREDS_SCRIPT" ]; then
+        eval "$($SLACK_CREDS_SCRIPT --quiet 2>/dev/null)" 2>/dev/null || true
+        [ -n "${SLACK_XOXC_TOKEN:-}" ] && echo "SLACK_XOXC_TOKEN=${SLACK_XOXC_TOKEN}" && found=$((found + 1))
+        [ -n "${SLACK_D_COOKIE:-}" ] && echo "SLACK_D_COOKIE=${SLACK_D_COOKIE}" && found=$((found + 1))
+    fi
+
     # Omniroute config file keys
     sek=$(get_config_key "{{ securetty_home }}/.omniroute/.env" STORAGE_ENCRYPTION_KEY)
 {% raw %}

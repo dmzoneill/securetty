@@ -82,8 +82,20 @@ VERTEX_VARS=(
         OMNIROUTE_INITIAL_PASSWORD
         CLOUDFLARE_AI_TOKEN
         GITLAB_TOKEN
+        JIRA_JPAT
+        JIRA_URL
+        JIRA_PROJECT_KEY
+        JIRA_BOARD_ID
+        JIRA_EMAIL
+        JIRA_COMPONENT_NAME
+        SLACK_HOST
+        WORDPRESS_URL
+        WORDPRESS_USERNAME
+        WORDPRESS_PASSWORD
+        WORDPRESS_APPLICATION
         OPENAI_API_KEY
         GITLAB_API_TOKEN
+        JIRA_AI_API_KEY
     )
 
 
@@ -95,6 +107,29 @@ VERTEX_VARS=(
         echo "${key}=${val}"
         [ -n "$val" ] && found=$((found + 1))
     done
+
+    # Static env vars (hardcoded config, not secrets)
+    echo "JIRA_EPIC_FIELD=customfield_10014"
+    echo "JIRA_EPIC_NAME_FIELD=customfield_10011"
+    echo "JIRA_STORY_POINTS_FIELD=customfield_10028"
+    echo "JIRA_SPRINT_FIELD=customfield_10020"
+    echo "JIRA_ACCEPTANCE_CRITERIA_FIELD=customfield_10718"
+    echo "JIRA_BLOCKED_FIELD=customfield_10517"
+    echo "JIRA_BLOCKED_REASON_FIELD=customfield_10483"
+    echo "JIRA_WORKSTREAM_FIELD=customfield_10681"
+    echo "JIRA_WORKSTREAM_VALUE=Cloud Automation Analytics"
+    echo "JIRA_PRIORITY=Normal"
+    echo "JIRA_AFFECTS_VERSION=aa-latest"
+    echo "JIRA_AI_PROVIDER=vertex"
+    echo "JIRA_AI_MODEL=claude-sonnet-4-6@20250514"
+
+    # Slack credentials (extracted fresh from Chrome on host)
+    SLACK_CREDS_SCRIPT="/home/daoneill/src/agent-mcp-skills/slack/get-slack-creds"
+    if [ -x "$SLACK_CREDS_SCRIPT" ]; then
+        eval "$($SLACK_CREDS_SCRIPT --quiet 2>/dev/null)" 2>/dev/null || true
+        [ -n "${SLACK_XOXC_TOKEN:-}" ] && echo "SLACK_XOXC_TOKEN=${SLACK_XOXC_TOKEN}" && found=$((found + 1))
+        [ -n "${SLACK_D_COOKIE:-}" ] && echo "SLACK_D_COOKIE=${SLACK_D_COOKIE}" && found=$((found + 1))
+    fi
 
     # Omniroute config file keys
     sek=$(get_config_key "/home/daoneill/.omniroute/.env" STORAGE_ENCRYPTION_KEY)
@@ -148,8 +183,20 @@ ENV_DIR="$(dirname "$ENV_FILE")"
     grep -E '^OMNIROUTE_INITIAL_PASSWORD=' "$ENV_FILE" 2>/dev/null || true
     grep -E '^CLOUDFLARE_AI_TOKEN=' "$ENV_FILE" 2>/dev/null || true
     grep -E '^GITLAB_TOKEN=' "$ENV_FILE" 2>/dev/null || true
+    grep -E '^JIRA_JPAT=' "$ENV_FILE" 2>/dev/null || true
+    grep -E '^JIRA_URL=' "$ENV_FILE" 2>/dev/null || true
+    grep -E '^JIRA_PROJECT_KEY=' "$ENV_FILE" 2>/dev/null || true
+    grep -E '^JIRA_BOARD_ID=' "$ENV_FILE" 2>/dev/null || true
+    grep -E '^JIRA_EMAIL=' "$ENV_FILE" 2>/dev/null || true
+    grep -E '^JIRA_COMPONENT_NAME=' "$ENV_FILE" 2>/dev/null || true
+    grep -E '^SLACK_HOST=' "$ENV_FILE" 2>/dev/null || true
+    grep -E '^WORDPRESS_URL=' "$ENV_FILE" 2>/dev/null || true
+    grep -E '^WORDPRESS_USERNAME=' "$ENV_FILE" 2>/dev/null || true
+    grep -E '^WORDPRESS_PASSWORD=' "$ENV_FILE" 2>/dev/null || true
+    grep -E '^WORDPRESS_APPLICATION=' "$ENV_FILE" 2>/dev/null || true
     grep -E '^OPENAI_API_KEY=' "$ENV_FILE" 2>/dev/null || true
     grep -E '^GITLAB_API_TOKEN=' "$ENV_FILE" 2>/dev/null || true
+    grep -E '^JIRA_AI_API_KEY=' "$ENV_FILE" 2>/dev/null || true
     grep -E '^STORAGE_ENCRYPTION_KEY=' "$ENV_FILE" 2>/dev/null || true
     grep -E '^(CLAUDE_CODE_USE_VERTEX|ANTHROPIC_VERTEX_PROJECT_ID|GOOGLE_CLOUD_PROJECT|GOOGLE_CLOUD_LOCATION)=' "$ENV_FILE" 2>/dev/null || true
     echo "OLLAMA_HOST=http://ollama:11434"
