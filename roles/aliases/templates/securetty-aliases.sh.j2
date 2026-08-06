@@ -5,6 +5,21 @@
 SECURETTY_IMAGE="${SECURETTY_IMAGE:-securetty_dev}"
 SECURETTY_DIR="${SECURETTY_DIR:-{{ securetty_dir }}}"
 
+_securetty_ensure_egress() {
+    local netns="/run/user/$(id -u)/containers/networks/rootless-netns/rootless-netns"
+    [ -e "$netns" ] || return 0
+    local has_table
+    has_table=$({{ securetty_podman_cmd }} unshare nsenter --net="$netns" nft list tables 2>/dev/null | grep -c securetty_egress)
+    if [ "$has_table" -eq 0 ]; then
+        local egress_script="$SECURETTY_DIR/scripts/securetty-egress.sh"
+        local resolve_script="$SECURETTY_DIR/scripts/resolve-egress.sh"
+        if [ -x "$egress_script" ]; then
+            {{ securetty_podman_cmd }} unshare nsenter --net="$netns" bash "$egress_script" 2>/dev/null
+            [ -x "$resolve_script" ] && bash "$resolve_script" 2>/dev/null
+        fi
+    fi
+}
+
 _securetty_patch_dns() {
     local conf="/run/user/$(id -u)/containers/networks/aardvark-dns/{{ securetty_network_name }}"
     [ -f "$conf" ] || return 0
@@ -87,7 +102,8 @@ ENVEOF
         printf '%s\n' "${_SECURETTY_EXTRA_ENVLINES[@]}" >> "$envfile"
     fi
 
-    # Patch aardvark DNS: before launch (fix existing entries) + after register (fix new entry)
+    # Ensure egress rules + DNS patch are active
+    _securetty_ensure_egress 2>/dev/null
     _securetty_patch_dns 2>/dev/null
     { sleep 2 && _securetty_patch_dns; } &>/dev/null & disown
 
