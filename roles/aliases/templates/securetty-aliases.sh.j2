@@ -113,6 +113,7 @@ ENVEOF
         --security-opt label=disable \
         --security-opt "mask=/proc/mounts:/proc/self/mounts:/proc/self/mountinfo:/proc/cmdline:/proc/partitions:/proc/diskstats:/proc/version:/sys/class/dmi" \
         --read-only \
+        --pids-limit 4096 \
         \
         -v "{{ securetty_home }}/src:{{ securetty_home }}/src" \
         -v "{{ securetty_home }}/.gitconfig:{{ securetty_home }}/.gitconfig:ro" \
@@ -132,7 +133,8 @@ ENVEOF
         -v "{{ securetty_home }}/Downloads:{{ securetty_home }}/Downloads" \
         -v "{{ securetty_home }}/.local/bin:{{ securetty_home }}/.local/bin:ro" \
         -v "{{ securetty_home }}/.local/share/virtualenvs:{{ securetty_home }}/.local/share/virtualenvs" \
-        -v "/run/user/$(id -u):/run/user/$(id -u)" \
+        -v "/run/user/$(id -u)/pipewire-0:/run/user/$(id -u)/pipewire-0" \
+        -v "/run/user/$(id -u)/pulse:/run/user/$(id -u)/pulse" \
         \
         -v "${GPG_AGENT_EXTRA_SOCK:-/dev/null}:/run/gpg-agent.sock:ro" \
         -v "/run/user/$(id -u)/securetty-open.sock:/run/securetty-open.sock" \

@@ -20,6 +20,7 @@
       password: "{{ lookup('pipe', 'pass show omniroute.ai/dashboard-password') }}"
     status_code: 200
   register: omniroute_login
+  no_log: true
   tags:
     - omniroute
 

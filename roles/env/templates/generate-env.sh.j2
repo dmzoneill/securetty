@@ -18,16 +18,20 @@ ENV_FILE="${1:-$(dirname "$0")/../.env}"
     type load-secrets &>/dev/null && load-secrets 2>/dev/null
     # Export discovered vars so parent can read them
     env
-) > /tmp/.securetty-env-discovery 2>/dev/null || true
+{% endraw %}
+) > /run/user/{{ securetty_uid }}/securetty-env-discovery 2>/dev/null || true
 
+{% raw %}
 # Merge discovered vars into current env
 while IFS='=' read -r key val; do
     [ -z "$key" ] && continue
     [[ "$key" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || continue
     export "$key=$val" 2>/dev/null || true
-done < /tmp/.securetty-env-discovery
-rm -f /tmp/.securetty-env-discovery
+{% endraw %}
+done < /run/user/{{ securetty_uid }}/securetty-env-discovery
+rm -f /run/user/{{ securetty_uid }}/securetty-env-discovery
 
+{% raw %}
 # Fallback: grep profile files for export VAR=value
 grep_key() {
     local name="$1"
@@ -146,6 +150,7 @@ VERTEX_VARS=(
     done < <(env | grep '^CLAUDE' | sort)
 
 } > "$ENV_FILE"
+chmod 0600 "$ENV_FILE"
 
 # Generate per-service env files (least privilege -- each service gets only what it needs)
 ENV_DIR="$(dirname "$ENV_FILE")"
@@ -167,11 +172,13 @@ ENV_DIR="$(dirname "$ENV_FILE")"
     grep -E '^OMNIROUTE_INITIAL_PASSWORD=' "$ENV_FILE" 2>/dev/null || true
 {% raw %}
 } > "$ENV_DIR/.env.omniroute"
+chmod 0600 "$ENV_DIR/.env.omniroute"
 {% endraw %}
 
 # CloudCLI: Vertex/Anthropic config only
 grep -E '^({% for var in securetty_vertex_vars %}{{ var }}{% if not loop.last %}|{% endif %}{% endfor %})=' \
     "$ENV_FILE" > "$ENV_DIR/.env.cloudcli" 2>/dev/null || true
+chmod 0600 "$ENV_DIR/.env.cloudcli"
 
 # Dev container: gets everything (agents need various keys)
 # Uses the main .env file as-is

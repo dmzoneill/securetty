@@ -116,6 +116,8 @@ services:
       - OLLAMA_HOST=http://securetty-ollama:11434
       - CLOUDCLI_URL=http://securetty-cloudcli:3001
 
+    pids_limit: 4096
+
     deploy:
       resources:
         limits:
