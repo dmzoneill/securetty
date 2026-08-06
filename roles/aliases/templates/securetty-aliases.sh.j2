@@ -54,8 +54,7 @@ _securetty_run() {
 
     # Write env vars to temp file (not visible in ps aux)
     local envfile
-    envfile=$(mktemp /run/user/$(id -u)/securetty-env.XXXXXX)
-    chmod 0600 "$envfile"
+    envfile=$(umask 077; mktemp /run/user/$(id -u)/securetty-env.XXXXXX)
     trap "rm -f '$envfile'" EXIT
 
     cat > "$envfile" <<ENVEOF
