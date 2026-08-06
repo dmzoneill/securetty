@@ -105,19 +105,19 @@ for pkg in "${PIP_AGENTS[@]}"; do
     echo ""
     echo "--- pip: $pkg ---"
 
-    version=$(uv pip install --python python3.12 --dry-run --system --break-system-packages \
+    version=$(uv pip install --python python3.12 --dry-run --target /usr/local/lib/python3.12/site-packages \
         --exclude-newer "$CUTOFF_ISO" "$pkg" 2>&1 \
         | grep -oP "(?<=Would install )${pkg}-\K[^ ]+" || echo "")
 
     if [ -n "$version" ]; then
         echo "  installing $pkg==$version"
-        uv pip install --python python3.12 --system --break-system-packages \
+        uv pip install --python python3.12 --target /usr/local/lib/python3.12/site-packages \
             --exclude-newer "$CUTOFF_ISO" "$pkg" \
             || echo "  WARN: install failed"
         add_manifest "$pkg" "$version" "before-${CUTOFF_ISO}" "pip"
     else
         echo "  installing $pkg with --exclude-newer $CUTOFF_ISO"
-        uv pip install --python python3.12 --system --break-system-packages \
+        uv pip install --python python3.12 --target /usr/local/lib/python3.12/site-packages \
             --exclude-newer "$CUTOFF_ISO" "$pkg" \
             || echo "  WARN: install failed"
         installed_ver=$(pip3.12 show "$pkg" 2>/dev/null | grep -oP '(?<=Version: ).+' || echo "unknown")

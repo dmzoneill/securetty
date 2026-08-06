@@ -9,9 +9,9 @@ ARG QUARANTINE_DAYS={{ securetty_quarantine_days }}
 COPY devbase/redhatter-ca.crt /etc/pki/ca-trust/source/anchors/redhatter-ca.crt
 RUN update-ca-trust
 
-# pip-only tools (not in Fedora repos)
+# pip-only tools (not in Fedora repos) — isolated from system packages
 {% for tool in securetty_pip_tools %}
-RUN python3.12 -m pip install --break-system-packages {{ tool }}
+RUN python3.12 -m pip install --target /usr/local/lib/python3.12/site-packages {{ tool }}
 {% endfor %}
 
 # =============================================================================
