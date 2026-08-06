@@ -120,8 +120,31 @@ securetty_providers:
 # AI agents installed in container
 # =============================================================================
 
+# Agent packages (used by install-delayed.sh.j2 template)
+securetty_npm_agents:
+  - "@anthropic-ai/claude-code"
+  - "@openai/codex"
+  - "@google/gemini-cli"
+  - cline
+  - opencode-ai
+  - "@ampcode/cli"
+  - "@kilocode/cli"
+  - "@earendil-works/pi-ai"
+
+securetty_pip_agents:
+  - aider-chat
+  - openhands
+  - kimi-cli
+
+securetty_binary_agents:
+  - { name: goose, repo: "block/goose", url: "https://github.com/block/goose/releases/download/stable/download_cli.sh" }
+  - { name: grok, repo: "xai-org/grok-build", url: "https://x.ai/cli/install.sh" }
+  - { name: forge, repo: "anthropics/claude-code", url: "https://forgecode.dev/cli" }
+  - { name: kiro-cli, repo: "aws/amazon-q-developer-cli", url: "https://cli.kiro.dev/install" }
+  - { name: cursor, repo: "getcursor/cursor", url: "https://cursor.com/install" }
+  - { name: jcode, repo: "1jehuang/jcode", url: "https://raw.githubusercontent.com/1jehuang/jcode/master/scripts/install.sh" }
+
 # Agent aliases (personal + work modes)
-# Agent binaries are installed by install-delayed.sh (hardcoded there, not here)
 securetty_agents:
   - { name: claude, skip: "--dangerously-skip-permissions", short: c, work: true }
   - { name: codex, skip: "--dangerously-bypass-approvals-and-sandbox", short: cx, work: true }

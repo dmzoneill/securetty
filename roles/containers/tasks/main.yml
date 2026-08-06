@@ -76,11 +76,20 @@
     mode: "0755"
   loop:
     - entrypoint.sh
-    - install-delayed.sh
     - install.sh
     - xdg-open
     - open-relay-host.sh
     - headroom-entrypoint.sh
+  tags:
+    - build
+
+- name: Template install-delayed.sh
+  ansible.builtin.template:
+    src: install-delayed.sh.j2
+    dest: "{{ securetty_dir }}/scripts/install-delayed.sh"
+    mode: "0755"
+  tags:
+    - build
 
 - name: Copy Red Hat CA to devbase build dir
   ansible.builtin.copy:
@@ -88,12 +97,16 @@
     dest: "{{ securetty_dir }}/devbase/redhatter-ca.crt"
     mode: "0644"
     remote_src: true
+  tags:
+    - build
 
 - name: Copy headroom entrypoint to build dir
   ansible.builtin.copy:
     src: headroom-entrypoint.sh
     dest: "{{ securetty_dir }}/headroom/entrypoint.sh"
     mode: "0755"
+  tags:
+    - build
 
 - name: Template omniroute install.sh from source
   ansible.builtin.copy:
@@ -236,13 +249,13 @@
 - name: Verify agent binaries in dev image
   ansible.builtin.shell: |
     MISSING=""
-    for bin in claude codex gemini cline opencode amp kilo aider openhands goose grok forge kiro-cli pi-ai kimi jcode; do
+    for bin in {{ securetty_agents | map(attribute='name') | join(' ') }}; do
       {{ securetty_podman_cmd }} run --rm securetty_dev which $bin >/dev/null 2>&1 || MISSING="$MISSING $bin"
     done
     if [ -n "$MISSING" ]; then
       echo "WARNING: Missing agents:$MISSING"
     else
-      echo "All agents verified"
+      echo "All {{ securetty_agents | length }} agents verified"
     fi
   register: agent_verify
   changed_when: false
