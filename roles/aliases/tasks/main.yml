@@ -6,10 +6,10 @@
     mode: "0755"
     owner: "{{ securetty_user }}"
 
-- name: Symlink securetty to PATH
+- name: Symlink securetty to ~/bin
   ansible.builtin.file:
     src: "{{ securetty_dir }}/securetty"
-    dest: "{{ securetty_home }}/.local/bin/securetty"
+    dest: "{{ securetty_home }}/bin/securetty"
     state: link
     owner: "{{ securetty_user }}"
 
