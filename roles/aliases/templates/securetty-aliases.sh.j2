@@ -67,12 +67,17 @@ _securetty_run() {
         sleep 0.3
     fi
 
-    # Write env vars to temp file (not visible in ps aux)
+    # Build env file: start from generated .env, add runtime vars
     local envfile
     envfile=$(umask 077; mktemp /run/user/$(id -u)/securetty-env.XXXXXX)
     trap "rm -f '$envfile'" EXIT
 
-    cat > "$envfile" <<ENVEOF
+    # Base: all secrets + static vars from generate-env.sh
+    cp "$SECURETTY_DIR/.env" "$envfile"
+    chmod 0600 "$envfile"
+
+    # Runtime vars (not in .env)
+    cat >> "$envfile" <<ENVEOF
 HOME={{ securetty_home }}
 USER={{ securetty_user }}
 SSH_AUTH_SOCK=/run/ssh-agent.sock
@@ -80,17 +85,6 @@ GPG_AGENT_INFO=/run/gpg-agent.sock
 XDG_RUNTIME_DIR=/run/user/$(id -u)
 NODE_ENV=development
 npm_config_ignore_scripts=true
-{% for key in securetty_pass_keys %}
-{{ key.var }}={% raw %}${{% endraw %}{{ key.var }}{% raw %}:-}{% endraw %}
-
-{% endfor %}
-{% for alias in securetty_key_aliases %}
-{{ alias.var }}={% raw %}${{% endraw %}{{ alias.source }}{% raw %}:-}{% endraw %}
-
-{% endfor %}
-{% for key, val in securetty_static_env.items() %}
-{{ key }}={{ val }}
-{% endfor %}
 OMNIROUTE_BASE_URL=http://securetty-omniroute:4000
 HEADROOM_URL=http://securetty-headroom:8787
 OLLAMA_HOST=http://securetty-ollama:11434
