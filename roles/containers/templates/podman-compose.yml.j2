@@ -13,16 +13,10 @@ services:
     userns_mode: keep-id
     cap_drop:
       - ALL
-    cap_add:
-      - SYS_NICE        # mutter compositor scheduling
     security_opt:
       - no-new-privileges:true
       - label=disable
       - "mask=/proc/mounts:/proc/self/mounts:/proc/self/mountinfo:/proc/cmdline:/proc/partitions:/proc/diskstats:/proc/version:/sys/class/dmi"
-
-    # GPU access for mutter/gnome-shell devkit
-    devices:
-      - /dev/dri:/dev/dri
 
     # Read-only root filesystem — explicit writable mounts below
     read_only: true

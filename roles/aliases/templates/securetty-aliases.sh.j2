@@ -115,12 +115,10 @@ ENVEOF
         --user "$(id -u):$(id -g)" \
         --userns=keep-id \
         --cap-drop ALL \
-        --cap-add SYS_NICE \
         --security-opt no-new-privileges:true \
         --security-opt label=disable \
         --security-opt "mask=/proc/mounts:/proc/self/mounts:/proc/self/mountinfo:/proc/cmdline:/proc/partitions:/proc/diskstats:/proc/version:/sys/class/dmi" \
         --read-only \
-        --device /dev/dri \
         \
         -v "{{ securetty_home }}/src:{{ securetty_home }}/src" \
         -v "{{ securetty_home }}/.gitconfig:{{ securetty_home }}/.gitconfig:ro" \
