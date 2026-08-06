@@ -73,7 +73,7 @@ _securetty_run() {
     trap "rm -f '$envfile'" EXIT
 
     # Base: all secrets + static vars from generate-env.sh
-    cp "$SECURETTY_DIR/.env" "$envfile"
+    command cp -f "$SECURETTY_DIR/.env" "$envfile"
     chmod 0600 "$envfile"
 
     # Runtime vars (not in .env)
