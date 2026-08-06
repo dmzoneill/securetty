@@ -87,8 +87,9 @@ ENVEOF
         printf '%s\n' "${_SECURETTY_EXTRA_ENVLINES[@]}" >> "$envfile"
     fi
 
-    # Patch aardvark DNS after container registers (background, silent)
-    { sleep 1 && _securetty_patch_dns; } &>/dev/null & disown
+    # Patch aardvark DNS: before launch (fix existing entries) + after register (fix new entry)
+    _securetty_patch_dns 2>/dev/null
+    { sleep 2 && _securetty_patch_dns; } &>/dev/null & disown
 
     {{ securetty_podman_cmd }} run --rm -it \
         --env-file "$envfile" \
