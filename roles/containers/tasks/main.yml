@@ -95,15 +95,6 @@
     dest: "{{ securetty_dir }}/headroom/entrypoint.sh"
     mode: "0755"
 
-# 6. Copy omniroute install.sh
-- name: Copy omniroute install.sh
-  ansible.builtin.copy:
-    src: "{{ securetty_dir }}/omniroute/install.sh"
-    dest: "{{ securetty_dir }}/omniroute/install.sh"
-    mode: "0755"
-    remote_src: true
-  when: false  # Placeholder — omniroute/install.sh already exists at source
-
 - name: Template omniroute install.sh from source
   ansible.builtin.copy:
     content: |

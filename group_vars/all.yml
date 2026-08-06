@@ -25,7 +25,6 @@ securetty_bridge_interface: "securetty0"
 # Google Cloud / googleapis (Vertex AI, OAuth, storage, aiplatform)
 securetty_allowed_cidrs:
   - "142.250.0.0/15"
-  - "142.251.0.0/16"
   - "172.217.0.0/16"
   - "172.253.0.0/16"
   - "216.58.0.0/16"
@@ -121,29 +120,8 @@ securetty_providers:
 # AI agents installed in container
 # =============================================================================
 
-securetty_npm_agents:
-  - "@anthropic-ai/claude-code"
-  - "@openai/codex"
-  - "@google/gemini-cli"
-  - cline
-  - opencode-ai
-  - "@ampcode/cli"
-  - "@kilocode/cli"
-  - "@earendil-works/pi-ai"
-
-securetty_pip_agents:
-  - aider-chat
-  - openhands
-  - kimi-cli
-
-securetty_binary_agents:
-  - { name: goose, repo: "block/goose", install: "curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | GOOSE_BIN=/usr/local/bin bash" }
-  - { name: grok-build, repo: "xai-org/grok-build", install: "curl -fsSL https://x.ai/cli/install.sh | bash && ([ -f /root/.local/bin/grok ] && mv /root/.local/bin/grok /usr/local/bin/grok || true)" }
-  - { name: forge, repo: "anthropics/claude-code", install: "curl -fsSL https://forgecode.dev/cli | sh && ([ -f /root/.local/bin/forge ] && mv /root/.local/bin/forge /usr/local/bin/forge || true)" }
-  - { name: kiro-cli, repo: "aws/amazon-q-developer-cli", install: "curl -fsSL https://cli.kiro.dev/install | bash && ([ -f /root/.local/bin/kiro-cli ] && mv /root/.local/bin/kiro-cli /usr/local/bin/kiro-cli || true)" }
-  - { name: jcode, repo: "1jehuang/jcode", install: "curl -fsSL https://raw.githubusercontent.com/1jehuang/jcode/master/scripts/install.sh | bash" }
-
 # Agent aliases (personal + work modes)
+# Agent binaries are installed by install-delayed.sh (hardcoded there, not here)
 securetty_agents:
   - { name: claude, skip: "--dangerously-skip-permissions", short: c, work: true }
   - { name: codex, skip: "--dangerously-bypass-approvals-and-sandbox", short: cx, work: true }

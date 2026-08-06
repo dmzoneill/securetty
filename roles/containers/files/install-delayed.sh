@@ -213,6 +213,10 @@ install_github_binary "forge" "anthropics/claude-code" \
 install_github_binary "kiro-cli" "aws/amazon-q-developer-cli" \
     "curl -fsSL https://cli.kiro.dev/install > /tmp/kiro-install.sh && bash /tmp/kiro-install.sh 2>/dev/null; rm -f /tmp/kiro-install.sh; _rescue_binary kiro-cli"
 
+# Cursor CLI
+install_github_binary "cursor" "getcursor/cursor" \
+    "curl -fsSL https://cursor.com/install > /tmp/cursor-install.sh && bash /tmp/cursor-install.sh 2>/dev/null; rm -f /tmp/cursor-install.sh; _rescue_binary cursor"
+
 # JCode
 install_github_binary "jcode" "1jehuang/jcode" \
     "curl -fsSL https://raw.githubusercontent.com/1jehuang/jcode/master/scripts/install.sh > /tmp/jcode-install.sh && bash /tmp/jcode-install.sh 2>/dev/null; rm -f /tmp/jcode-install.sh; _rescue_binary jcode"

@@ -38,4 +38,3 @@ fi
 
 echo ""
 echo "=== Install complete ==="
-echo "To lock down network, exit and run: ./scripts/lockdown-network.sh"

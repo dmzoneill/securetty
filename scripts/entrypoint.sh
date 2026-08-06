@@ -46,16 +46,6 @@ show_banner() {
     [ -n "$oldest" ] && echo -e "\033[0;36msecuretty\033[0m | oldest: ${oldest} | newest: ${newest}" > /dev/tty
 }
 
-# Merge SSH configs: host config (mounted ro) + securetty proxy routing
-if [ -f "$HOME/.ssh/config.securetty" ]; then
-    # Prepend securetty proxy config so it takes priority
-    cat "$HOME/.ssh/config.securetty" > /tmp/ssh_config 2>/dev/null
-    [ -f "$HOME/.ssh/config" ] && cat "$HOME/.ssh/config" >> /tmp/ssh_config 2>/dev/null
-    cp /tmp/ssh_config "$HOME/.ssh/config" 2>/dev/null || true
-    rm -f /tmp/ssh_config
-    chmod 600 "$HOME/.ssh/config" 2>/dev/null || true
-fi
-
 # Only show banner when TTY attached
 if [ -t 0 ] && [ -e /dev/tty ]; then
     show_banner 2>/dev/null || true

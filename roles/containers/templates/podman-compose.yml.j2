@@ -106,25 +106,17 @@ services:
       - HOME={{ securetty_home }}
       - USER={{ securetty_user }}
       - XDG_RUNTIME_DIR=/run/user/{{ securetty_uid }}
-      - WAYLAND_DISPLAY=wayland-0
       - NODE_ENV=development
       - npm_config_ignore_scripts=true
-      - PIP_NO_CACHE_DIR=0
-      - VIRTUAL_ENV=/workspace/.venv
-      - PATH={{ securetty_home }}/bin:/workspace/.venv/bin:/workspace/node_modules/.bin:/usr/local/bin:/usr/bin:/bin
-      # Agent forwarding
+      - PATH={{ securetty_home }}/bin:/usr/local/bin:/usr/bin:/bin
       - SSH_AUTH_SOCK=/run/ssh-agent.sock
       - GPG_AGENT_INFO=/run/gpg-agent.sock
-      # API keys (from .env file or host env)
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - XAI_API_KEY=${XAI_API_KEY:-}
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
-      - COPILOT_TOKEN=${COPILOT_TOKEN:-}
-      - SOURCEGRAPH_ACCESS_TOKEN=${SOURCEGRAPH_ACCESS_TOKEN:-}
-      # Service endpoints (sibling containers)
       - OMNIROUTE_BASE_URL=http://securetty-omniroute:4000
       - HEADROOM_URL=http://securetty-headroom:8787
       - OLLAMA_HOST=http://securetty-ollama:11434
@@ -323,7 +315,6 @@ volumes:
   securetty-uv-cache:
   securetty-cargo-cache:
   securetty-go-cache:
-  omniroute_data:
   headroom_data:
   cloudcli_data:
   ollama_models:
