@@ -86,9 +86,9 @@ RUN mkdir -p \
 # Container-specific machine-id (don't leak host identity)
 RUN rm -f /etc/machine-id && dbus-uuidgen > /etc/machine-id
 
-# No-op stubs for hooks that reference host-only scripts
-RUN touch /home/${USERNAME}/.local/bin/claude-post-commit-hook.sh \
-    && chmod +x /home/${USERNAME}/.local/bin/claude-post-commit-hook.sh
+# Post-commit hook: DCO-compliant trailers with agent provenance
+COPY --chown=${USERNAME}:${USERNAME} scripts/claude-post-commit-hook.sh /home/${USERNAME}/.local/bin/claude-post-commit-hook.sh
+RUN chmod +x /home/${USERNAME}/.local/bin/claude-post-commit-hook.sh
 
 # Copy project install script
 COPY --chown=${USERNAME}:${USERNAME} scripts/install.sh /workspace/.securetty/install.sh
