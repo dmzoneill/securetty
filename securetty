@@ -1,0 +1,350 @@
+#!/bin/bash
+# Ansible managed
+# securetty — sandboxed AI development environment CLI
+set -euo pipefail
+
+SECURETTY_DIR="$(cd "$(dirname "$0")" && pwd)"
+SECURETTY_IMAGE="${SECURETTY_IMAGE:-securetty_dev}"
+
+# =============================================================================
+# Internal functions
+# =============================================================================
+
+_ensure_dirs() {
+    mkdir -p ~/.claude ~/.codex ~/.gemini ~/.cursor ~/.kiro ~/.cline ~/.config/opencode ~/.local/share/opencode ~/.openhands ~/.config/goose ~/.grok ~/.forge ~/.amp ~/.config/kilo ~/.aider ~/.kimi ~/.config/gcloud 2>/dev/null || true
+}
+
+_generate_env() {
+    bash "$SECURETTY_DIR/scripts/generate-env.sh" "$SECURETTY_DIR/.env" 2>/dev/null
+    set -a
+    source "$SECURETTY_DIR/.env" 2>/dev/null || true
+    set +a
+}
+
+_ensure_ssh_agent() {
+    if [ ! -S "/run/user/$(id -u)/securetty-ssh-agent.sock" ]; then
+        bash "$SECURETTY_DIR/scripts/ssh-agent-restricted.sh" start 2>/dev/null
+    fi
+}
+
+_ensure_services() {
+    if [ "$(podman inspect securetty-omniroute --format '{{.State.Running}}' 2>/dev/null)" != "true" ] || \
+       [ "$(podman inspect securetty-headroom --format '{{.State.Running}}' 2>/dev/null)" != "true" ]; then
+        echo "Starting services..."
+        (cd "$SECURETTY_DIR" && podman-compose up -d --no-build 2>/dev/null) || true
+        sleep 1
+    fi
+}
+
+_ensure_url_relay() {
+    if [ ! -S "/run/user/$(id -u)/securetty-open.sock" ]; then
+        bash "$SECURETTY_DIR/scripts/open-relay-host.sh" start &
+        disown
+        sleep 0.3
+    fi
+}
+
+_ensure_egress() {
+    local netns="/run/user/$(id -u)/containers/networks/rootless-netns/rootless-netns"
+    [ -e "$netns" ] || return 0
+    local has_table
+    has_table=$(podman unshare nsenter --net="$netns" nft list tables 2>/dev/null | grep -c securetty_egress)
+    if [ "$has_table" -eq 0 ]; then
+        local egress_script="$SECURETTY_DIR/scripts/securetty-egress.sh"
+        local resolve_script="$SECURETTY_DIR/scripts/resolve-egress.sh"
+        if [ -x "$egress_script" ]; then
+            podman unshare nsenter --net="$netns" bash "$egress_script" 2>/dev/null
+            [ -x "$resolve_script" ] && bash "$resolve_script" 2>/dev/null
+        fi
+    fi
+}
+
+_patch_dns() {
+    local conf="/run/user/$(id -u)/containers/networks/aardvark-dns/securetty"
+    [ -f "$conf" ] || return 0
+    if grep -q '8.8.8.8,8.8.4.4' "$conf" 2>/dev/null; then
+        sed -i 's/8.8.8.8,8.8.4.4/169.254.1.1/g' "$conf"
+        sed -i 's/169.254.1.1,169.254.1.1/169.254.1.1/g' "$conf"
+        local pid
+        pid=$(cat "/run/user/$(id -u)/containers/networks/aardvark-dns/aardvark.pid" 2>/dev/null)
+        [ -n "$pid" ] && kill -HUP "$pid" 2>/dev/null
+    fi
+}
+
+_extract_workdir() {
+    _SECURETTY_WORKDIR="$(pwd)"
+    _SECURETTY_ARGS=()
+    for arg in "$@"; do
+        if [ -d "$arg" ] && [ "$_SECURETTY_WORKDIR" = "$(pwd)" ]; then
+            _SECURETTY_WORKDIR="$(realpath "$arg")"
+        else
+            _SECURETTY_ARGS+=("$arg")
+        fi
+    done
+}
+
+_build_envfile() {
+    local envfile
+    envfile=$(umask 077; mktemp /run/user/$(id -u)/securetty-env.XXXXXX)
+
+    command cp -f "$SECURETTY_DIR/.env" "$envfile"
+    chmod 0600 "$envfile"
+
+    cat >> "$envfile" <<ENVEOF
+HOME=/home/daoneill
+USER=daoneill
+SSH_AUTH_SOCK=/run/ssh-agent.sock
+GPG_AGENT_INFO=/run/gpg-agent.sock
+XDG_RUNTIME_DIR=/run/user/$(id -u)
+NODE_ENV=development
+npm_config_ignore_scripts=true
+OMNIROUTE_BASE_URL=http://securetty-omniroute:4000
+HEADROOM_URL=http://securetty-headroom:8787
+OLLAMA_HOST=http://securetty-ollama:11434
+CLOUDCLI_URL=http://securetty-cloudcli:3001
+ENVEOF
+
+    if [ -n "${_SECURETTY_EXTRA_ENVLINES+x}" ]; then
+        printf '%s\n' "${_SECURETTY_EXTRA_ENVLINES[@]}" >> "$envfile"
+    fi
+
+    echo "$envfile"
+}
+
+_run() {
+    local agent="$1"
+    shift
+
+    _ensure_dirs
+    _generate_env
+    _ensure_ssh_agent
+    _ensure_services
+    _ensure_url_relay
+
+    local envfile
+    envfile=$(_build_envfile)
+    trap "rm -f '$envfile'" EXIT
+
+    _ensure_egress 2>/dev/null
+    _patch_dns 2>/dev/null
+    { sleep 2 && _patch_dns; } &>/dev/null & disown
+
+    podman run --rm -it \
+        --env-file "$envfile" \
+        --network securetty \
+        --name "securetty-${agent}-$$" \
+        --hostname "securetty-${agent}" \
+        --user "$(id -u):$(id -g)" \
+        --userns=keep-id \
+        --cap-drop ALL \
+        --security-opt no-new-privileges:true \
+        --security-opt label=disable \
+        --security-opt "mask=/proc/mounts:/proc/self/mounts:/proc/self/mountinfo:/proc/cmdline:/proc/partitions:/proc/diskstats:/proc/version:/sys/class/dmi" \
+        --read-only \
+        --pids-limit 4096 \
+        \
+        -v "/home/daoneill/src:/home/daoneill/src" \
+        -v "/home/daoneill/.gitconfig:/home/daoneill/.gitconfig:ro" \
+        -v "/home/daoneill/.gnupg/pubring.kbx:/home/daoneill/.gnupg/pubring.kbx:ro" \
+        -v "/home/daoneill/.gnupg/trustdb.gpg:/home/daoneill/.gnupg/trustdb.gpg:ro" \
+        -v "/run/user/$(id -u)/securetty-ssh-agent.sock:/run/ssh-agent.sock:ro" \
+        -v "/home/daoneill/.ssh/config:/home/daoneill/.ssh/config:ro" \
+        -v "/home/daoneill/.ssh/known_hosts:/home/daoneill/.ssh/known_hosts:ro" \
+        -v "/home/daoneill/.claude.json:/home/daoneill/.claude.json" \
+        -v "/home/daoneill/.mcp.json:/home/daoneill/.mcp.json:ro" \
+        -v "/home/daoneill/.claude:/home/daoneill/.claude" \
+        -v "/home/daoneill/.codex:/home/daoneill/.codex" \
+        -v "/home/daoneill/.gemini:/home/daoneill/.gemini" \
+        -v "/home/daoneill/.cursor:/home/daoneill/.cursor" \
+        -v "/home/daoneill/.kiro:/home/daoneill/.kiro" \
+        -v "/home/daoneill/.cline:/home/daoneill/.cline" \
+        -v "/home/daoneill/.config/opencode:/home/daoneill/.config/opencode" \
+        -v "/home/daoneill/.local/share/opencode:/home/daoneill/.local/share/opencode" \
+        -v "/home/daoneill/.openhands:/home/daoneill/.openhands" \
+        -v "/home/daoneill/.config/goose:/home/daoneill/.config/goose" \
+        -v "/home/daoneill/.grok:/home/daoneill/.grok" \
+        -v "/home/daoneill/.forge:/home/daoneill/.forge" \
+        -v "/home/daoneill/.amp:/home/daoneill/.amp" \
+        -v "/home/daoneill/.config/kilo:/home/daoneill/.config/kilo" \
+        -v "/home/daoneill/.aider:/home/daoneill/.aider" \
+        -v "/home/daoneill/.kimi:/home/daoneill/.kimi" \
+        -v "/home/daoneill/.config/gcloud:/home/daoneill/.config/gcloud" \
+        -v "/home/daoneill/bin:/home/daoneill/bin:ro" \
+        -v "/home/daoneill/.kube:/home/daoneill/.kube" \
+        -v "/home/daoneill/.aws:/home/daoneill/.aws:ro" \
+        -v "/home/daoneill/Downloads:/home/daoneill/Downloads" \
+        -v "/home/daoneill/.local/bin:/home/daoneill/.local/bin:ro" \
+        -v "/home/daoneill/.local/share/virtualenvs:/home/daoneill/.local/share/virtualenvs" \
+        -v "/run/user/$(id -u)/pipewire-0:/run/user/$(id -u)/pipewire-0" \
+        -v "/run/user/$(id -u)/pulse:/run/user/$(id -u)/pulse" \
+        \
+        -v "${GPG_AGENT_EXTRA_SOCK:-/dev/null}:/run/gpg-agent.sock:ro" \
+        -v "/run/user/$(id -u)/securetty-open.sock:/run/securetty-open.sock" \
+        \
+        --tmpfs /tmp:size=512M \
+        -v securetty-npm-cache:/home/daoneill/.npm \
+        -v securetty-pip-cache:/home/daoneill/.cache/pip \
+        -v securetty-uv-cache:/home/daoneill/.cache/uv \
+        -v securetty-cargo-cache:/home/daoneill/.cargo \
+        -v securetty-go-cache:/home/daoneill/go \
+        --tmpfs /home/daoneill/.cache/mesa_shader_cache:size=128M \
+        \
+        -w "${_SECURETTY_WORKDIR:-$(pwd)}" \
+        \
+        "$SECURETTY_IMAGE" \
+        "$agent" "$@"
+
+    rm -f "$envfile"
+}
+
+# =============================================================================
+# Mode wrappers
+# =============================================================================
+
+_run_work() {
+    local agent="$1"
+    shift
+    _SECURETTY_EXTRA_ENVLINES=(
+        "CLAUDE_CODE_USE_VERTEX=1"
+
+        "ANTHROPIC_VERTEX_PROJECT_ID=${ANTHROPIC_VERTEX_PROJECT_ID:-}"
+        "GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT:-}"
+        "GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-}"
+        "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1"
+        "ANTHROPIC_BASE_URL="
+        "GOOGLE_APPLICATION_CREDENTIALS=/home/daoneill/.config/gcloud/application_default_credentials.json"
+    )
+    _run "$agent" "$@"
+}
+
+_run_personal() {
+    local agent="$1"
+    shift
+
+    local omni_key="${OMNIROUTE_API_KEY:-}"
+    _SECURETTY_EXTRA_ENVLINES=(
+
+        "CLAUDE_CODE_USE_VERTEX="
+        "ANTHROPIC_BASE_URL=http://securetty-omniroute:4000"
+        "ANTHROPIC_API_KEY=${omni_key}"
+        "OPENAI_BASE_URL=http://securetty-omniroute:4000/v1"
+        "OPENAI_API_KEY=${omni_key}"
+        "GEMINI_API_KEY="
+        "GOOGLE_API_KEY=${omni_key}"
+        "OPENAI_API_BASE=http://securetty-omniroute:4000/v1"
+    )
+    _run "$agent" "$@"
+}
+
+# =============================================================================
+# Subcommands
+# =============================================================================
+
+cmd_run() {
+    _extract_workdir "$@"
+    _run_personal "${_SECURETTY_ARGS[@]}"
+}
+
+cmd_run_work() {
+    _extract_workdir "$@"
+    _run_work "${_SECURETTY_ARGS[@]}"
+}
+
+cmd_shell() {
+    _extract_workdir "$@"
+    _run_personal /bin/bash "${_SECURETTY_ARGS[@]}"
+}
+
+cmd_setup() {
+    cd "$SECURETTY_DIR" && ansible-playbook site.yml "$@"
+}
+
+cmd_rebuild() {
+    cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,build -e securetty_force_rebuild=true "$@"
+}
+
+cmd_rebuild_agents() {
+    cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,build -e securetty_force_rebuild=true -e securetty_skip_devbase=true -e securetty_dev_only=true "$@"
+}
+
+cmd_up() {
+    cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,up "$@"
+}
+
+cmd_down() {
+    cd "$SECURETTY_DIR" && podman-compose down
+}
+
+cmd_egress() {
+    cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,egress "$@"
+}
+
+cmd_env() {
+    cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,env "$@"
+}
+
+cmd_status() {
+    echo "=== Containers ==="
+    podman ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" | grep securetty || echo "No containers running"
+    echo ""
+    echo "=== Network ==="
+    podman network inspect securetty --format 'Subnet: {{range .Subnets}}{{.Subnet}}{{end}} Interface: {{.NetworkInterface}}' 2>/dev/null || echo "Network not created"
+    echo ""
+    echo "=== Egress ==="
+    podman unshare nsenter --net="/run/user/$(id -u)/containers/networks/rootless-netns/rootless-netns" \
+        nft list table inet securetty_egress 2>/dev/null | grep -c 'elements' || echo "No egress rules loaded"
+    echo ""
+    echo "=== Images ==="
+    podman images --format "table {{.Repository}}\t{{.Size}}\t{{.CreatedSince}}" | grep securetty || echo "No images built"
+}
+
+cmd_help() {
+    cat <<'HELP'
+securetty — sandboxed AI development environment
+
+Usage: securetty <command> [options]
+
+Agent commands:
+  run <agent> [args]        Launch agent in personal mode (OmniRoute)
+  run-work <agent> [args]   Launch agent in work mode (Vertex AI)
+  shell [dir]               Interactive shell in container
+
+Lifecycle:
+  setup                     Full setup (build + configure + start)
+  rebuild                   Full rebuild (all image layers)
+  rebuild-agents            Rebuild dev image only (fast)
+  up                        Start services
+  down                      Stop services
+
+Configuration:
+  egress                    Reload nftables egress rules + DNS patch
+  env                       Regenerate .env files
+  status                    Show containers, network, egress, images
+
+Examples:
+  securetty run claude --dangerously-skip-permissions
+  securetty run-work gemini ~/src/myproject
+  securetty shell
+  securetty status
+HELP
+}
+
+# =============================================================================
+# Main dispatch
+# =============================================================================
+
+case "${1:-help}" in
+    run)              shift; cmd_run "$@" ;;
+    run-work)         shift; cmd_run_work "$@" ;;
+    shell)            shift; cmd_shell "$@" ;;
+    setup)            shift; cmd_setup "$@" ;;
+    rebuild)          shift; cmd_rebuild "$@" ;;
+    rebuild-agents)   shift; cmd_rebuild_agents "$@" ;;
+    up)               shift; cmd_up "$@" ;;
+    down)             shift; cmd_down "$@" ;;
+    egress)           shift; cmd_egress "$@" ;;
+    env)              shift; cmd_env "$@" ;;
+    status)           shift; cmd_status "$@" ;;
+    help|--help|-h)   cmd_help ;;
+    *)                echo "Unknown command: $1. Run 'securetty help' for usage." >&2; exit 1 ;;
+esac

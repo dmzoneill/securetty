@@ -1,4 +1,18 @@
 ---
+- name: Template securetty CLI script
+  ansible.builtin.template:
+    src: securetty.sh.j2
+    dest: "{{ securetty_dir }}/securetty"
+    mode: "0755"
+    owner: "{{ securetty_user }}"
+
+- name: Symlink securetty to PATH
+  ansible.builtin.file:
+    src: "{{ securetty_dir }}/securetty"
+    dest: "{{ securetty_home }}/.local/bin/securetty"
+    state: link
+    owner: "{{ securetty_user }}"
+
 - name: Template securetty aliases
   ansible.builtin.template:
     src: securetty-aliases.sh.j2
