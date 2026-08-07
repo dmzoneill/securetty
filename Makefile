@@ -1,4 +1,4 @@
-.PHONY: setup build rebuild rebuild-agents up env aliases egress omniroute ollama scan migrate down nuke status help test lint
+.PHONY: setup build rebuild rebuild-agents up env aliases egress omniroute ollama scan migrate down nuke status help test lint audit lockfiles
 
 help:
 	@echo "securetty — sandboxed AI development environment (Ansible)"
@@ -17,6 +17,8 @@ help:
 	@echo ""
 	@echo "Security:"
 	@echo "  make scan           Scan history for leaked secrets"
+	@echo "  make audit          Run npm audit + pip-audit inside container"
+	@echo "  make lockfiles      Generate npm/pip lockfiles with hashes"
 	@echo "  make migrate        Remove AI agents from host"
 	@echo ""
 	@echo "Lifecycle:"
@@ -81,5 +83,11 @@ test:
 	@test -f THREAT_MODEL.md && echo "THREAT_MODEL.md: OK" || echo "THREAT_MODEL.md: MISSING"
 	@test -f SECURITY.md && echo "SECURITY.md: OK" || echo "SECURITY.md: MISSING"
 	@lines=$$(wc -l < AGENTS.md 2>/dev/null || echo 999); test $$lines -le 150 && echo "AGENTS.md length: OK ($$lines lines)" || echo "AGENTS.md length: TOO LONG ($$lines lines, max 150)"
+
+audit:
+	podman run --rm securetty_dev bash -c 'echo "=== npm audit ===" && npm audit --audit-level=high -g 2>/dev/null; echo "=== pip-audit ===" && pip-audit --desc 2>/dev/null || true'
+
+lockfiles:
+	bash roles/containers/files/generate-lockfiles.sh @anthropic-ai/claude-code @openai/codex @google/gemini-cli cline opencode-ai @ampcode/cli @kilocode/cli @earendil-works/pi-ai
 
 lint: test

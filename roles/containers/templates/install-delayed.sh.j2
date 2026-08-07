@@ -86,6 +86,10 @@ for pkg in "${NPM_AGENTS[@]}"; do
     install_npm_delayed "$pkg"
 done
 
+echo ""
+echo "=== npm audit (high+ vulnerabilities) ==="
+npm audit --audit-level=high -g 2>/dev/null || echo "  WARN: npm audit reported issues (see above)"
+
 npm cache clean --force 2>/dev/null || true
 
 # =============================================================================
@@ -125,6 +129,10 @@ for pkg in "${PIP_AGENTS[@]}"; do
     fi
 done
 {% endraw %}
+
+echo ""
+echo "=== pip-audit (known vulnerabilities) ==="
+pip-audit --desc 2>/dev/null || echo "  WARN: pip-audit reported issues (see above)"
 
 # =============================================================================
 # Binary agents
