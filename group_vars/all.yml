@@ -373,6 +373,7 @@ securetty_pip_tools:
   - requests
   - google-api-python-client
   - google-auth-oauthlib
+  - ai-guardian
 
 # =============================================================================
 # Migration targets

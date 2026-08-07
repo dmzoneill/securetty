@@ -206,6 +206,10 @@ _run() {
 _run_work() {
     local agent="$1"
     shift
+    if [ "${1:-}" = "--read" ]; then
+        shift
+        _SECURETTY_READ_MODE=1
+    fi
     _SECURETTY_EXTRA_ENVLINES=(
         "CLAUDE_CODE_USE_VERTEX=1"
 {% raw %}
@@ -217,12 +221,17 @@ _run_work() {
         "ANTHROPIC_BASE_URL="
         "GOOGLE_APPLICATION_CREDENTIALS={{ securetty_home }}/.config/gcloud/application_default_credentials.json"
     )
+    [ "${_SECURETTY_READ_MODE:-}" = "1" ] && _SECURETTY_EXTRA_ENVLINES+=("SECURETTY_MODE=read")
     _run "$agent" "$@"
 }
 
 _run_personal() {
     local agent="$1"
     shift
+    if [ "${1:-}" = "--read" ]; then
+        shift
+        _SECURETTY_READ_MODE=1
+    fi
 {% raw %}
     local omni_key="${OMNIROUTE_API_KEY:-}"
 {% endraw %}
@@ -238,6 +247,7 @@ _run_personal() {
         "OPENAI_API_BASE=http://securetty-omniroute:4000/v1"
 {% endraw %}
     )
+    [ "${_SECURETTY_READ_MODE:-}" = "1" ] && _SECURETTY_EXTRA_ENVLINES+=("SECURETTY_MODE=read")
     _run "$agent" "$@"
 }
 
@@ -489,9 +499,9 @@ cmd_help() {
 Usage: securetty <command> [options]
 
 Agent commands:
-  run <agent> [args]        Launch agent in personal mode (OmniRoute)
-  run-work <agent> [args]   Launch agent in work mode (Vertex AI)
-  shell [dir]               Interactive shell in container
+  run <agent> [--read] [args]       Launch agent in personal mode (--read for read-only)
+  run-work <agent> [--read] [args]  Launch agent in work mode (--read blocks writes)
+  shell [dir]                       Interactive shell in container
 
 Lifecycle:
   setup                     Full setup (build + configure + start)
