@@ -1,0 +1,23 @@
+FROM localhost/securetty_base:latest
+
+RUN python3.12 -m pip install --target /usr/local/lib/python3.12/site-packages \
+        osv-scanner inotify-simple \
+    && dnf install -y --setopt=install_weak_deps=False inotify-tools \
+    && dnf clean all && rm -rf /var/cache/dnf
+
+# OSV-Scanner binary (Go binary from GitHub releases)
+RUN curl -fsSL https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64 \
+        -o /usr/local/bin/osv-scanner \
+    && chmod +x /usr/local/bin/osv-scanner
+
+RUN groupadd -g {{ securetty_uid }} scanner \
+    && useradd -u {{ securetty_uid }} -g {{ securetty_gid }} -m -s /bin/bash scanner \
+    && mkdir -p /results && chown scanner:scanner /results
+
+COPY scripts/osv-watch.sh /usr/local/bin/osv-watch.sh
+RUN chmod +x /usr/local/bin/osv-watch.sh
+
+USER scanner
+WORKDIR /results
+
+CMD ["/usr/local/bin/osv-watch.sh"]

@@ -1,0 +1,18 @@
+FROM localhost/securetty_base:latest
+
+RUN python3.12 -m pip install --target /usr/local/lib/python3.12/site-packages \
+        guarddog inotify-simple \
+    && dnf install -y --setopt=install_weak_deps=False inotify-tools \
+    && dnf clean all && rm -rf /var/cache/dnf
+
+RUN groupadd -g {{ securetty_uid }} scanner \
+    && useradd -u {{ securetty_uid }} -g {{ securetty_gid }} -m -s /bin/bash scanner \
+    && mkdir -p /results && chown scanner:scanner /results
+
+COPY scripts/guarddog-watch.sh /usr/local/bin/guarddog-watch.sh
+RUN chmod +x /usr/local/bin/guarddog-watch.sh
+
+USER scanner
+WORKDIR /results
+
+CMD ["/usr/local/bin/guarddog-watch.sh"]

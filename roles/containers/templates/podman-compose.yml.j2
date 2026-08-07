@@ -315,6 +315,76 @@ services:
       retries: 3
       start_period: 15s
 
+  # =================================================================
+  # GuardDog — behavioral malicious package scanner (YARA rules)
+  # Watches shared volumes via inotify, scans on file changes
+  # =================================================================
+  guarddog:
+    build:
+      context: ./guarddog
+      dockerfile: Containerfile
+    container_name: securetty-guarddog
+    hostname: guarddog
+    user: "{{ securetty_uid }}:{{ securetty_gid }}"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+      - label=disable
+    read_only: true
+    volumes:
+      - securetty-usr-local:/scan/usr-local:ro
+      - securetty-pip-user:/scan/pip-user:ro
+      - securetty-npm-global:/scan/npm-global:ro
+      - guarddog_results:/results
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 128M
+    networks:
+      - securetty_net
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+    restart: unless-stopped
+
+  # =================================================================
+  # OSV-Scanner — known malicious/vulnerable package database checker
+  # Watches shared volumes via inotify, checks against OpenSSF DB
+  # =================================================================
+  osv-scanner:
+    build:
+      context: ./osv-scanner
+      dockerfile: Containerfile
+    container_name: securetty-osv-scanner
+    hostname: osv-scanner
+    user: "{{ securetty_uid }}:{{ securetty_gid }}"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+      - label=disable
+    read_only: true
+    volumes:
+      - securetty-usr-local:/scan/usr-local:ro
+      - securetty-pip-user:/scan/pip-user:ro
+      - securetty-npm-global:/scan/npm-global:ro
+      - osv_results:/results
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 128M
+    networks:
+      - securetty_net
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+    restart: unless-stopped
+
 volumes:
   securetty-npm-cache:
   securetty-pip-cache:
@@ -324,6 +394,8 @@ volumes:
   securetty-pip-user:
   securetty-npm-global:
   securetty-usr-local:
+  guarddog_results:
+  osv_results:
   headroom_data:
   cloudcli_data:
   ollama_models:

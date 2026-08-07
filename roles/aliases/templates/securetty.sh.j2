@@ -283,6 +283,18 @@ cmd_env() {
     cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,env "$@"
 }
 
+cmd_scan() {
+    echo "=== GuardDog (behavioral detection) ==="
+    {{ securetty_podman_cmd }} logs --tail 20 securetty-guarddog 2>/dev/null || echo "GuardDog not running"
+    echo ""
+    echo "=== OSV-Scanner (known malware DB) ==="
+    {{ securetty_podman_cmd }} logs --tail 20 securetty-osv-scanner 2>/dev/null || echo "OSV-Scanner not running"
+    echo ""
+    echo "=== Alerts ==="
+    {{ securetty_podman_cmd }} exec securetty-guarddog cat /results/alerts.log 2>/dev/null || echo "No GuardDog alerts"
+    {{ securetty_podman_cmd }} exec securetty-osv-scanner cat /results/alerts.log 2>/dev/null || echo "No OSV alerts"
+}
+
 cmd_status() {
     echo "=== Containers ==="
     {{ securetty_podman_cmd }} ps -a --format "table {% raw %}{{.Names}}\t{{.Status}}\t{{.Image}}{% endraw %}" | grep securetty || echo "No containers running"
@@ -327,6 +339,7 @@ Configuration:
   egress                    Reload nftables egress rules + DNS patch
   env                       Regenerate .env files
   status                    Show containers, network, egress, images
+  scan                      Show package scanner results + alerts
 
 Examples:
   securetty run claude --dangerously-skip-permissions
@@ -352,6 +365,7 @@ case "${1:-help}" in
     egress)           shift; cmd_egress "$@" ;;
     env)              shift; cmd_env "$@" ;;
     status)           shift; cmd_status "$@" ;;
+    scan)             shift; cmd_scan "$@" ;;
     help|--help|-h)   cmd_help ;;
     *)                echo "Unknown command: $1. Run 'securetty help' for usage." >&2; exit 1 ;;
 esac

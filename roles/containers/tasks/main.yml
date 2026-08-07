@@ -14,6 +14,10 @@
     - headroom
     - cloudcli
     - ollama
+    - guarddog
+    - guarddog/scripts
+    - osv-scanner
+    - osv-scanner/scripts
     - scripts
 
 # 2. Template all Containerfiles to their build dirs
@@ -60,6 +64,29 @@
     src: Containerfile.ollama.j2
     dest: "{{ securetty_dir }}/ollama/Containerfile"
     mode: "0644"
+
+- name: Template guarddog Containerfile
+  ansible.builtin.template:
+    src: Containerfile.guarddog.j2
+    dest: "{{ securetty_dir }}/guarddog/Containerfile"
+    mode: "0644"
+
+- name: Template osv-scanner Containerfile
+  ansible.builtin.template:
+    src: Containerfile.osv-scanner.j2
+    dest: "{{ securetty_dir }}/osv-scanner/Containerfile"
+    mode: "0644"
+
+- name: Copy scanner watch scripts
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ securetty_dir }}/{{ item.dest }}"
+    mode: "0755"
+  loop:
+    - { src: guarddog-watch.sh, dest: guarddog/scripts/guarddog-watch.sh }
+    - { src: osv-watch.sh, dest: osv-scanner/scripts/osv-watch.sh }
+  tags:
+    - build
 
 # 3. Template podman-compose.yml
 - name: Template podman-compose.yml
