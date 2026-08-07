@@ -1,0 +1,80 @@
+---
+# certs role — generate self-signed CA + per-service TLS certificates
+# Certs stored in {{ securetty_dir }}/certs/ with 0600 permissions
+
+- name: Create certs directory
+  ansible.builtin.file:
+    path: "{{ securetty_dir }}/certs"
+    state: directory
+    mode: "0700"
+    owner: "{{ securetty_user }}"
+  tags:
+    - certs
+    - build
+
+- name: Generate CA key and certificate
+  ansible.builtin.shell: |
+    cd {{ securetty_dir }}
+    openssl genrsa -out certs/ca.key 4096
+    openssl req -x509 -new -key certs/ca.key -sha256 -days 365 \
+      -out certs/ca.crt -subj "/CN=securetty-ca/O=securetty"
+    chmod 0600 certs/ca.key certs/ca.crt
+  args:
+    creates: "{{ securetty_dir }}/certs/ca.crt"
+  tags:
+    - certs
+
+- name: Generate server certificates
+  ansible.builtin.shell: |
+    cd {{ securetty_dir }}
+    openssl genrsa -out certs/{{ item }}.key 2048
+    openssl req -new -key certs/{{ item }}.key -out certs/{{ item }}.csr \
+      -subj "/CN=securetty-{{ item }}/O=securetty"
+    openssl x509 -req -in certs/{{ item }}.csr -CA certs/ca.crt -CAkey certs/ca.key \
+      -CAcreateserial -out certs/{{ item }}.crt -days 365 -sha256 \
+      -extfile <(printf "subjectAltName=DNS:securetty-{{ item }},DNS:{{ item }}")
+    rm -f certs/{{ item }}.csr
+    chmod 0600 certs/{{ item }}.key certs/{{ item }}.crt
+  args:
+    creates: "{{ securetty_dir }}/certs/{{ item }}.crt"
+  loop:
+    - creds
+    - mcp-jira
+    - mcp-gitlab
+    - mcp-github
+    - mcp-slack
+    - mcp-wordpress
+    - headroom
+  tags:
+    - certs
+
+- name: Generate client certificate for agent containers
+  ansible.builtin.shell: |
+    cd {{ securetty_dir }}
+    openssl genrsa -out certs/client.key 2048
+    openssl req -new -key certs/client.key -out certs/client.csr \
+      -subj "/CN=securetty-agent/O=securetty"
+    openssl x509 -req -in certs/client.csr -CA certs/ca.crt -CAkey certs/ca.key \
+      -CAcreateserial -out certs/client.crt -days 365 -sha256
+    rm -f certs/client.csr
+    chmod 0600 certs/client.key certs/client.crt
+  args:
+    creates: "{{ securetty_dir }}/certs/client.crt"
+  tags:
+    - certs
+
+- name: Check certificate expiry
+  ansible.builtin.shell: |
+    expiry=$(openssl x509 -enddate -noout -in {{ securetty_dir }}/certs/ca.crt | cut -d= -f2)
+    echo "CA cert expires: $expiry"
+    openssl x509 -checkend 2592000 -noout -in {{ securetty_dir }}/certs/ca.crt || echo "WARNING: CA cert expires within 30 days"
+  register: cert_expiry
+  changed_when: false
+  tags:
+    - certs
+
+- name: Show certificate status
+  ansible.builtin.debug:
+    msg: "{{ cert_expiry.stdout_lines }}"
+  tags:
+    - certs

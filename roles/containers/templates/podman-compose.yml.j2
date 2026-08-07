@@ -196,6 +196,9 @@ services:
     read_only: true
     volumes:
       - headroom_data:/data
+      - {{ securetty_dir }}/certs/ca.crt:/certs/ca.crt:ro
+      - {{ securetty_dir }}/certs/headroom.crt:/certs/server.crt:ro
+      - {{ securetty_dir }}/certs/headroom.key:/certs/server.key:ro
       - type: tmpfs
         target: /tmp
         tmpfs:
@@ -414,6 +417,9 @@ services:
     env_file:
       - .env.creds
     volumes:
+      - {{ securetty_dir }}/certs/ca.crt:/certs/ca.crt:ro
+      - {{ securetty_dir }}/certs/creds.crt:/certs/creds.crt:ro
+      - {{ securetty_dir }}/certs/creds.key:/certs/creds.key:ro
       - {{ securetty_dir }}/credentials.json:/config/credentials.json:ro
       - type: tmpfs
         target: /tmp
@@ -450,6 +456,9 @@ services:
     env_file: .env.mcp-jira
     volumes:
       - {{ securetty_home }}/src/agent-mcp-skills/jira:/mcp:ro
+      - {{ securetty_dir }}/certs/ca.crt:/certs/ca.crt:ro
+      - {{ securetty_dir }}/certs/mcp-jira.crt:/certs/server.crt:ro
+      - {{ securetty_dir }}/certs/mcp-jira.key:/certs/server.key:ro
       - type: tmpfs
         target: /tmp
         tmpfs:
@@ -461,7 +470,7 @@ services:
           cpus: "0.5"
           memory: 256M
     restart: unless-stopped
-    command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8801)"]
+    command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8801, ssl_certfile='/certs/server.crt', ssl_keyfile='/certs/server.key')"]
     healthcheck:
       test: ["CMD", "python3.12", "-c", "import socket; s=socket.socket(); s.connect(('localhost',8801)); s.close()"]
       interval: 60s
@@ -482,6 +491,9 @@ services:
     env_file: .env.mcp-gitlab
     volumes:
       - {{ securetty_home }}/src/agent-mcp-skills/gitlab:/mcp:ro
+      - {{ securetty_dir }}/certs/ca.crt:/certs/ca.crt:ro
+      - {{ securetty_dir }}/certs/mcp-gitlab.crt:/certs/server.crt:ro
+      - {{ securetty_dir }}/certs/mcp-gitlab.key:/certs/server.key:ro
       - type: tmpfs
         target: /tmp
         tmpfs:
@@ -493,7 +505,7 @@ services:
           cpus: "0.5"
           memory: 256M
     restart: unless-stopped
-    command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8802)"]
+    command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8802, ssl_certfile='/certs/server.crt', ssl_keyfile='/certs/server.key')"]
     healthcheck:
       test: ["CMD", "python3.12", "-c", "import socket; s=socket.socket(); s.connect(('localhost',8802)); s.close()"]
       interval: 60s
@@ -514,6 +526,9 @@ services:
     env_file: .env.mcp-github
     volumes:
       - {{ securetty_home }}/src/agent-mcp-skills/github:/mcp:ro
+      - {{ securetty_dir }}/certs/ca.crt:/certs/ca.crt:ro
+      - {{ securetty_dir }}/certs/mcp-github.crt:/certs/server.crt:ro
+      - {{ securetty_dir }}/certs/mcp-github.key:/certs/server.key:ro
       - type: tmpfs
         target: /tmp
         tmpfs:
@@ -525,7 +540,7 @@ services:
           cpus: "0.5"
           memory: 256M
     restart: unless-stopped
-    command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8803)"]
+    command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8803, ssl_certfile='/certs/server.crt', ssl_keyfile='/certs/server.key')"]
     healthcheck:
       test: ["CMD", "python3.12", "-c", "import socket; s=socket.socket(); s.connect(('localhost',8803)); s.close()"]
       interval: 60s
@@ -546,6 +561,9 @@ services:
     env_file: .env.mcp-slack
     volumes:
       - {{ securetty_home }}/src/agent-mcp-skills/slack:/mcp:ro
+      - {{ securetty_dir }}/certs/ca.crt:/certs/ca.crt:ro
+      - {{ securetty_dir }}/certs/mcp-slack.crt:/certs/server.crt:ro
+      - {{ securetty_dir }}/certs/mcp-slack.key:/certs/server.key:ro
       - type: tmpfs
         target: /tmp
         tmpfs:
@@ -557,7 +575,7 @@ services:
           cpus: "0.5"
           memory: 256M
     restart: unless-stopped
-    command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8804)"]
+    command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8804, ssl_certfile='/certs/server.crt', ssl_keyfile='/certs/server.key')"]
     healthcheck:
       test: ["CMD", "python3.12", "-c", "import socket; s=socket.socket(); s.connect(('localhost',8804)); s.close()"]
       interval: 60s
@@ -578,6 +596,9 @@ services:
     env_file: .env.mcp-wordpress
     volumes:
       - {{ securetty_home }}/src/agent-mcp-skills/wordpress:/mcp:ro
+      - {{ securetty_dir }}/certs/ca.crt:/certs/ca.crt:ro
+      - {{ securetty_dir }}/certs/mcp-wordpress.crt:/certs/server.crt:ro
+      - {{ securetty_dir }}/certs/mcp-wordpress.key:/certs/server.key:ro
       - type: tmpfs
         target: /tmp
         tmpfs:
@@ -589,7 +610,7 @@ services:
           cpus: "0.5"
           memory: 256M
     restart: unless-stopped
-    command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8805)"]
+    command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8805, ssl_certfile='/certs/server.crt', ssl_keyfile='/certs/server.key')"]
     healthcheck:
       test: ["CMD", "python3.12", "-c", "import socket; s=socket.socket(); s.connect(('localhost',8805)); s.close()"]
       interval: 60s

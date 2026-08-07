@@ -1,4 +1,4 @@
-.PHONY: setup build rebuild rebuild-agents up env aliases egress omniroute ollama scan migrate down nuke status help test lint audit lockfiles
+.PHONY: setup build rebuild rebuild-agents up env aliases egress omniroute ollama certs scan migrate down nuke status help test lint audit lockfiles
 
 help:
 	@echo "securetty — sandboxed AI development environment (Ansible)"
@@ -11,6 +11,7 @@ help:
 	@echo "  make up             Start services only"
 	@echo "  make env            Regenerate .env files"
 	@echo "  make aliases        Install shell aliases"
+	@echo "  make certs          Generate TLS certificates"
 	@echo "  make egress         Load egress whitelist rules"
 	@echo "  make omniroute      Configure omniroute providers"
 	@echo "  make ollama         Pull ollama models"
@@ -55,6 +56,9 @@ omniroute:
 
 ollama:
 	ansible-playbook site.yml --tags prereqs,ollama
+
+certs:
+	ansible-playbook site.yml --tags prereqs,certs
 
 scan:
 	ansible-playbook scan.yml

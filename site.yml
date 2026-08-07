@@ -7,6 +7,7 @@
     - { role: prereqs, tags: [prereqs, setup] }
     - { role: env, tags: [env, setup] }
     - { role: ssh, tags: [ssh, setup] }
+    - { role: certs, tags: [certs, setup] }
     - { role: containers, tags: [containers, build, up, setup] }
     - { role: egress, tags: [egress, up, setup] }
     - { role: omniroute, tags: [omniroute, setup] }
