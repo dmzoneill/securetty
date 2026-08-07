@@ -37,12 +37,10 @@ RUN mkdir -p /home/${USERNAME}/.gnupg \
 RUN echo "ignore-scripts=true" > /home/${USERNAME}/.npmrc \
     && chown ${USERNAME}:${USERNAME} /home/${USERNAME}/.npmrc
 
-# pip config: user installs to persistent volume, no system package clobbering
+# pip config: PIP_USER=1 env var handles user installs at runtime
+# pip.conf only sets non-default install options
 RUN mkdir -p /home/${USERNAME}/.config/pip \
     && cat > /home/${USERNAME}/.config/pip/pip.conf <<'EOF'
-[global]
-user = true
-
 [install]
 no-deps = false
 EOF

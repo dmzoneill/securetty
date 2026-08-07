@@ -23,9 +23,7 @@ echo "$(date -u +%FT%TZ) initial scan complete" | tee -a "$LOG"
 
 # Watch for changes
 last_scan=0
-inotifywait -m -r -e create,modify,moved_to \
-    --format '%T %w%f' --timefmt '%s' \
-    $SCAN_DIRS 2>/dev/null | while read -r epoch filepath; do
+while read -r epoch filepath; do
 
     # Debounce — skip if scanned recently
     now=$(date +%s)
@@ -46,4 +44,6 @@ inotifywait -m -r -e create,modify,moved_to \
             fi
             ;;
     esac
-done
+done < <(inotifywait -m -r -e create,modify,moved_to \
+    --format '%T %w%f' --timefmt '%s' \
+    $SCAN_DIRS 2>/dev/null)
