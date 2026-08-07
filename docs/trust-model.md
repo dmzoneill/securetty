@@ -49,7 +49,7 @@ Six agents (goose, grok, forge, kiro, cursor, jcode) are installed via their off
 
 ### No inter-container network policy
 
-All containers on the securetty bridge (10.89.100.0/24) can communicate freely. This is by design: agents need to reach OmniRoute, Headroom, Ollama, and CloudCLI. Adding per-service network policies would add complexity without meaningful security gain since all services run as the same user and share the same trust level.
+All containers on the securetty bridge (172.30.100.0/24) can communicate freely. This is by design: agents need to reach OmniRoute, Headroom, Ollama, and CloudCLI. Adding per-service network policies would add complexity without meaningful security gain since all services run as the same user and share the same trust level.
 
 ### npm `ignore-scripts` global default
 

@@ -7,6 +7,7 @@ RESULTS_DIR="/results"
 LOG="$RESULTS_DIR/osv-scanner.log"
 DEBOUNCE=10
 
+touch "$LOG" "$RESULTS_DIR/alerts.log" 2>/dev/null || true
 echo "$(date -u +%FT%TZ) osv-scanner watcher starting" | tee "$LOG"
 echo "Watching: $SCAN_DIRS" | tee -a "$LOG"
 

@@ -56,6 +56,10 @@ _ensure_egress() {
             {{ securetty_podman_cmd }} unshare nsenter --net="$netns" bash "$egress_script" 2>/dev/null
             [ -x "$resolve_script" ] && { bash "$resolve_script" &>/dev/null & disown; }
         fi
+    else
+        # Table exists but IPs may be stale — refresh in background
+        local resolve_script="$SECURETTY_DIR/scripts/resolve-egress.sh"
+        [ -x "$resolve_script" ] && { bash "$resolve_script" &>/dev/null & disown; }
     fi
 }
 
@@ -85,7 +89,8 @@ _extract_workdir() {
 
 _build_envfile() {
     local envfile
-    envfile=$(umask 077; mktemp /run/user/$(id -u)/securetty-env.XXXXXX)
+    envfile=$(umask 077; mktemp /run/user/$(id -u)/securetty-env.XXXXXX) || { echo "ERROR: mktemp failed" >&2; return 1; }
+    [ -n "$envfile" ] || { echo "ERROR: empty envfile path" >&2; return 1; }
 
     command cp -f "$SECURETTY_DIR/.env" "$envfile"
     chmod 0600 "$envfile"
@@ -130,7 +135,7 @@ _run() {
     _ensure_url_relay
 
     local envfile
-    envfile=$(_build_envfile)
+    envfile=$(_build_envfile) || return 1
     trap "rm -f '$envfile'" EXIT
 
     _ensure_egress 2>/dev/null
@@ -256,31 +261,31 @@ cmd_shell() {
 }
 
 cmd_setup() {
-    cd "$SECURETTY_DIR" && ansible-playbook site.yml "$@"
+    (cd "$SECURETTY_DIR" && ansible-playbook site.yml "$@")
 }
 
 cmd_rebuild() {
-    cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,build -e securetty_force_rebuild=true "$@"
+    (cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,build -e securetty_force_rebuild=true "$@")
 }
 
 cmd_rebuild_agents() {
-    cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,build -e securetty_force_rebuild=true -e securetty_skip_devbase=true -e securetty_dev_only=true "$@"
+    (cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,build -e securetty_force_rebuild=true -e securetty_skip_devbase=true -e securetty_dev_only=true "$@")
 }
 
 cmd_up() {
-    cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,up "$@"
+    (cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,up "$@")
 }
 
 cmd_down() {
-    cd "$SECURETTY_DIR" && {{ securetty_compose_cmd }} down
+    (cd "$SECURETTY_DIR" && {{ securetty_compose_cmd }} down)
 }
 
 cmd_egress() {
-    cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,egress "$@"
+    (cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,egress "$@")
 }
 
 cmd_env() {
-    cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,env "$@"
+    (cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,env "$@")
 }
 
 cmd_scan() {

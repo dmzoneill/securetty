@@ -8,7 +8,7 @@ securetty is a sandboxed AI development environment running on Fedora 45 with ro
 
 - **Rootless podman** -- all containers run unprivileged under UID 1000, no daemon, no root
 - **pasta networking** -- userspace TCP/UDP/ICMP forwarding, no veth pairs, no bridge requiring root
-- **nftables egress whitelist** -- `inet securetty_egress` table loaded in the rootless-netns namespace; default-drop policy for container subnet 10.89.100.0/24 with explicit allowed_ipv4 set populated by DNS resolution of ~50 approved domains
+- **nftables egress whitelist** -- `inet securetty_egress` table loaded in the rootless-netns namespace; default-drop policy for container subnet 172.30.100.0/24 with explicit allowed_ipv4 set populated by DNS resolution of ~50 approved domains
 - **OmniRoute** -- AI provider router (port 4000) that centralizes API key usage across all agents
 - **aardvark DNS** -- podman's built-in DNS server for container name resolution, forwards external queries to host DNS via pasta forwarder (169.254.1.1); VPN domains resolve automatically when VPN is connected
 - **Delayed ingestion** -- packages installed only from versions published >= 7 days ago (configurable via `securetty_quarantine_days`)
@@ -46,10 +46,10 @@ securetty is a sandboxed AI development environment running on Fedora 45 with ro
 
 ### Trust boundaries
 
-1. **Host <-> Container**: rootless podman, `no-new-privileges`, all capabilities dropped except `SYS_NICE`, read-only root filesystem, private PID/IPC namespaces
+1. **Host <-> Container**: rootless podman, `no-new-privileges`, all capabilities dropped except `no capabilities added`, read-only root filesystem, private PID/IPC namespaces
 2. **Container <-> Internet**: nftables egress whitelist in rootless-netns, only resolved IPs from approved domain list
 3. **Container <-> Host secrets**: SSH/GPG sockets forwarded read-only (private keys never enter container); API keys injected via `.env` files regenerated at each start
-4. **Container <-> Container**: podman bridge network (securetty 10.89.100.0/24), inter-container traffic allowed
+4. **Container <-> Container**: podman bridge network (securetty 172.30.100.0/24), inter-container traffic allowed
 
 ## 4. Threats
 
@@ -101,7 +101,7 @@ securetty is a sandboxed AI development environment running on Fedora 45 with ro
 | Read-only root filesystem | Persistent malware | `read_only: true` in compose; writable paths limited to tmpfs (`/tmp`, `~/.local/bin`) and explicit bind mounts |
 | procfs masking | Host info leakage | `security_opt` masks `/proc/mounts`, `/proc/self/mounts`, `/proc/self/mountinfo`, `/proc/cmdline`, `/proc/partitions`, `/proc/diskstats`, `/proc/version`, `/sys/class/dmi` |
 | Per-service .env files | Credential blast radius | `generate-env.sh` creates `.env.omniroute` (provider keys only), `.env.cloudcli` (Vertex only); dev container gets full set |
-| Capability drop | Privilege escalation | `cap_drop: ALL` + `no-new-privileges:true` on all containers; only `SYS_NICE` added for mutter scheduling |
+| Capability drop | Privilege escalation | `cap_drop: ALL` + `no-new-privileges:true` on all containers; only `no capabilities added` added for mutter scheduling |
 | npm ignore-scripts | Malicious install hooks | `npm_config_ignore_scripts=true` set in container environment and `.npmrc` |
 | Private PID/IPC namespaces | Cross-container info leak | `pid: private`, `ipc: private` on dev container |
 | Container machine-id | Host fingerprinting | `/etc/machine-id` regenerated at build time with `dbus-uuidgen` |

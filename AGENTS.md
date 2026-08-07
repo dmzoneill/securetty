@@ -12,7 +12,7 @@ Three container image layers, each building on the previous:
 2. **devbase** -- Development tools, compilers, language runtimes, pip tools
 3. **dev** -- AI agents installed via delayed ingestion (7-day quarantine), user account matching host UID/GID
 
-Services run as sibling containers on the same podman bridge network (10.89.100.0/24):
+Services run as sibling containers on the same podman bridge network (172.30.100.0/24):
 
 - **OmniRoute** (port 4000) -- AI provider router, centralizes API key usage
 - **Headroom** (port 8787) -- Token compression MCP server
