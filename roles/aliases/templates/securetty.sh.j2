@@ -114,6 +114,12 @@ _preflight() {
     # SSH agent
     if [ -S "/run/user/$(id -u)/securetty-ssh-agent.sock" ]; then
         echo "  OK: SSH agent"
+        if [ -f "/run/user/$(id -u)/securetty-ssh-token" ]; then
+            echo "  OK: SSH proxy token"
+        else
+            echo "  WARN: SSH proxy token missing"
+            warnings=$((warnings + 1))
+        fi
     else
         echo "  WARN: SSH agent not running"
         warnings=$((warnings + 1))
@@ -231,6 +237,7 @@ _run() {
         -v "{{ securetty_home }}/.gnupg/pubring.kbx:{{ securetty_home }}/.gnupg/pubring.kbx:ro" \
         -v "{{ securetty_home }}/.gnupg/trustdb.gpg:{{ securetty_home }}/.gnupg/trustdb.gpg:ro" \
         -v "/run/user/$(id -u)/securetty-ssh-agent.sock:/run/ssh-agent.sock:ro" \
+        -v "/run/user/$(id -u)/securetty-ssh-token:/run/ssh-token:ro" \
         -v "{{ securetty_home }}/.ssh/config:{{ securetty_home }}/.ssh/config:ro" \
         -v "{{ securetty_home }}/.ssh/known_hosts:{{ securetty_home }}/.ssh/known_hosts:ro" \
         -v "{{ securetty_home }}/.claude.json:{{ securetty_home }}/.claude.json" \
