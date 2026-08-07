@@ -54,7 +54,7 @@ _ensure_egress() {
         local resolve_script="$SECURETTY_DIR/scripts/resolve-egress.sh"
         if [ -x "$egress_script" ]; then
             podman unshare nsenter --net="$netns" bash "$egress_script" 2>/dev/null
-            [ -x "$resolve_script" ] && bash "$resolve_script" 2>/dev/null
+            [ -x "$resolve_script" ] && { bash "$resolve_script" &>/dev/null & disown; }
         fi
     fi
 }
