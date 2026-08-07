@@ -198,9 +198,7 @@ services:
     read_only: true
     volumes:
       - headroom_data:/data
-      - {{ securetty_dir }}/certs/ca.crt:/certs/ca.crt:ro
-      - {{ securetty_dir }}/certs/headroom.crt:/certs/server.crt:ro
-      - {{ securetty_dir }}/certs/headroom.key:/certs/server.key:ro
+      - {{ securetty_dir }}/certs:/certs:ro
       - type: tmpfs
         target: /tmp
         tmpfs:
@@ -424,9 +422,7 @@ services:
     env_file:
       - .env.creds
     volumes:
-      - {{ securetty_dir }}/certs/ca.crt:/certs/ca.crt:ro
-      - {{ securetty_dir }}/certs/creds.crt:/certs/creds.crt:ro
-      - {{ securetty_dir }}/certs/creds.key:/certs/creds.key:ro
+      - {{ securetty_dir }}/certs:/certs:ro
       - {{ securetty_dir }}/credentials.json:/config/credentials.json:ro
       - type: tmpfs
         target: /tmp
@@ -464,9 +460,7 @@ services:
     env_file: .env.mcp-jira
     volumes:
       - {{ securetty_home }}/src/agent-mcp-skills/jira:/mcp:ro
-      - {{ securetty_dir }}/certs/ca.crt:/certs/ca.crt:ro
-      - {{ securetty_dir }}/certs/mcp-jira.crt:/certs/server.crt:ro
-      - {{ securetty_dir }}/certs/mcp-jira.key:/certs/server.key:ro
+      - {{ securetty_dir }}/certs:/certs:ro
       - type: tmpfs
         target: /tmp
         tmpfs:
@@ -500,9 +494,7 @@ services:
     env_file: .env.mcp-gitlab
     volumes:
       - {{ securetty_home }}/src/agent-mcp-skills/gitlab:/mcp:ro
-      - {{ securetty_dir }}/certs/ca.crt:/certs/ca.crt:ro
-      - {{ securetty_dir }}/certs/mcp-gitlab.crt:/certs/server.crt:ro
-      - {{ securetty_dir }}/certs/mcp-gitlab.key:/certs/server.key:ro
+      - {{ securetty_dir }}/certs:/certs:ro
       - type: tmpfs
         target: /tmp
         tmpfs:
@@ -536,9 +528,7 @@ services:
     env_file: .env.mcp-github
     volumes:
       - {{ securetty_home }}/src/agent-mcp-skills/github:/mcp:ro
-      - {{ securetty_dir }}/certs/ca.crt:/certs/ca.crt:ro
-      - {{ securetty_dir }}/certs/mcp-github.crt:/certs/server.crt:ro
-      - {{ securetty_dir }}/certs/mcp-github.key:/certs/server.key:ro
+      - {{ securetty_dir }}/certs:/certs:ro
       - type: tmpfs
         target: /tmp
         tmpfs:
@@ -572,9 +562,7 @@ services:
     env_file: .env.mcp-slack
     volumes:
       - {{ securetty_home }}/src/agent-mcp-skills/slack:/mcp:ro
-      - {{ securetty_dir }}/certs/ca.crt:/certs/ca.crt:ro
-      - {{ securetty_dir }}/certs/mcp-slack.crt:/certs/server.crt:ro
-      - {{ securetty_dir }}/certs/mcp-slack.key:/certs/server.key:ro
+      - {{ securetty_dir }}/certs:/certs:ro
       - type: tmpfs
         target: /tmp
         tmpfs:
@@ -608,9 +596,7 @@ services:
     env_file: .env.mcp-wordpress
     volumes:
       - {{ securetty_home }}/src/agent-mcp-skills/wordpress:/mcp:ro
-      - {{ securetty_dir }}/certs/ca.crt:/certs/ca.crt:ro
-      - {{ securetty_dir }}/certs/mcp-wordpress.crt:/certs/server.crt:ro
-      - {{ securetty_dir }}/certs/mcp-wordpress.key:/certs/server.key:ro
+      - {{ securetty_dir }}/certs:/certs:ro
       - type: tmpfs
         target: /tmp
         tmpfs:

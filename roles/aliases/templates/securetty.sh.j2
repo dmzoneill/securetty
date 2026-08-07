@@ -261,9 +261,7 @@ _run() {
         \
         -v "${GPG_AGENT_EXTRA_SOCK:-/dev/null}:/run/gpg-agent.sock:ro" \
         -v "/run/user/$(id -u)/securetty-open.sock:/run/securetty-open.sock" \
-        -v "$SECURETTY_DIR/certs/ca.crt:/certs/ca.crt:ro" \
-        -v "$SECURETTY_DIR/certs/client.crt:/certs/client.crt:ro" \
-        -v "$SECURETTY_DIR/certs/client.key:/certs/client.key:ro" \
+        -v "$SECURETTY_DIR/certs:/certs:ro" \
         \
         --tmpfs /tmp:size=512M \
         -v securetty-npm-cache:{{ securetty_home }}/.npm \
