@@ -336,6 +336,9 @@ services:
       - securetty-usr-local:/scan/usr-local:ro
       - securetty-pip-user:/scan/pip-user:ro
       - securetty-npm-global:/scan/npm-global:ro
+      - securetty-npm-cache:/scan/npm-cache:ro
+      - securetty-cargo-cache:/scan/cargo:ro
+      - securetty-go-cache:/scan/go:ro
       - guarddog_results:/results
       - type: tmpfs
         target: /tmp
@@ -371,6 +374,9 @@ services:
       - securetty-usr-local:/scan/usr-local:ro
       - securetty-pip-user:/scan/pip-user:ro
       - securetty-npm-global:/scan/npm-global:ro
+      - securetty-npm-cache:/scan/npm-cache:ro
+      - securetty-cargo-cache:/scan/cargo:ro
+      - securetty-go-cache:/scan/go:ro
       - osv_results:/results
       - type: tmpfs
         target: /tmp
@@ -387,18 +393,31 @@ services:
 
 volumes:
   securetty-npm-cache:
+    name: securetty-npm-cache
   securetty-pip-cache:
+    name: securetty-pip-cache
   securetty-uv-cache:
+    name: securetty-uv-cache
   securetty-cargo-cache:
+    name: securetty-cargo-cache
   securetty-go-cache:
+    name: securetty-go-cache
   securetty-pip-user:
+    name: securetty-pip-user
   securetty-npm-global:
+    name: securetty-npm-global
   securetty-usr-local:
+    name: securetty-usr-local
   guarddog_results:
+    name: securetty-guarddog-results
   osv_results:
+    name: securetty-osv-results
   headroom_data:
+    name: securetty-headroom-data
   cloudcli_data:
+    name: securetty-cloudcli-data
   ollama_models:
+    name: securetty-ollama-models
 
 networks:
   securetty_net:

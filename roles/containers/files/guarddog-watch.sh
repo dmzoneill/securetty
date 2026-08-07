@@ -2,7 +2,7 @@
 # GuardDog inotify watcher — scans new/modified packages in shared volumes
 set -euo pipefail
 
-SCAN_DIRS="/scan/usr-local /scan/pip-user /scan/npm-global"
+SCAN_DIRS="/scan/usr-local /scan/pip-user /scan/npm-global /scan/npm-cache /scan/cargo /scan/go"
 RESULTS_DIR="/results"
 LOG="$RESULTS_DIR/guarddog.log"
 DEBOUNCE=5

@@ -2,7 +2,7 @@
 # OSV-Scanner inotify watcher — checks packages against known vulnerability/malware DB
 set -euo pipefail
 
-SCAN_DIRS="/scan/usr-local /scan/pip-user /scan/npm-global"
+SCAN_DIRS="/scan/usr-local /scan/pip-user /scan/npm-global /scan/npm-cache /scan/cargo /scan/go"
 RESULTS_DIR="/results"
 LOG="$RESULTS_DIR/osv-scanner.log"
 DEBOUNCE=10
