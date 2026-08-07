@@ -114,12 +114,6 @@ services:
       - PATH={{ securetty_home }}/.npm-global/bin:{{ securetty_home }}/go/bin:{{ securetty_home }}/.cargo/bin:{{ securetty_home }}/.local/bin:/usr/local/bin:/usr/bin:/bin
       - SSH_AUTH_SOCK=/run/ssh-agent.sock
       - GPG_AGENT_INFO=/run/gpg-agent.sock
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - XAI_API_KEY=${XAI_API_KEY:-}
-      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
       - OMNIROUTE_BASE_URL=http://securetty-omniroute:4000
       - HEADROOM_URL=http://securetty-headroom:8787
       - OLLAMA_HOST=http://securetty-ollama:11434
@@ -631,8 +625,6 @@ volumes:
     name: securetty-cloudcli-data
   ollama_models:
     name: securetty-ollama-models
-  securetty-mcp-skills:
-    name: securetty-mcp-skills
 
 networks:
   securetty_net:

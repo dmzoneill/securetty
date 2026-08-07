@@ -29,7 +29,8 @@ _ensure_ssh_agent() {
 
 _ensure_services() {
     if [ "$({{ securetty_podman_cmd }} inspect securetty-omniroute --format '{{ '{{' }}.State.Running{{ '}}' }}' 2>/dev/null)" != "true" ] || \
-       [ "$({{ securetty_podman_cmd }} inspect securetty-headroom --format '{{ '{{' }}.State.Running{{ '}}' }}' 2>/dev/null)" != "true" ]; then
+       [ "$({{ securetty_podman_cmd }} inspect securetty-headroom --format '{{ '{{' }}.State.Running{{ '}}' }}' 2>/dev/null)" != "true" ] || \
+       [ "$({{ securetty_podman_cmd }} inspect securetty-creds --format '{{ '{{' }}.State.Running{{ '}}' }}' 2>/dev/null)" != "true" ]; then
         echo "Starting services..."
         (cd "$SECURETTY_DIR" && {{ securetty_compose_cmd }} up -d --no-build 2>/dev/null) || true
         sleep 1
@@ -102,7 +103,7 @@ _preflight() {
     fi
 
     # Service checks
-    for svc in securetty-omniroute securetty-headroom; do
+    for svc in securetty-omniroute securetty-headroom securetty-creds; do
         if [ "$({{ securetty_podman_cmd }} inspect "$svc" --format '{% raw %}{{.State.Running}}{% endraw %}' 2>/dev/null)" = "true" ]; then
             echo "  OK: $svc"
         else

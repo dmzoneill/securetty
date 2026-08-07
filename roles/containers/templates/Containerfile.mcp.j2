@@ -1,8 +1,7 @@
 FROM localhost/securetty_base:latest
 
-RUN python3.12 -m pip install --target /usr/local/lib/python3.12/site-packages \
-        fastmcp uvicorn httpx requests aiohttp \
-    && ln -sf /usr/local/lib/python3.12/site-packages/bin/uvicorn /usr/local/bin/uvicorn 2>/dev/null || true
+RUN python3.12 -m pip install --break-system-packages \
+        fastmcp uvicorn httpx requests aiohttp
 
 RUN groupadd -g {{ securetty_uid }} mcp \
     && useradd -u {{ securetty_uid }} -g {{ securetty_gid }} -m -s /bin/bash mcp

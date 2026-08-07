@@ -8,7 +8,7 @@ FROM localhost/securetty_base:latest
 # Development Tools group + all system packages
 RUN dnf group install -y development-tools \
     && dnf install -y --setopt=install_weak_deps=False \
-        net-tools man-db gnome-shell python3-pip tar nmap golang make findutils iproute gh ansible-core gnupg2 mutter-devkit git xz gsettings-desktop-schemas gnome-extensions-app nmap-ncat pciutils mesa-dri-drivers tree ruff sshpass awscli2 libxml2 dconf pipewire-pulseaudio glab sound-theme-freedesktop dbus-tools python3-devel python3-lxml python3-ansible-lint mesa-libEGL podman-remote unzip socat ImageMagick yamllint g++ python3-flake8 sqlite git-core gcc glib2-devel rpm-build glib2 pulseaudio-utils lsof util-linux ffmpeg python3 sassc which openssh-clients bind-utils gjs python3-pytest dnf-plugins-core hostname iputils gettext ncat skopeo dbus-daemon xdg-utils \
+        sound-theme-freedesktop findutils man-db ruff xz hostname sassc iputils awscli2 gsettings-desktop-schemas golang dbus-tools tree git gh python3-ansible-lint python3-devel ImageMagick rpm-build python3-flake8 pipewire-pulseaudio libxml2 gnome-extensions-app dconf mutter-devkit mesa-libEGL gcc nmap pciutils yamllint python3-lxml dbus-daemon g++ mesa-dri-drivers net-tools ffmpeg python3-pytest podman-remote util-linux iproute openssh-clients python3-pip which unzip gettext nmap-ncat sshpass pulseaudio-utils gnupg2 bind-utils lsof dnf-plugins-core glib2 glab glib2-devel skopeo git-core python3 xdg-utils gnome-shell sqlite socat tar ncat gjs make ansible-core \
     && dnf clean all \
     && rm -rf /var/cache/dnf
 
