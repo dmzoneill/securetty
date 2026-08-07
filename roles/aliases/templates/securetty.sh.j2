@@ -284,15 +284,106 @@ cmd_env() {
 }
 
 cmd_scan() {
-    echo "=== GuardDog (behavioral detection) ==="
-    {{ securetty_podman_cmd }} logs --tail 20 securetty-guarddog 2>/dev/null || echo "GuardDog not running"
+    local mode="${1:-summary}"
+    case "$mode" in
+        alerts)
+            echo "=== GuardDog Alerts ==="
+            {{ securetty_podman_cmd }} exec securetty-guarddog cat /results/alerts.log 2>/dev/null || echo "No alerts"
+            echo ""
+            echo "=== OSV-Scanner Alerts ==="
+            {{ securetty_podman_cmd }} exec securetty-osv-scanner cat /results/alerts.log 2>/dev/null || echo "No alerts"
+            ;;
+        logs)
+            echo "=== GuardDog Log ==="
+            {{ securetty_podman_cmd }} logs --tail 50 securetty-guarddog 2>/dev/null || echo "Not running"
+            echo ""
+            echo "=== OSV-Scanner Log ==="
+            {{ securetty_podman_cmd }} logs --tail 50 securetty-osv-scanner 2>/dev/null || echo "Not running"
+            ;;
+        *)
+            echo "=== Scanner Status ==="
+            {{ securetty_podman_cmd }} ps --format "{% raw %}{{.Names}}\t{{.Status}}{% endraw %}" --filter name=guarddog --filter name=osv 2>/dev/null || echo "Not running"
+            echo ""
+            echo "=== Recent Activity ==="
+            {{ securetty_podman_cmd }} logs --tail 5 securetty-guarddog 2>/dev/null || true
+            {{ securetty_podman_cmd }} logs --tail 5 securetty-osv-scanner 2>/dev/null || true
+            echo ""
+            local gd_alerts osv_alerts
+            gd_alerts=$({{ securetty_podman_cmd }} exec securetty-guarddog wc -l /results/alerts.log 2>/dev/null | awk '{print $1}' || echo "0")
+            osv_alerts=$({{ securetty_podman_cmd }} exec securetty-osv-scanner wc -l /results/alerts.log 2>/dev/null | awk '{print $1}' || echo "0")
+            echo "GuardDog alerts: ${gd_alerts:-0}"
+            echo "OSV-Scanner alerts: ${osv_alerts:-0}"
+            [ "${gd_alerts:-0}" != "0" ] || [ "${osv_alerts:-0}" != "0" ] && echo "Run 'securetty scan alerts' for details"
+            ;;
+    esac
+}
+
+cmd_volumes() {
+    echo "=== Package Volumes ==="
+    for vol in securetty-usr-local securetty-npm-cache securetty-npm-global securetty-pip-cache securetty-pip-user securetty-uv-cache securetty-cargo-cache securetty-go-cache; do
+        local size
+        size=$({{ securetty_podman_cmd }} volume inspect "$vol" --format '{% raw %}{{.Mountpoint}}{% endraw %}' 2>/dev/null)
+        if [ -n "$size" ]; then
+            local du_size
+            du_size=$(du -sh "$size" 2>/dev/null | awk '{print $1}' || echo "?")
+            printf "  %-25s %s\n" "$vol" "$du_size"
+        else
+            printf "  %-25s %s\n" "$vol" "(not created)"
+        fi
+    done
     echo ""
-    echo "=== OSV-Scanner (known malware DB) ==="
-    {{ securetty_podman_cmd }} logs --tail 20 securetty-osv-scanner 2>/dev/null || echo "OSV-Scanner not running"
+    echo "=== Scanner Volumes ==="
+    for vol in guarddog_results osv_results; do
+        local size
+        size=$({{ securetty_podman_cmd }} volume inspect "$vol" --format '{% raw %}{{.Mountpoint}}{% endraw %}' 2>/dev/null)
+        if [ -n "$size" ]; then
+            local du_size
+            du_size=$(du -sh "$size" 2>/dev/null | awk '{print $1}' || echo "?")
+            printf "  %-25s %s\n" "$vol" "$du_size"
+        else
+            printf "  %-25s %s\n" "$vol" "(not created)"
+        fi
+    done
     echo ""
-    echo "=== Alerts ==="
-    {{ securetty_podman_cmd }} exec securetty-guarddog cat /results/alerts.log 2>/dev/null || echo "No GuardDog alerts"
-    {{ securetty_podman_cmd }} exec securetty-osv-scanner cat /results/alerts.log 2>/dev/null || echo "No OSV alerts"
+    echo "=== Service Volumes ==="
+    for vol in headroom_data cloudcli_data ollama_models; do
+        local size
+        size=$({{ securetty_podman_cmd }} volume inspect "$vol" --format '{% raw %}{{.Mountpoint}}{% endraw %}' 2>/dev/null)
+        if [ -n "$size" ]; then
+            local du_size
+            du_size=$(du -sh "$size" 2>/dev/null | awk '{print $1}' || echo "?")
+            printf "  %-25s %s\n" "$vol" "$du_size"
+        else
+            printf "  %-25s %s\n" "$vol" "(not created)"
+        fi
+    done
+}
+
+cmd_clean() {
+    echo "=== Orphaned containers ==="
+    local orphans
+    orphans=$({{ securetty_podman_cmd }} ps -a --format '{% raw %}{{.Names}}{% endraw %}' --filter status=exited | grep securetty || true)
+    if [ -n "$orphans" ]; then
+        echo "$orphans"
+        echo "Removing..."
+        echo "$orphans" | xargs {{ securetty_podman_cmd }} rm -f 2>/dev/null || true
+    else
+        echo "None"
+    fi
+    echo ""
+    echo "=== Dangling images ==="
+    {{ securetty_podman_cmd }} image prune -f 2>/dev/null | tail -1 || echo "None"
+    echo ""
+    echo "=== Stale env files ==="
+    local stale
+    stale=$(find /run/user/$(id -u)/ -name 'securetty-env.*' -mmin +60 2>/dev/null || true)
+    if [ -n "$stale" ]; then
+        echo "$stale"
+        echo "Removing..."
+        echo "$stale" | xargs rm -f 2>/dev/null || true
+    else
+        echo "None"
+    fi
 }
 
 cmd_status() {
@@ -303,8 +394,24 @@ cmd_status() {
     {{ securetty_podman_cmd }} network inspect {{ securetty_network_name }} --format '{% raw %}Subnet: {{range .Subnets}}{{.Subnet}}{{end}} Interface: {{.NetworkInterface}}{% endraw %}' 2>/dev/null || echo "Network not created"
     echo ""
     echo "=== Egress ==="
-    {{ securetty_podman_cmd }} unshare nsenter --net="/run/user/$(id -u)/containers/networks/rootless-netns/rootless-netns" \
-        nft list table inet securetty_egress 2>/dev/null | grep -c 'elements' || echo "No egress rules loaded"
+    local egress_count
+    egress_count=$({{ securetty_podman_cmd }} unshare nsenter --net="/run/user/$(id -u)/containers/networks/rootless-netns/rootless-netns" \
+        nft list set inet securetty_egress allowed_ipv4 2>/dev/null | grep -oP '\d+' | tail -1 || echo "0")
+    echo "nftables: securetty_egress table active, ${egress_count:-0} IPs in allowlist"
+    echo ""
+    echo "=== DNS ==="
+    local dns_status="patched (169.254.1.1)"
+    grep -q '8.8.8.8' "/run/user/$(id -u)/containers/networks/aardvark-dns/{{ securetty_network_name }}" 2>/dev/null && dns_status="UNPATCHED (8.8.8.8 — run securetty egress)"
+    echo "Aardvark: $dns_status"
+    echo ""
+    echo "=== Scanners ==="
+    local gd_status osv_status
+    gd_status=$({{ securetty_podman_cmd }} inspect securetty-guarddog --format '{% raw %}{{.State.Status}}{% endraw %}' 2>/dev/null || echo "not running")
+    osv_status=$({{ securetty_podman_cmd }} inspect securetty-osv-scanner --format '{% raw %}{{.State.Status}}{% endraw %}' 2>/dev/null || echo "not running")
+    echo "GuardDog: $gd_status | OSV-Scanner: $osv_status"
+    echo ""
+    echo "=== Volumes ==="
+    echo "$({{ securetty_podman_cmd }} volume ls --format '{% raw %}{{.Name}}{% endraw %}' 2>/dev/null | grep -c securetty || echo 0) securetty volumes"
     echo ""
     echo "=== Images ==="
     {{ securetty_podman_cmd }} images --format "table {% raw %}{{.Repository}}\t{{.Size}}\t{{.CreatedSince}}{% endraw %}" | grep securetty || echo "No images built"
@@ -338,14 +445,19 @@ Lifecycle:
 Configuration:
   egress                    Reload nftables egress rules + DNS patch
   env                       Regenerate .env files
-  status                    Show containers, network, egress, images
-  scan                      Show package scanner results + alerts
+  status                    Show containers, network, egress, DNS, scanners
+  scan [alerts|logs]        Package scanner results (GuardDog + OSV)
+  volumes                   Show volume sizes (packages, caches, scanners)
+  clean                     Remove orphaned containers + stale env files
 
 Examples:
   securetty run claude --dangerously-skip-permissions
   securetty run-work gemini ~/src/myproject
   securetty shell
   securetty status
+  securetty scan alerts
+  securetty volumes
+  securetty clean
 HELP
 }
 
@@ -366,6 +478,8 @@ case "${1:-help}" in
     env)              shift; cmd_env "$@" ;;
     status)           shift; cmd_status "$@" ;;
     scan)             shift; cmd_scan "$@" ;;
+    volumes)          shift; cmd_volumes "$@" ;;
+    clean)            shift; cmd_clean "$@" ;;
     help|--help|-h)   cmd_help ;;
     *)                echo "Unknown command: $1. Run 'securetty help' for usage." >&2; exit 1 ;;
 esac
