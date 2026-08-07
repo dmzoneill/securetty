@@ -48,7 +48,7 @@ _ensure_egress() {
     local netns="/run/user/$(id -u)/containers/networks/rootless-netns/rootless-netns"
     [ -e "$netns" ] || return 0
     local has_table
-    has_table=$(podman unshare nsenter --net="$netns" nft list tables 2>/dev/null | grep -c securetty_egress)
+    has_table=$(podman unshare nsenter --net="$netns" nft list tables 2>/dev/null | grep -c securetty_egress || true)
     if [ "$has_table" -eq 0 ]; then
         local egress_script="$SECURETTY_DIR/scripts/securetty-egress.sh"
         local resolve_script="$SECURETTY_DIR/scripts/resolve-egress.sh"
