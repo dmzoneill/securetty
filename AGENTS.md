@@ -27,10 +27,16 @@ Services run as sibling containers on the same podman bridge network (172.30.100
 |---------|-------------|
 | `make setup` | Full build + configure + aliases |
 | `make rebuild` | Force rebuild all image layers |
-| `make rebuild-agents` | Rebuild dev layer only (skip base/devbase) |
-| `make egress` | Resolve domains and load nftables whitelist |
-| `make env` | Regenerate .env files from pass store |
-| `make scan` | Scan AI history for leaked secrets |
+| `securetty rebuild-agents` | Rebuild dev layer only (skip base/devbase) |
+| `securetty egress` | Resolve domains and load nftables whitelist |
+| `securetty env` | Regenerate .env files from pass store |
+| `securetty scan` | Show package scanner results and alerts |
+| `securetty status` | Dashboard — containers, network, egress, scanners |
+| `securetty top` | Container resource usage (CPU, mem, net) |
+| `securetty volumes` | Show volume sizes |
+| `securetty clean` | Remove orphaned containers and stale files |
+
+Makefile targets (`make setup`, `make rebuild`, etc.) are thin wrappers around the CLI.
 
 ## Rules
 
