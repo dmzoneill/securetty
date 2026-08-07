@@ -75,6 +75,75 @@ _patch_dns() {
     fi
 }
 
+_preflight() {
+    local errors=0 warnings=0
+    echo "=== Securetty Preflight ==="
+
+    # Hard checks (fail if missing)
+    if ! {{ securetty_podman_cmd }} info &>/dev/null; then
+        echo "  FAIL: podman not running"
+        errors=$((errors + 1))
+    else
+        echo "  OK: podman"
+    fi
+
+    if ! {{ securetty_podman_cmd }} image exists securetty_dev 2>/dev/null; then
+        echo "  FAIL: securetty_dev image not built (run securetty rebuild)"
+        errors=$((errors + 1))
+    else
+        echo "  OK: dev image"
+    fi
+
+    if ! {{ securetty_podman_cmd }} network exists {{ securetty_network_name }} 2>/dev/null; then
+        echo "  FAIL: securetty network not created (run securetty setup)"
+        errors=$((errors + 1))
+    else
+        echo "  OK: network"
+    fi
+
+    # Service checks
+    for svc in securetty-omniroute securetty-headroom; do
+        if [ "$({{ securetty_podman_cmd }} inspect "$svc" --format '{% raw %}{{.State.Running}}{% endraw %}' 2>/dev/null)" = "true" ]; then
+            echo "  OK: $svc"
+        else
+            echo "  WARN: $svc not running"
+            warnings=$((warnings + 1))
+        fi
+    done
+
+    # SSH agent
+    if [ -S "/run/user/$(id -u)/securetty-ssh-agent.sock" ]; then
+        echo "  OK: SSH agent"
+    else
+        echo "  WARN: SSH agent not running"
+        warnings=$((warnings + 1))
+    fi
+
+    # Env file
+    if [ -f "$SECURETTY_DIR/.env" ]; then
+        local key_count
+        key_count=$(grep -c '=' "$SECURETTY_DIR/.env" 2>/dev/null || echo 0)
+        echo "  OK: .env ($key_count keys)"
+    else
+        echo "  WARN: .env not generated (run securetty env)"
+        warnings=$((warnings + 1))
+    fi
+
+    # Disk space
+    local avail
+    avail=$(df -BG --output=avail "$SECURETTY_DIR" 2>/dev/null | tail -1 | tr -d ' G')
+    if [ "${avail:-0}" -lt 5 ]; then
+        echo "  WARN: low disk space (${avail}G available)"
+        warnings=$((warnings + 1))
+    else
+        echo "  OK: disk (${avail}G available)"
+    fi
+
+    echo ""
+    echo "Results: $errors errors, $warnings warnings"
+    [ "$errors" -eq 0 ] && return 0 || return 1
+}
+
 _extract_workdir() {
     _SECURETTY_WORKDIR="$(pwd)"
     _SECURETTY_ARGS=()
@@ -401,6 +470,10 @@ cmd_clean() {
     fi
 }
 
+cmd_preflight() {
+    _preflight
+}
+
 cmd_status() {
     local C='\033[0;36m' G='\033[0;32m' Y='\033[0;33m' R='\033[0;31m' W='\033[1;37m' N='\033[0m'
 
@@ -517,6 +590,7 @@ Configuration:
   top [--live]              Container resource usage (CPU, mem, net, PIDs)
   scan [alerts|logs]        Package scanner results (GuardDog + OSV)
   volumes                   Show volume sizes (packages, caches, scanners)
+  preflight                 Check prerequisites (podman, images, services)
   clean                     Remove orphaned containers + stale env files
 
 Examples:
@@ -550,6 +624,7 @@ case "${1:-help}" in
     scan)             shift; cmd_scan "$@" ;;
     volumes)          shift; cmd_volumes "$@" ;;
     clean)            shift; cmd_clean "$@" ;;
+    preflight)        shift; cmd_preflight "$@" ;;
     help|--help|-h)   cmd_help ;;
     *)                echo "Unknown command: $1. Run 'securetty help' for usage." >&2; exit 1 ;;
 esac
