@@ -98,6 +98,13 @@ GPG_AGENT_INFO=/run/gpg-agent.sock
 XDG_RUNTIME_DIR=/run/user/$(id -u)
 NODE_ENV=development
 npm_config_ignore_scripts=true
+npm_config_cache={{ securetty_home }}/.npm
+CARGO_HOME={{ securetty_home }}/.cargo
+GOPATH={{ securetty_home }}/go
+GOBIN={{ securetty_home }}/go/bin
+PYTHONUSERBASE={{ securetty_home }}/.local
+PIP_USER=1
+PATH={{ securetty_home }}/go/bin:{{ securetty_home }}/.cargo/bin:{{ securetty_home }}/.local/bin:/usr/local/bin:/usr/bin:/bin
 OMNIROUTE_BASE_URL=http://securetty-omniroute:4000
 HEADROOM_URL=http://securetty-headroom:8787
 OLLAMA_HOST=http://securetty-ollama:11434
@@ -173,6 +180,7 @@ _run() {
         -v securetty-uv-cache:{{ securetty_home }}/.cache/uv \
         -v securetty-cargo-cache:{{ securetty_home }}/.cargo \
         -v securetty-go-cache:{{ securetty_home }}/go \
+        -v securetty-pip-user:{{ securetty_home }}/.local/lib \
         --tmpfs {{ securetty_home }}/.cache/mesa_shader_cache:size=128M \
         \
         -w "${_SECURETTY_WORKDIR:-$(pwd)}" \

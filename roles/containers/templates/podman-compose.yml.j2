@@ -75,6 +75,7 @@ services:
       - securetty-uv-cache:{{ securetty_home }}/.cache/uv
       - securetty-cargo-cache:{{ securetty_home }}/.cargo
       - securetty-go-cache:{{ securetty_home }}/go
+      - securetty-pip-user:{{ securetty_home }}/.local/lib
 
       # Writable tmpfs for runtime
       - type: tmpfs
@@ -102,7 +103,13 @@ services:
       - XDG_RUNTIME_DIR=/run/user/{{ securetty_uid }}
       - NODE_ENV=development
       - npm_config_ignore_scripts=true
-      - PATH={{ securetty_home }}/bin:/usr/local/bin:/usr/bin:/bin
+      - npm_config_cache={{ securetty_home }}/.npm
+      - CARGO_HOME={{ securetty_home }}/.cargo
+      - GOPATH={{ securetty_home }}/go
+      - GOBIN={{ securetty_home }}/go/bin
+      - PYTHONUSERBASE={{ securetty_home }}/.local
+      - PIP_USER=1
+      - PATH={{ securetty_home }}/go/bin:{{ securetty_home }}/.cargo/bin:{{ securetty_home }}/.local/bin:/usr/local/bin:/usr/bin:/bin
       - SSH_AUTH_SOCK=/run/ssh-agent.sock
       - GPG_AGENT_INFO=/run/gpg-agent.sock
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
@@ -311,6 +318,7 @@ volumes:
   securetty-uv-cache:
   securetty-cargo-cache:
   securetty-go-cache:
+  securetty-pip-user:
   headroom_data:
   cloudcli_data:
   ollama_models:
