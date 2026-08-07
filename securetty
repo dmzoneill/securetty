@@ -398,34 +398,87 @@ cmd_clean() {
 }
 
 cmd_status() {
-    echo "=== Containers ==="
-    podman ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" | grep securetty || echo "No containers running"
+    local C='\033[0;36m' G='\033[0;32m' Y='\033[0;33m' R='\033[0;31m' W='\033[1;37m' N='\033[0m'
+
+    # Gather data
+    local running healthy total_containers
+    running=$(podman ps --format '{{.Names}}' 2>/dev/null | grep -c securetty || echo 0)
+    healthy=$(podman ps --format '{{.Status}}' --filter name=securetty 2>/dev/null | grep -c healthy || echo 0)
+    total_containers=$(podman ps -a --format '{{.Names}}' 2>/dev/null | grep -c securetty || echo 0)
+
+    local subnet iface
+    subnet=$(podman network inspect securetty --format '{{range .Subnets}}{{.Subnet}}{{end}}' 2>/dev/null || echo "none")
+    iface=$(podman network inspect securetty --format '{{.NetworkInterface}}' 2>/dev/null || echo "none")
+
+    local egress_ips
+    egress_ips=$(podman unshare nsenter --net="/run/user/$(id -u)/containers/networks/rootless-netns/rootless-netns" \
+        nft list set inet securetty_egress allowed_ipv4 2>/dev/null | grep -c ',' || echo "0")
+
+    local dns_status="${G}patched (169.254.1.1)${N}"
+    grep -q '8.8.8.8' "/run/user/$(id -u)/containers/networks/aardvark-dns/securetty" 2>/dev/null && dns_status="${R}UNPATCHED (8.8.8.8)${N}"
+
+    local gd_status osv_status gd_alerts osv_alerts
+    gd_status=$(podman inspect securetty-guarddog --format '{{.State.Status}}' 2>/dev/null || echo "off")
+    osv_status=$(podman inspect securetty-osv-scanner --format '{{.State.Status}}' 2>/dev/null || echo "off")
+    gd_alerts=$(podman exec securetty-guarddog wc -l /results/alerts.log 2>/dev/null | awk '{print $1}' || echo "0")
+    osv_alerts=$(podman exec securetty-osv-scanner wc -l /results/alerts.log 2>/dev/null | awk '{print $1}' || echo "0")
+
+    local vol_count img_count total_img_size
+    vol_count=$(podman volume ls --format '{{.Name}}' 2>/dev/null | grep -c securetty || echo 0)
+    img_count=$(podman images --format '{{.Repository}}' 2>/dev/null | grep -c securetty || echo 0)
+    total_img_size=$(podman images --format '{{.Size}}' 2>/dev/null | grep -v SIZE | paste -sd+ | bc 2>/dev/null || echo "?")
+
+    local agent_count=17
+    local build_date
+    build_date=$(podman run --rm securetty_dev cat /etc/securetty-manifest.json 2>/dev/null | jq -r '.build_date // "unknown"' 2>/dev/null || echo "unknown")
+
+    # Display
     echo ""
-    echo "=== Network ==="
-    podman network inspect securetty --format 'Subnet: {{range .Subnets}}{{.Subnet}}{{end}} Interface: {{.NetworkInterface}}' 2>/dev/null || echo "Network not created"
+    echo -e "  ${C}  ______                            _______ _______ _     _${N}"
+    echo -e "  ${C} / _____)                          (_______|_______) |   | |${N}    ${W}securetty${N}"
+    echo -e "  ${C}( (____  _____  ____ _   _  ____ _____ _       _   | |___| |${N}    --------------------------------"
+    echo -e "  ${C} \\____ \\| ___ |/ ___) | | |/ ___) ___ | |     | |  |_____  |${N}    ${C}Containers${N}  ${running} running, ${healthy} healthy, ${total_containers} total"
+    echo -e "  ${C} _____) ) ____( (___| |_| | |   | ____| |     | |   _____| |${N}    ${C}Agents${N}  ${agent_count} configured"
+    echo -e "  ${C}(______/|_____)\\____)____/|_|   |_____)_|     |_|  (_______|${N}    ${C}Built${N}  ${build_date}"
+    echo -e "                                                                   ${C}Images${N}  ${img_count} images"
+    echo -e "                                                                   --------------------------------"
+
+    # Container list
+    echo -e "                                                                   ${C}Network${N}  ${subnet} (${iface})"
+    echo -e "                                                                   ${C}Egress${N}  nftables ${egress_ips} IPs whitelisted"
+    echo -e "                                                                   ${C}DNS${N}  ${dns_status}"
+    echo -e "                                                                   --------------------------------"
+    echo -e "                                                                   ${C}GuardDog${N}  ${gd_status} (${gd_alerts:-0} alerts)"
+    echo -e "                                                                   ${C}OSV-Scanner${N}  ${osv_status} (${osv_alerts:-0} alerts)"
+    echo -e "                                                                   ${C}Volumes${N}  ${vol_count} named volumes"
+    echo -e "                                                                   --------------------------------"
+
+    # Services table
     echo ""
-    echo "=== Egress ==="
-    local egress_count
-    egress_count=$(podman unshare nsenter --net="/run/user/$(id -u)/containers/networks/rootless-netns/rootless-netns" \
-        nft list set inet securetty_egress allowed_ipv4 2>/dev/null | grep -oP '\d+' | tail -1 || echo "0")
-    echo "nftables: securetty_egress table active, ${egress_count:-0} IPs in allowlist"
+    echo -e "  ${W}Services${N}"
+    podman ps -a --format "{{.Names}}\t{{.Status}}" 2>/dev/null | grep securetty | while IFS=$'\t' read -r name status; do
+        local icon="${G}●${N}"
+        echo "$status" | grep -qi 'exited\|dead\|created' && icon="${R}●${N}"
+        echo "$status" | grep -qi 'starting' && icon="${Y}●${N}"
+        printf "  ${icon} %-28s %s\n" "$name" "$status"
+    done
     echo ""
-    echo "=== DNS ==="
-    local dns_status="patched (169.254.1.1)"
-    grep -q '8.8.8.8' "/run/user/$(id -u)/containers/networks/aardvark-dns/securetty" 2>/dev/null && dns_status="UNPATCHED (8.8.8.8 — run securetty egress)"
-    echo "Aardvark: $dns_status"
-    echo ""
-    echo "=== Scanners ==="
-    local gd_status osv_status
-    gd_status=$(podman inspect securetty-guarddog --format '{{.State.Status}}' 2>/dev/null || echo "not running")
-    osv_status=$(podman inspect securetty-osv-scanner --format '{{.State.Status}}' 2>/dev/null || echo "not running")
-    echo "GuardDog: $gd_status | OSV-Scanner: $osv_status"
-    echo ""
-    echo "=== Volumes ==="
-    echo "$(podman volume ls --format '{{.Name}}' 2>/dev/null | grep -c securetty || echo 0) securetty volumes"
-    echo ""
-    echo "=== Images ==="
-    podman images --format "table {{.Repository}}\t{{.Size}}\t{{.CreatedSince}}" | grep securetty || echo "No images built"
+}
+
+cmd_top() {
+    local containers
+    containers=$(podman ps --format '{{.Names}}' 2>/dev/null | grep securetty | tr '\n' ' ')
+    if [ -z "$containers" ]; then
+        echo "No securetty containers running"
+        return 1
+    fi
+    if [ "${1:-}" = "--live" ] || [ "${1:-}" = "-l" ]; then
+        exec podman stats $containers
+    else
+        podman stats --no-stream $containers 2>/dev/null
+        echo ""
+        echo "Live view: securetty top --live"
+    fi
 }
 
 cmd_help() {
@@ -456,7 +509,8 @@ Lifecycle:
 Configuration:
   egress                    Reload nftables egress rules + DNS patch
   env                       Regenerate .env files
-  status                    Show containers, network, egress, DNS, scanners
+  status                    Dashboard — containers, network, egress, scanners
+  top [--live]              Container resource usage (CPU, mem, net, PIDs)
   scan [alerts|logs]        Package scanner results (GuardDog + OSV)
   volumes                   Show volume sizes (packages, caches, scanners)
   clean                     Remove orphaned containers + stale env files
@@ -488,6 +542,7 @@ case "${1:-help}" in
     egress)           shift; cmd_egress "$@" ;;
     env)              shift; cmd_env "$@" ;;
     status)           shift; cmd_status "$@" ;;
+    top)              shift; cmd_top "$@" ;;
     scan)             shift; cmd_scan "$@" ;;
     volumes)          shift; cmd_volumes "$@" ;;
     clean)            shift; cmd_clean "$@" ;;
