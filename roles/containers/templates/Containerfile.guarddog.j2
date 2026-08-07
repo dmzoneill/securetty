@@ -1,9 +1,6 @@
 FROM localhost/securetty_base:latest
 
-RUN python3.12 -m pip install --target /usr/local/lib/python3.12/site-packages \
-        guarddog inotify-simple \
-    && dnf install -y --setopt=install_weak_deps=False inotify-tools \
-    && dnf clean all && rm -rf /var/cache/dnf
+RUN python3.12 -m pip install --target /usr/local/lib/python3.12/site-packages guarddog
 
 RUN groupadd -g {{ securetty_uid }} scanner \
     && useradd -u {{ securetty_uid }} -g {{ securetty_gid }} -m -s /bin/bash scanner \

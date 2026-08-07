@@ -242,6 +242,9 @@ securetty_allowed_domains:
   - "*.enterprise.slack.com"
   # WordPress
   - "*.feeditout.com"
+  # Security scanners (GuardDog, OSV)
+  - "*.osv.dev"
+  - "*.deps.dev"
   # Stripe (Kiro billing)
   - "*.stripe.com"
 
