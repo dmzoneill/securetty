@@ -141,6 +141,7 @@
     - git-credential-securetty
     - glab-wrapper
     - gh-wrapper
+    - claude-post-commit-hook.sh
   tags:
     - build
 

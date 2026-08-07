@@ -154,8 +154,6 @@ services:
     read_only: true
     env_file:
       - .env.omniroute
-    environment:
-      - INITIAL_PASSWORD=${OMNIROUTE_INITIAL_PASSWORD:-}
     volumes:
       - {{ securetty_home }}/.omniroute:/data
       - type: tmpfs

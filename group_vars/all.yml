@@ -174,7 +174,7 @@ securetty_ollama_models:
   - deepseek-coder-v2:16b
 
 # =============================================================================
-# Egress allowed domains (Envoy SNI allowlist)
+# Egress allowed domains
 # =============================================================================
 
 securetty_allowed_domains:
