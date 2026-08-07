@@ -1,0 +1,12 @@
+FROM localhost/securetty_base:latest
+
+COPY scripts/creds-server.py /usr/local/bin/creds-server.py
+RUN chmod +x /usr/local/bin/creds-server.py
+
+RUN groupadd -g {{ securetty_uid }} creds \
+    && useradd -u {{ securetty_uid }} -g {{ securetty_gid }} -m -s /bin/bash creds
+
+USER creds
+EXPOSE 8800
+
+CMD ["python3.12", "/usr/local/bin/creds-server.py"]

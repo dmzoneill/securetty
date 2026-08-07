@@ -161,8 +161,9 @@ _build_envfile() {
     envfile=$(umask 077; mktemp /run/user/$(id -u)/securetty-env.XXXXXX) || { echo "ERROR: mktemp failed" >&2; return 1; }
     [ -n "$envfile" ] || { echo "ERROR: empty envfile path" >&2; return 1; }
 
-    command cp -f "$SECURETTY_DIR/.env" "$envfile"
-    chmod 0600 "$envfile"
+    # Zero-secret agent env — only OMNIROUTE_API_KEY + non-secret config
+    grep -E '^OMNIROUTE_API_KEY=' "$SECURETTY_DIR/.env" >> "$envfile" 2>/dev/null || true
+    grep -E '^(CLAUDE_CODE_USE_VERTEX|ANTHROPIC_VERTEX_PROJECT_ID|GOOGLE_CLOUD_PROJECT|GOOGLE_CLOUD_LOCATION|CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC)=' "$SECURETTY_DIR/.env" >> "$envfile" 2>/dev/null || true
 
     cat >> "$envfile" <<ENVEOF
 HOME={{ securetty_home }}
@@ -233,7 +234,7 @@ _run() {
         -v "{{ securetty_home }}/.ssh/config:{{ securetty_home }}/.ssh/config:ro" \
         -v "{{ securetty_home }}/.ssh/known_hosts:{{ securetty_home }}/.ssh/known_hosts:ro" \
         -v "{{ securetty_home }}/.claude.json:{{ securetty_home }}/.claude.json" \
-        -v "{{ securetty_home }}/.mcp.json:{{ securetty_home }}/.mcp.json:ro" \
+        \
 {% for dir in securetty_agent_config_dirs %}
         -v "{{ securetty_home }}/{{ dir }}:{{ securetty_home }}/{{ dir }}" \
 {% endfor %}

@@ -18,6 +18,9 @@
     - guarddog/scripts
     - osv-scanner
     - osv-scanner/scripts
+    - mcp
+    - creds
+    - creds/scripts
     - scripts
 
 # 2. Template all Containerfiles to their build dirs
@@ -76,6 +79,38 @@
     src: Containerfile.osv-scanner.j2
     dest: "{{ securetty_dir }}/osv-scanner/Containerfile"
     mode: "0644"
+
+- name: Template MCP Containerfile
+  ansible.builtin.template:
+    src: Containerfile.mcp.j2
+    dest: "{{ securetty_dir }}/mcp/Containerfile"
+    mode: "0644"
+
+- name: Template creds Containerfile
+  ansible.builtin.template:
+    src: Containerfile.creds.j2
+    dest: "{{ securetty_dir }}/creds/Containerfile"
+    mode: "0644"
+
+- name: Copy credential proxy server
+  ansible.builtin.copy:
+    src: creds-server.py
+    dest: "{{ securetty_dir }}/creds/scripts/creds-server.py"
+    mode: "0755"
+  tags:
+    - build
+
+- name: Copy credential helper scripts to build context
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ securetty_dir }}/scripts/{{ item }}"
+    mode: "0755"
+  loop:
+    - git-credential-securetty
+    - glab-wrapper
+    - gh-wrapper
+  tags:
+    - build
 
 - name: Copy scanner watch scripts
   ansible.builtin.copy:
