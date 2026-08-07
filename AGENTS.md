@@ -38,6 +38,20 @@ Services run as sibling containers on the same podman bridge network (172.30.100
 
 Makefile targets (`make setup`, `make rebuild`, etc.) are thin wrappers around the CLI.
 
+## Common Changes
+
+- **Add a new AI agent:** Edit `group_vars/all.yml` — add to `securetty_npm_agents`, `securetty_pip_agents`, or `securetty_binary_agents`. Add alias entry to `securetty_agents`. Run `securetty rebuild-agents`.
+- **Add a new AI provider:** Store API key in pass, add entry to `securetty_pass_keys` and `securetty_providers` in `group_vars/all.yml`. Run `securetty setup`.
+- **Add an egress domain:** Add to `securetty_allowed_domains` in `group_vars/all.yml`. Run `securetty egress`.
+- **Add a pip/npm package for dev tools:** Add to `securetty_pip_tools` in `group_vars/all.yml`. Run `securetty rebuild-agents`.
+
+## Design Documents
+
+- [THREAT_MODEL.md](THREAT_MODEL.md) — 8-section threat assessment
+- [docs/security-levels.md](docs/security-levels.md) — what's enforced vs not
+- [docs/trust-model.md](docs/trust-model.md) — trusted/untrusted inputs
+- [docs/repo-access.md](docs/repo-access.md) — platform/CLI/auth per repo
+
 ## Rules
 
 1. **Agent lists live in `group_vars/all.yml`** -- `securetty_npm_agents`, `securetty_pip_agents`, `securetty_binary_agents`, and `securetty_agents` (alias config). Add new agents there, not in Containerfiles.
