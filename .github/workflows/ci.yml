@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y shellcheck yamllint
+          pip install ansible-lint
+
+      - name: ShellCheck
+        run: find roles/ scripts/ -name '*.sh' -not -path '*/templates/*' | xargs shellcheck -x -S warning || true
+
+      - name: YAMLlint
+        run: yamllint -d '{extends: default, rules: {line-length: disable, truthy: disable}}' group_vars/ roles/*/tasks/ site.yml scan.yml migrate.yml
+
+      - name: Ansible Lint
+        run: ansible-lint site.yml || true
+
+  structure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Required files exist
+        run: |
+          test -f AGENTS.md || (echo "MISSING: AGENTS.md" && exit 1)
+          test -f THREAT_MODEL.md || (echo "MISSING: THREAT_MODEL.md" && exit 1)
+          test -f SECURITY.md || (echo "MISSING: SECURITY.md" && exit 1)
+          test -f CLAUDE.md || (echo "MISSING: CLAUDE.md" && exit 1)
+
+      - name: AGENTS.md under 150 lines
+        run: |
+          lines=$(wc -l < AGENTS.md)
+          test "$lines" -le 150 || (echo "AGENTS.md too long: $lines lines (max 150)" && exit 1)
+          echo "AGENTS.md: $lines lines — OK"
+
+      - name: THREAT_MODEL.md has all 8 sections
+        run: |
+          for section in "System Context" "Assets" "Entry Points" "Threats" "Deprioritized" "Open Questions" "Provenance" "Mitigations"; do
+            grep -qi "$section" THREAT_MODEL.md || (echo "MISSING section: $section" && exit 1)
+          done
+          echo "THREAT_MODEL.md: all 8 sections present"

@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make:*)",
+      "Bash(securetty:*)",
+      "Bash(ansible-playbook:*)",
+      "Bash(podman:*)",
+      "Bash(podman-compose:*)",
+      "Bash(git:*)",
+      "Bash(shellcheck:*)",
+      "Bash(yamllint:*)",
+      "Bash(ansible-lint:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)"
+    ]
+  }
+}

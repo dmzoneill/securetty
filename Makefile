@@ -1,4 +1,4 @@
-.PHONY: setup build rebuild rebuild-agents up env aliases egress omniroute ollama scan migrate down nuke status help
+.PHONY: setup build rebuild rebuild-agents up env aliases egress omniroute ollama scan migrate down nuke status help test lint
 
 help:
 	@echo "securetty — sandboxed AI development environment (Ansible)"
@@ -68,3 +68,18 @@ nuke:
 
 status:
 	@podman ps -a --format "table {{.Names}}\t{{.Status}}" | grep securetty || echo "No containers running"
+
+test:
+	@echo "=== shellcheck ==="
+	find roles/ scripts/ -name '*.sh' -not -path '*/templates/*' | xargs shellcheck -x -S warning 2>/dev/null || true
+	@echo "=== yamllint ==="
+	yamllint -d '{extends: default, rules: {line-length: disable, truthy: disable}}' group_vars/ roles/*/tasks/ site.yml scan.yml migrate.yml 2>/dev/null || true
+	@echo "=== ansible-lint ==="
+	ansible-lint site.yml 2>/dev/null || true
+	@echo "=== structure ==="
+	@test -f AGENTS.md && echo "AGENTS.md: OK" || echo "AGENTS.md: MISSING"
+	@test -f THREAT_MODEL.md && echo "THREAT_MODEL.md: OK" || echo "THREAT_MODEL.md: MISSING"
+	@test -f SECURITY.md && echo "SECURITY.md: OK" || echo "SECURITY.md: MISSING"
+	@lines=$$(wc -l < AGENTS.md 2>/dev/null || echo 999); test $$lines -le 150 && echo "AGENTS.md length: OK ($$lines lines)" || echo "AGENTS.md length: TOO LONG ($$lines lines, max 150)"
+
+lint: test
