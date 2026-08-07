@@ -197,7 +197,10 @@ install_github_binary() {
 
 {% for agent in securetty_binary_agents %}
 install_github_binary "{{ agent.name }}" "{{ agent.repo }}" \
-    "curl -fsSL '{{ agent.url }}' > /tmp/{{ agent.name }}-install.sh && bash /tmp/{{ agent.name }}-install.sh 2>/dev/null; rm -f /tmp/{{ agent.name }}-install.sh; _rescue_binary {{ agent.name }}"
+    "curl -fsSL '{{ agent.url }}' > /tmp/{{ agent.name }}-install.sh && \
+     [ -s '/tmp/{{ agent.name }}-install.sh' ] || { echo '  WARN: empty install script for {{ agent.name }}'; return; } && \
+     head -1 '/tmp/{{ agent.name }}-install.sh' | grep -q '^#!' || { echo '  WARN: invalid install script for {{ agent.name }}'; return; } && \
+     bash /tmp/{{ agent.name }}-install.sh 2>/dev/null; rm -f /tmp/{{ agent.name }}-install.sh; _rescue_binary {{ agent.name }}"
 {% endfor %}
 
 # =============================================================================
