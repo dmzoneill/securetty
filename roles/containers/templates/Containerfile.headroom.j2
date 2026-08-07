@@ -3,9 +3,9 @@ FROM localhost/securetty_base:latest
 ARG QUARANTINE_DAYS={{ securetty_quarantine_days }}
 RUN CUTOFF_ISO=$(date -u -d "${QUARANTINE_DAYS} days ago" +%Y-%m-%dT%H:%M:%SZ) \
     && echo "Installing headroom-ai + deps (>= ${QUARANTINE_DAYS}d old)" \
-    && uv pip install --python python3.12 --target /usr/local/lib/python3.12/site-packages \
-        --exclude-newer "$CUTOFF_ISO" "headroom-ai[proxy]" \
-    || python3.12 -m pip install --target /usr/local/lib/python3.12/site-packages "headroom-ai[proxy]"
+    && python3.12 -m pip install --break-system-packages \
+        "headroom-ai[proxy]" \
+    && ln -sf /usr/local/lib/python3.12/site-packages/bin/headroom /usr/local/bin/headroom
 
 # Verify fastapi is installed
 RUN python3.12 -c "import fastapi; print(f'fastapi {fastapi.__version__}')"

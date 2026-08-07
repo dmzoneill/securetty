@@ -9,17 +9,17 @@ ARG QUARANTINE_DAYS=7
 COPY devbase/redhatter-ca.crt /etc/pki/ca-trust/source/anchors/redhatter-ca.crt
 RUN update-ca-trust
 
-# pip-only tools (not in Fedora repos)
-RUN python3.12 -m pip install --break-system-packages black
-RUN python3.12 -m pip install --break-system-packages pyright
-RUN python3.12 -m pip install --break-system-packages pipenv
-RUN python3.12 -m pip install --break-system-packages pandoc
-RUN python3.12 -m pip install --break-system-packages kubernetes
-RUN python3.12 -m pip install --break-system-packages fastmcp
-RUN python3.12 -m pip install --break-system-packages httpx
-RUN python3.12 -m pip install --break-system-packages requests
-RUN python3.12 -m pip install --break-system-packages google-api-python-client
-RUN python3.12 -m pip install --break-system-packages google-auth-oauthlib
+# pip-only tools (not in Fedora repos) — isolated from system packages
+RUN python3.12 -m pip install --target /usr/local/lib/python3.12/site-packages black
+RUN python3.12 -m pip install --target /usr/local/lib/python3.12/site-packages pyright
+RUN python3.12 -m pip install --target /usr/local/lib/python3.12/site-packages pipenv
+RUN python3.12 -m pip install --target /usr/local/lib/python3.12/site-packages pandoc
+RUN python3.12 -m pip install --target /usr/local/lib/python3.12/site-packages kubernetes
+RUN python3.12 -m pip install --target /usr/local/lib/python3.12/site-packages fastmcp
+RUN python3.12 -m pip install --target /usr/local/lib/python3.12/site-packages httpx
+RUN python3.12 -m pip install --target /usr/local/lib/python3.12/site-packages requests
+RUN python3.12 -m pip install --target /usr/local/lib/python3.12/site-packages google-api-python-client
+RUN python3.12 -m pip install --target /usr/local/lib/python3.12/site-packages google-auth-oauthlib
 
 # =============================================================================
 # Delayed agent installation — versions >= QUARANTINE_DAYS old
@@ -44,11 +44,11 @@ RUN mkdir -p /home/${USERNAME}/.gnupg \
 RUN echo "ignore-scripts=true" > /home/${USERNAME}/.npmrc \
     && chown ${USERNAME}:${USERNAME} /home/${USERNAME}/.npmrc
 
-# pip config: require virtualenv for project deps
+# pip config: user installs to persistent volume, no system package clobbering
 RUN mkdir -p /home/${USERNAME}/.config/pip \
     && cat > /home/${USERNAME}/.config/pip/pip.conf <<'EOF'
 [global]
-require-virtualenv = true
+user = true
 
 [install]
 no-deps = false
@@ -95,15 +95,18 @@ COPY --chown=${USERNAME}:${USERNAME} scripts/install.sh /workspace/.securetty/in
 RUN chmod +x /workspace/.securetty/install.sh
 
 # xdg-open shim — sends URLs to host relay socket instead of opening locally
-COPY scripts/xdg-open /usr/local/bin/xdg-open
-RUN chmod +x /usr/local/bin/xdg-open
+COPY scripts/xdg-open /usr/bin/xdg-open
+RUN chmod +x /usr/bin/xdg-open
 
-# Entrypoint — age banner on TTY, then exec command
-COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+# Snapshot /usr/local for volume sync (entrypoint copies to volume on version mismatch)
+RUN cp -a /usr/local /usr/local.image
+
+# Entrypoint — outside /usr/local (volume overlays it at runtime)
+COPY scripts/entrypoint.sh /usr/bin/securetty-entrypoint.sh
+RUN chmod +x /usr/bin/securetty-entrypoint.sh
 
 USER ${USERNAME}
 WORKDIR /home/${USERNAME}/src
 
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+ENTRYPOINT ["/usr/bin/securetty-entrypoint.sh"]
 CMD ["/bin/bash"]

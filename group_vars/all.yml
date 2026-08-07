@@ -17,8 +17,8 @@ securetty_compose_cmd: "podman-compose"
 
 # Network
 securetty_network_name: "securetty"
-securetty_subnet: "10.89.100.0/24"
-securetty_gateway: "10.89.100.1"
+securetty_subnet: "172.30.100.0/24"
+securetty_gateway: "172.30.100.1"
 securetty_bridge_interface: "securetty0"
 
 # CIDR ranges for cloud providers with wildcard domains

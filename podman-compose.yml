@@ -13,16 +13,10 @@ services:
     userns_mode: keep-id
     cap_drop:
       - ALL
-    cap_add:
-      - SYS_NICE        # mutter compositor scheduling
     security_opt:
       - no-new-privileges:true
       - label=disable
       - "mask=/proc/mounts:/proc/self/mounts:/proc/self/mountinfo:/proc/cmdline:/proc/partitions:/proc/diskstats:/proc/version:/sys/class/dmi"
-
-    # GPU access for mutter/gnome-shell devkit
-    devices:
-      - /dev/dri:/dev/dri
 
     # Read-only root filesystem — explicit writable mounts below
     read_only: true
@@ -95,6 +89,9 @@ services:
       - securetty-uv-cache:/home/daoneill/.cache/uv
       - securetty-cargo-cache:/home/daoneill/.cargo
       - securetty-go-cache:/home/daoneill/go
+      - securetty-pip-user:/home/daoneill/.local/lib
+      - securetty-npm-global:/home/daoneill/.npm-global
+      - securetty-usr-local:/usr/local
 
       # Writable tmpfs for runtime
       - type: tmpfs
@@ -120,29 +117,30 @@ services:
       - HOME=/home/daoneill
       - USER=daoneill
       - XDG_RUNTIME_DIR=/run/user/1000
-      - WAYLAND_DISPLAY=wayland-0
       - NODE_ENV=development
       - npm_config_ignore_scripts=true
-      - PIP_NO_CACHE_DIR=0
-      - VIRTUAL_ENV=/workspace/.venv
-      - PATH=/home/daoneill/bin:/workspace/.venv/bin:/workspace/node_modules/.bin:/usr/local/bin:/usr/bin:/bin
-      # Agent forwarding
+      - npm_config_cache=/home/daoneill/.npm
+      - npm_config_prefix=/home/daoneill/.npm-global
+      - CARGO_HOME=/home/daoneill/.cargo
+      - GOPATH=/home/daoneill/go
+      - GOBIN=/home/daoneill/go/bin
+      - PYTHONUSERBASE=/home/daoneill/.local
+      - PIP_USER=1
+      - PATH=/home/daoneill/.npm-global/bin:/home/daoneill/go/bin:/home/daoneill/.cargo/bin:/home/daoneill/.local/bin:/usr/local/bin:/usr/bin:/bin
       - SSH_AUTH_SOCK=/run/ssh-agent.sock
       - GPG_AGENT_INFO=/run/gpg-agent.sock
-      # API keys (from .env file or host env)
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - XAI_API_KEY=${XAI_API_KEY:-}
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
-      - COPILOT_TOKEN=${COPILOT_TOKEN:-}
-      - SOURCEGRAPH_ACCESS_TOKEN=${SOURCEGRAPH_ACCESS_TOKEN:-}
-      # Service endpoints (sibling containers)
       - OMNIROUTE_BASE_URL=http://securetty-omniroute:4000
       - HEADROOM_URL=http://securetty-headroom:8787
       - OLLAMA_HOST=http://securetty-ollama:11434
       - CLOUDCLI_URL=http://securetty-cloudcli:3001
+
+    pids_limit: 4096
 
     deploy:
       resources:
@@ -331,13 +329,87 @@ services:
       retries: 3
       start_period: 15s
 
+  # =================================================================
+  # GuardDog — behavioral malicious package scanner (YARA rules)
+  # Watches shared volumes via inotify, scans on file changes
+  # =================================================================
+  guarddog:
+    build:
+      context: ./guarddog
+      dockerfile: Containerfile
+    container_name: securetty-guarddog
+    hostname: guarddog
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+      - label=disable
+    read_only: true
+    volumes:
+      - securetty-usr-local:/scan/usr-local:ro
+      - securetty-pip-user:/scan/pip-user:ro
+      - securetty-npm-global:/scan/npm-global:ro
+      - guarddog_results:/results
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 128M
+    networks:
+      - securetty_net
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+    restart: unless-stopped
+
+  # =================================================================
+  # OSV-Scanner — known malicious/vulnerable package database checker
+  # Watches shared volumes via inotify, checks against OpenSSF DB
+  # =================================================================
+  osv-scanner:
+    build:
+      context: ./osv-scanner
+      dockerfile: Containerfile
+    container_name: securetty-osv-scanner
+    hostname: osv-scanner
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+      - label=disable
+    read_only: true
+    volumes:
+      - securetty-usr-local:/scan/usr-local:ro
+      - securetty-pip-user:/scan/pip-user:ro
+      - securetty-npm-global:/scan/npm-global:ro
+      - osv_results:/results
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 128M
+    networks:
+      - securetty_net
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+    restart: unless-stopped
+
 volumes:
   securetty-npm-cache:
   securetty-pip-cache:
   securetty-uv-cache:
   securetty-cargo-cache:
   securetty-go-cache:
-  omniroute_data:
+  securetty-pip-user:
+  securetty-npm-global:
+  securetty-usr-local:
+  guarddog_results:
+  osv_results:
   headroom_data:
   cloudcli_data:
   ollama_models:

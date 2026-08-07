@@ -1,4 +1,5 @@
 #!/bin/bash
+# Ansible managed
 # Install AI agents with delayed ingestion — only versions published >= QUARANTINE_DAYS ago.
 # Generates /etc/securetty-manifest.json with version + publish date for each agent.
 # Runs during container build (as root).
@@ -12,7 +13,6 @@ CUTOFF_ISO=$(date -u -d "${QUARANTINE_DAYS} days ago" +%Y-%m-%dT%H:%M:%SZ)
 
 echo "=== Delayed ingestion: quarantine=${QUARANTINE_DAYS}d, cutoff=${CUTOFF_ISO} ==="
 
-# Initialize manifest
 cat > "$MANIFEST" <<EOF
 {
   "build_date": "${BUILD_DATE}",
@@ -21,7 +21,6 @@ cat > "$MANIFEST" <<EOF
 }
 EOF
 
-# Helper: append agent entry to manifest
 add_manifest() {
     local name="$1" version="$2" published="$3" method="$4"
     local tmp
@@ -32,7 +31,7 @@ add_manifest() {
 }
 
 # =============================================================================
-# npm agents: find latest version published before cutoff
+# npm agents
 # =============================================================================
 install_npm_delayed() {
     local pkg="$1"
@@ -50,8 +49,8 @@ install_npm_delayed() {
         return
     fi
 
-    # Find latest version published before cutoff
     local best_version best_date
+
     best_version=$(echo "$time_json" | jq -r --argjson cutoff "$CUTOFF_EPOCH" '
         to_entries
         | map(select(.key != "created" and .key != "modified"))
@@ -68,6 +67,7 @@ install_npm_delayed() {
         return
     fi
 
+
     best_date=$(echo "$time_json" | jq -r --arg v "$best_version" '.[$v] // "unknown"')
     echo "  installing $pkg@$best_version (published: $best_date)"
     npm install -g "${pkg}@${best_version}" || echo "  WARN: install failed"
@@ -78,7 +78,6 @@ NPM_AGENTS=(
     "@anthropic-ai/claude-code"
     "@openai/codex"
     "@google/gemini-cli"
-    "@cursor/cli"
     "cline"
     "opencode-ai"
     "@ampcode/cli"
@@ -93,7 +92,7 @@ done
 npm cache clean --force 2>/dev/null || true
 
 # =============================================================================
-# pip agents: use uv --exclude-newer
+# pip agents
 # =============================================================================
 echo ""
 echo "=== pip agents (uv --exclude-newer $CUTOFF_ISO) ==="
@@ -104,23 +103,24 @@ PIP_AGENTS=(
     "kimi-cli"
 )
 
+
 for pkg in "${PIP_AGENTS[@]}"; do
     echo ""
     echo "--- pip: $pkg ---"
 
-    version=$(uv pip install --python python3.12 --dry-run --system --break-system-packages \
+    version=$(uv pip install --python python3.12 --dry-run --target /usr/local/lib/python3.12/site-packages \
         --exclude-newer "$CUTOFF_ISO" "$pkg" 2>&1 \
         | grep -oP "(?<=Would install )${pkg}-\K[^ ]+" || echo "")
 
     if [ -n "$version" ]; then
         echo "  installing $pkg==$version"
-        uv pip install --python python3.12 --system --break-system-packages \
+        uv pip install --python python3.12 --target /usr/local/lib/python3.12/site-packages \
             --exclude-newer "$CUTOFF_ISO" "$pkg" \
             || echo "  WARN: install failed"
         add_manifest "$pkg" "$version" "before-${CUTOFF_ISO}" "pip"
     else
         echo "  installing $pkg with --exclude-newer $CUTOFF_ISO"
-        uv pip install --python python3.12 --system --break-system-packages \
+        uv pip install --python python3.12 --target /usr/local/lib/python3.12/site-packages \
             --exclude-newer "$CUTOFF_ISO" "$pkg" \
             || echo "  WARN: install failed"
         installed_ver=$(pip3.12 show "$pkg" 2>/dev/null | grep -oP '(?<=Version: ).+' || echo "unknown")
@@ -129,16 +129,14 @@ for pkg in "${PIP_AGENTS[@]}"; do
 done
 
 # =============================================================================
-# Binary agents: query GitHub releases for versions older than cutoff
+# Binary agents
 # =============================================================================
 echo ""
 echo "=== Binary agents (GitHub release >= ${QUARANTINE_DAYS}d old) ==="
 
 _rescue_binary() {
     local name="$1"
-    # Already a real file (not symlink to missing target)?
     [ -x "/usr/local/bin/$name" ] && [ ! -L "/usr/local/bin/$name" ] && return 0
-    # If symlink, resolve and copy actual binary
     if [ -L "/usr/local/bin/$name" ]; then
         local target
         target=$(readlink -f "/usr/local/bin/$name" 2>/dev/null)
@@ -150,7 +148,6 @@ _rescue_binary() {
             return 0
         fi
     fi
-    # Search common install locations
     local found
     found=$(find /root/.local/bin /root/.grok /root/.jcode /home -maxdepth 6 -name "$name" -type f ! -path '*/node_modules/*' 2>/dev/null | head -1)
     if [ -n "$found" ]; then
@@ -171,6 +168,7 @@ install_github_binary() {
     local release_json
     release_json=$(curl -fsSL "https://api.github.com/repos/${repo}/releases" 2>/dev/null || echo "[]")
 
+
     local tag published
     tag=$(echo "$release_json" | jq -r --argjson cutoff "$CUTOFF_EPOCH" '
         [.[] | select(.prerelease == false and .draft == false)
@@ -187,39 +185,28 @@ install_github_binary() {
         return
     fi
 
+
     published=$(echo "$release_json" | jq -r --arg t "$tag" '
         [.[] | select(.tag_name == $t)] | .[0].published_at // "unknown"
     ')
     echo "  found $tag (published: $published)"
 
-    # Use version-specific install where possible
     eval "$install_cmd" || echo "  WARN: install failed"
     add_manifest "$name" "$tag" "$published" "binary"
 }
 
-# Goose
 install_github_binary "goose" "block/goose" \
-    "curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh > /tmp/goose-install.sh && GOOSE_BIN=/usr/local/bin bash /tmp/goose-install.sh 2>/dev/null; rm -f /tmp/goose-install.sh; _rescue_binary goose"
-
-# Grok Build
-install_github_binary "grok-build" "xai-org/grok-build" \
-    "curl -fsSL https://x.ai/cli/install.sh > /tmp/grok-install.sh && bash /tmp/grok-install.sh 2>/dev/null; rm -f /tmp/grok-install.sh; _rescue_binary grok"
-
-# Forge
+    "curl -fsSL 'https://github.com/block/goose/releases/download/stable/download_cli.sh' > /tmp/goose-install.sh && bash /tmp/goose-install.sh 2>/dev/null; rm -f /tmp/goose-install.sh; _rescue_binary goose"
+install_github_binary "grok" "xai-org/grok-build" \
+    "curl -fsSL 'https://x.ai/cli/install.sh' > /tmp/grok-install.sh && bash /tmp/grok-install.sh 2>/dev/null; rm -f /tmp/grok-install.sh; _rescue_binary grok"
 install_github_binary "forge" "anthropics/claude-code" \
-    "curl -fsSL https://forgecode.dev/cli > /tmp/forge-install.sh && sh /tmp/forge-install.sh 2>/dev/null; rm -f /tmp/forge-install.sh; _rescue_binary forge"
-
-# Kiro CLI
+    "curl -fsSL 'https://forgecode.dev/cli' > /tmp/forge-install.sh && bash /tmp/forge-install.sh 2>/dev/null; rm -f /tmp/forge-install.sh; _rescue_binary forge"
 install_github_binary "kiro-cli" "aws/amazon-q-developer-cli" \
-    "curl -fsSL https://cli.kiro.dev/install > /tmp/kiro-install.sh && bash /tmp/kiro-install.sh 2>/dev/null; rm -f /tmp/kiro-install.sh; _rescue_binary kiro-cli"
-
-# Cursor CLI
+    "curl -fsSL 'https://cli.kiro.dev/install' > /tmp/kiro-cli-install.sh && bash /tmp/kiro-cli-install.sh 2>/dev/null; rm -f /tmp/kiro-cli-install.sh; _rescue_binary kiro-cli"
 install_github_binary "cursor" "getcursor/cursor" \
-    "curl -fsSL https://cursor.com/install > /tmp/cursor-install.sh && bash /tmp/cursor-install.sh 2>/dev/null; rm -f /tmp/cursor-install.sh; _rescue_binary cursor"
-
-# JCode
+    "curl -fsSL 'https://cursor.com/install' > /tmp/cursor-install.sh && bash /tmp/cursor-install.sh 2>/dev/null; rm -f /tmp/cursor-install.sh; _rescue_binary cursor"
 install_github_binary "jcode" "1jehuang/jcode" \
-    "curl -fsSL https://raw.githubusercontent.com/1jehuang/jcode/master/scripts/install.sh > /tmp/jcode-install.sh && bash /tmp/jcode-install.sh 2>/dev/null; rm -f /tmp/jcode-install.sh; _rescue_binary jcode"
+    "curl -fsSL 'https://raw.githubusercontent.com/1jehuang/jcode/master/scripts/install.sh' > /tmp/jcode-install.sh && bash /tmp/jcode-install.sh 2>/dev/null; rm -f /tmp/jcode-install.sh; _rescue_binary jcode"
 
 # =============================================================================
 # Final manifest
@@ -228,4 +215,5 @@ echo ""
 echo "=== Manifest ==="
 jq '.' "$MANIFEST"
 echo ""
-echo "=== ${#NPM_AGENTS[@]} npm + ${#PIP_AGENTS[@]} pip + 4 binary agents processed ==="
+
+echo "=== ${#NPM_AGENTS[@]} npm + ${#PIP_AGENTS[@]} pip + {{ securetty_binary_agents | length }} binary agents processed ==="

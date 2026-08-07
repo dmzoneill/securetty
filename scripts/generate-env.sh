@@ -17,15 +17,17 @@ ENV_FILE="${1:-$(dirname "$0")/../.env}"
     type load-secrets &>/dev/null && load-secrets 2>/dev/null
     # Export discovered vars so parent can read them
     env
-) > /tmp/.securetty-env-discovery 2>/dev/null || true
+) > /run/user/1000/securetty-env-discovery 2>/dev/null || true
+
 
 # Merge discovered vars into current env
 while IFS='=' read -r key val; do
     [ -z "$key" ] && continue
     [[ "$key" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || continue
     export "$key=$val" 2>/dev/null || true
-done < /tmp/.securetty-env-discovery
-rm -f /tmp/.securetty-env-discovery
+done < /run/user/1000/securetty-env-discovery
+rm -f /run/user/1000/securetty-env-discovery
+
 
 # Fallback: grep profile files for export VAR=value
 grep_key() {
@@ -123,12 +125,14 @@ VERTEX_VARS=(
     echo "JIRA_AI_PROVIDER=vertex"
     echo "JIRA_AI_MODEL=claude-sonnet-4-6@20250514"
 
-    # Slack credentials (extracted fresh from Chrome on host)
+    # Slack credentials (extracted fresh from Chrome on host — parsed, not eval'd)
     SLACK_CREDS_SCRIPT="/home/daoneill/src/agent-mcp-skills/slack/get-slack-creds"
     if [ -x "$SLACK_CREDS_SCRIPT" ]; then
-        eval "$($SLACK_CREDS_SCRIPT --quiet 2>/dev/null)" 2>/dev/null || true
-        [ -n "${SLACK_XOXC_TOKEN:-}" ] && echo "SLACK_XOXC_TOKEN=${SLACK_XOXC_TOKEN}" && found=$((found + 1))
-        [ -n "${SLACK_D_COOKIE:-}" ] && echo "SLACK_D_COOKIE=${SLACK_D_COOKIE}" && found=$((found + 1))
+        _slack_out=$("$SLACK_CREDS_SCRIPT" --quiet 2>/dev/null) || true
+        _slack_xoxc=$(echo "$_slack_out" | grep -oP '(?<=SLACK_XOXC_TOKEN=")[^"]+' || true)
+        _slack_cookie=$(echo "$_slack_out" | grep -oP '(?<=SLACK_D_COOKIE=")[^"]+' || true)
+        [ -n "$_slack_xoxc" ] && echo "SLACK_XOXC_TOKEN=${_slack_xoxc}" && found=$((found + 1))
+        [ -n "$_slack_cookie" ] && echo "SLACK_D_COOKIE=${_slack_cookie}" && found=$((found + 1))
     fi
 
     # Omniroute config file keys
@@ -166,6 +170,7 @@ VERTEX_VARS=(
     done < <(env | grep '^CLAUDE' | sort)
 
 } > "$ENV_FILE"
+chmod 0600 "$ENV_FILE"
 
 # Generate per-service env files (least privilege -- each service gets only what it needs)
 ENV_DIR="$(dirname "$ENV_FILE")"
@@ -203,10 +208,12 @@ ENV_DIR="$(dirname "$ENV_FILE")"
     grep -E '^OMNIROUTE_INITIAL_PASSWORD=' "$ENV_FILE" 2>/dev/null || true
 
 } > "$ENV_DIR/.env.omniroute"
+chmod 0600 "$ENV_DIR/.env.omniroute"
 
 # CloudCLI: Vertex/Anthropic config only
 grep -E '^(CLAUDE_CODE_USE_VERTEX|ANTHROPIC_VERTEX_PROJECT_ID|GOOGLE_CLOUD_PROJECT|GOOGLE_CLOUD_LOCATION|CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC)=' \
     "$ENV_FILE" > "$ENV_DIR/.env.cloudcli" 2>/dev/null || true
+chmod 0600 "$ENV_DIR/.env.cloudcli"
 
 # Dev container: gets everything (agents need various keys)
 # Uses the main .env file as-is

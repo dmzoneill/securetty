@@ -8,7 +8,7 @@ FROM localhost/securetty_base:latest
 # Development Tools group + all system packages
 RUN dnf group install -y development-tools \
     && dnf install -y --setopt=install_weak_deps=False \
-        python3-lxml gnupg2 dbus-tools mesa-dri-drivers ncat awscli2 ruff iputils ffmpeg net-tools sassc python3 findutils libxml2 skopeo gsettings-desktop-schemas python3-ansible-lint xdg-utils sqlite ImageMagick socat ansible-core dnf-plugins-core yamllint python3-pytest gnome-shell dbus-daemon rpm-build util-linux glab gcc sound-theme-freedesktop python3-pip pipewire-pulseaudio mutter-devkit podman-remote iproute dconf glib2 glib2-devel nmap hostname make bind-utils man-db xz pciutils unzip lsof pulseaudio-utils mesa-libEGL nmap-ncat git-core gettext g++ gnome-extensions-app openssh-clients tree gjs python3-devel tar which golang gh python3-flake8 git sshpass \
+        gsettings-desktop-schemas util-linux glib2 iproute pciutils pipewire-pulseaudio gjs which dnf-plugins-core dbus-tools xdg-utils ansible-core git-core dbus-daemon mesa-dri-drivers python3-devel ImageMagick iputils gcc g++ python3-pytest net-tools sassc python3-flake8 openssh-clients xz gettext rpm-build tree yamllint python3 awscli2 bind-utils findutils unzip glab socat tar dconf golang ruff gnome-extensions-app gnupg2 sound-theme-freedesktop mutter-devkit gnome-shell ffmpeg skopeo mesa-libEGL man-db python3-lxml lsof make gh hostname nmap-ncat git libxml2 pulseaudio-utils python3-ansible-lint ncat sshpass sqlite nmap podman-remote python3-pip glib2-devel \
     && dnf clean all \
     && rm -rf /var/cache/dnf
 
