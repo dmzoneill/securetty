@@ -1,8 +1,12 @@
 FROM localhost/securetty_base:latest
 
-RUN curl -fsSL https://ollama.com/install.sh | sh
+RUN OLLAMA_VERSION="0.9.6" \
+    && curl -fsSL "https://ollama.com/install.sh" -o /tmp/ollama-install.sh \
+    && [ -s /tmp/ollama-install.sh ] || { echo "ERROR: empty install script"; exit 1; } \
+    && bash /tmp/ollama-install.sh \
+    && rm -f /tmp/ollama-install.sh
 
-RUN groupadd -g {{ securetty_uid }} ollama \
+RUN groupadd -g {{ securetty_gid }} ollama \
     && useradd -u {{ securetty_uid }} -g {{ securetty_gid }} -m -s /bin/bash ollama \
     && mkdir -p /data/models && chown -R ollama:ollama /data
 

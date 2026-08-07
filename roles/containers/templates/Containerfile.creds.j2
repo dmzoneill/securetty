@@ -3,7 +3,7 @@ FROM localhost/securetty_base:latest
 COPY scripts/creds-server.py /usr/local/bin/creds-server.py
 RUN chmod +x /usr/local/bin/creds-server.py
 
-RUN groupadd -g {{ securetty_uid }} creds \
+RUN groupadd -g {{ securetty_gid }} creds \
     && useradd -u {{ securetty_uid }} -g {{ securetty_gid }} -m -s /bin/bash creds
 
 USER creds

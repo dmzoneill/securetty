@@ -8,7 +8,7 @@ RUN curl -fsSL https://github.com/google/osv-scanner/releases/latest/download/os
         -o /usr/local/bin/osv-scanner \
     && chmod +x /usr/local/bin/osv-scanner
 
-RUN groupadd -g {{ securetty_uid }} scanner \
+RUN groupadd -g {{ securetty_gid }} scanner \
     && useradd -u {{ securetty_uid }} -g {{ securetty_gid }} -m -s /bin/bash scanner \
     && mkdir -p /results && chown scanner:scanner /results
 

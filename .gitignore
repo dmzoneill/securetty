@@ -2,3 +2,5 @@
 .env.*
 *.retry
 .ansible/
+__pycache__/
+*.pyc

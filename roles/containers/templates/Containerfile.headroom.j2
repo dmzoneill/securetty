@@ -10,7 +10,7 @@ RUN CUTOFF_ISO=$(date -u -d "${QUARANTINE_DAYS} days ago" +%Y-%m-%dT%H:%M:%SZ) \
 # Verify fastapi is installed
 RUN python3.12 -c "import fastapi; print(f'fastapi {fastapi.__version__}')"
 
-RUN groupadd -g {{ securetty_uid }} headroom \
+RUN groupadd -g {{ securetty_gid }} headroom \
     && useradd -u {{ securetty_uid }} -g {{ securetty_gid }} -m -s /bin/bash headroom \
     && mkdir -p /data && chown headroom:headroom /data
 

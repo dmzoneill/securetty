@@ -16,9 +16,13 @@ _ensure_dirs() {
 
 _generate_env() {
     bash "$SECURETTY_DIR/scripts/generate-env.sh" "$SECURETTY_DIR/.env" 2>/dev/null
-    set -a
-    source "$SECURETTY_DIR/.env" 2>/dev/null || true
-    set +a
+    # Only extract non-secret vars needed for _run_personal/_run_work
+    # Never source full .env into shell (leaks secrets to /proc/PID/environ)
+    OMNIROUTE_API_KEY=$(grep -m1 '^OMNIROUTE_API_KEY=' "$SECURETTY_DIR/.env" 2>/dev/null | cut -d= -f2-)
+    ANTHROPIC_VERTEX_PROJECT_ID=$(grep -m1 '^ANTHROPIC_VERTEX_PROJECT_ID=' "$SECURETTY_DIR/.env" 2>/dev/null | cut -d= -f2-)
+    GOOGLE_CLOUD_PROJECT=$(grep -m1 '^GOOGLE_CLOUD_PROJECT=' "$SECURETTY_DIR/.env" 2>/dev/null | cut -d= -f2-)
+    GOOGLE_CLOUD_LOCATION=$(grep -m1 '^GOOGLE_CLOUD_LOCATION=' "$SECURETTY_DIR/.env" 2>/dev/null | cut -d= -f2-)
+    export OMNIROUTE_API_KEY ANTHROPIC_VERTEX_PROJECT_ID GOOGLE_CLOUD_PROJECT GOOGLE_CLOUD_LOCATION
 }
 
 _ensure_ssh_agent() {

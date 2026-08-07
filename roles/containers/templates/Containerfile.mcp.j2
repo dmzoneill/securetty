@@ -3,7 +3,7 @@ FROM localhost/securetty_base:latest
 RUN python3.12 -m pip install --break-system-packages \
         fastmcp uvicorn httpx requests aiohttp
 
-RUN groupadd -g {{ securetty_uid }} mcp \
+RUN groupadd -g {{ securetty_gid }} mcp \
     && useradd -u {{ securetty_uid }} -g {{ securetty_gid }} -m -s /bin/bash mcp
 
 USER mcp
