@@ -46,6 +46,30 @@ show_banner() {
     [ -n "$oldest" ] && echo -e "\033[0;36msecuretty\033[0m | oldest: ${oldest} | newest: ${newest}" > /dev/tty
 }
 
+# Sync /usr/local volume from image on version mismatch
+_sync_usr_local() {
+    local manifest="/etc/securetty-manifest.json"
+    local marker="/usr/local/.securetty-build-date"
+    [ -f "$manifest" ] || return 0
+
+    local image_date
+    image_date=$(jq -r '.build_date' "$manifest" 2>/dev/null || echo "")
+    [ -z "$image_date" ] && return 0
+
+    local volume_date=""
+    [ -f "$marker" ] && volume_date=$(cat "$marker" 2>/dev/null)
+
+    if [ "$image_date" != "$volume_date" ]; then
+        if [ -t 0 ] && [ -e /dev/tty ]; then
+            echo -e "\033[0;33msecuretty\033[0m | syncing agents to volume..." > /dev/tty
+        fi
+        cp -a /usr/local.image/* /usr/local/ 2>/dev/null || true
+        echo "$image_date" > "$marker"
+    fi
+}
+
+_sync_usr_local 2>/dev/null || true
+
 # Only show banner when TTY attached
 if [ -t 0 ] && [ -e /dev/tty ]; then
     show_banner 2>/dev/null || true

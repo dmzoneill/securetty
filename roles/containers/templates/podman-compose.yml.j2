@@ -77,6 +77,7 @@ services:
       - securetty-go-cache:{{ securetty_home }}/go
       - securetty-pip-user:{{ securetty_home }}/.local/lib
       - securetty-npm-global:{{ securetty_home }}/.npm-global
+      - securetty-usr-local:/usr/local
 
       # Writable tmpfs for runtime
       - type: tmpfs
@@ -322,6 +323,7 @@ volumes:
   securetty-go-cache:
   securetty-pip-user:
   securetty-npm-global:
+  securetty-usr-local:
   headroom_data:
   cloudcli_data:
   ollama_models:
