@@ -146,6 +146,7 @@ services:
     container_name: securetty-omniroute
     hostname: omniroute
     user: "{{ securetty_uid }}:{{ securetty_gid }}"
+    userns_mode: keep-id
     cap_drop:
       - ALL
     security_opt:
@@ -188,6 +189,7 @@ services:
     container_name: securetty-headroom
     hostname: headroom
     user: "{{ securetty_uid }}:{{ securetty_gid }}"
+    userns_mode: keep-id
     cap_drop:
       - ALL
     security_opt:
@@ -229,6 +231,7 @@ services:
     container_name: securetty-cloudcli
     hostname: cloudcli
     user: "{{ securetty_uid }}:{{ securetty_gid }}"
+    userns_mode: keep-id
     cap_drop:
       - ALL
     security_opt:
@@ -276,6 +279,7 @@ services:
     container_name: securetty-ollama
     hostname: ollama
     user: "{{ securetty_uid }}:{{ securetty_gid }}"
+    userns_mode: keep-id
     cap_drop:
       - ALL
     security_opt:
@@ -321,6 +325,7 @@ services:
     container_name: securetty-guarddog
     hostname: guarddog
     user: "{{ securetty_uid }}:{{ securetty_gid }}"
+    userns_mode: keep-id
     cap_drop:
       - ALL
     security_opt:
@@ -365,6 +370,7 @@ services:
     container_name: securetty-osv-scanner
     hostname: osv-scanner
     user: "{{ securetty_uid }}:{{ securetty_gid }}"
+    userns_mode: keep-id
     cap_drop:
       - ALL
     security_opt:
@@ -408,6 +414,7 @@ services:
     container_name: securetty-creds
     hostname: creds
     user: "{{ securetty_uid }}:{{ securetty_gid }}"
+    userns_mode: keep-id
     cap_drop:
       - ALL
     security_opt:
@@ -434,7 +441,7 @@ services:
           memory: 128M
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8800/health"]
+      test: ["CMD", "python3.12", "-c", "import socket; s=socket.socket(); s.connect(('localhost',8800)); s.close()"]
       interval: 60s
       timeout: 5s
       retries: 3
@@ -450,6 +457,7 @@ services:
     container_name: securetty-mcp-jira
     hostname: mcp-jira
     user: "{{ securetty_uid }}:{{ securetty_gid }}"
+    userns_mode: keep-id
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true, label=disable]
     read_only: true
@@ -485,6 +493,7 @@ services:
     container_name: securetty-mcp-gitlab
     hostname: mcp-gitlab
     user: "{{ securetty_uid }}:{{ securetty_gid }}"
+    userns_mode: keep-id
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true, label=disable]
     read_only: true
@@ -520,6 +529,7 @@ services:
     container_name: securetty-mcp-github
     hostname: mcp-github
     user: "{{ securetty_uid }}:{{ securetty_gid }}"
+    userns_mode: keep-id
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true, label=disable]
     read_only: true
@@ -555,6 +565,7 @@ services:
     container_name: securetty-mcp-slack
     hostname: mcp-slack
     user: "{{ securetty_uid }}:{{ securetty_gid }}"
+    userns_mode: keep-id
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true, label=disable]
     read_only: true
@@ -590,6 +601,7 @@ services:
     container_name: securetty-mcp-wordpress
     hostname: mcp-wordpress
     user: "{{ securetty_uid }}:{{ securetty_gid }}"
+    userns_mode: keep-id
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true, label=disable]
     read_only: true

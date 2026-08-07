@@ -7,6 +7,7 @@ import json
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
+import ssl
 
 TOKEN_MAP = {
     "github.com": {"username": "x-access-token", "token_var": "GITHUB_TOKEN"},
@@ -88,6 +89,24 @@ class CredentialHandler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8800"))
+
+    cert_file = os.environ.get("TLS_CERT", "/certs/creds.crt")
+    key_file = os.environ.get("TLS_KEY", "/certs/creds.key")
+    ca_file = os.environ.get("TLS_CA", "/certs/ca.crt")
+
     server = HTTPServer(("0.0.0.0", port), CredentialHandler)
-    print(f"Credential proxy listening on :{port}")
+
+    # Enable mTLS if certs exist
+    if os.path.exists(cert_file) and os.path.exists(key_file):
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(cert_file, key_file)
+        if os.path.exists(ca_file):
+            context.load_verify_locations(ca_file)
+            context.verify_mode = ssl.CERT_REQUIRED
+            print(f"mTLS enabled (client cert required)")
+        server.socket = context.wrap_socket(server.socket, server_side=True)
+        print(f"Credential proxy listening on :{port} (HTTPS/mTLS)")
+    else:
+        print(f"Credential proxy listening on :{port} (HTTP — no certs found)")
+
     server.serve_forever()

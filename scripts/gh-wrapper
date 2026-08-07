@@ -1,5 +1,6 @@
 #!/bin/bash
-# gh wrapper — fetches GitHub token from credential proxy
-export GH_TOKEN=$(curl -sf http://securetty-creds:8800/token/github 2>/dev/null)
+CERT_ARGS=""
+[ -f /certs/client.crt ] && CERT_ARGS="--cert /certs/client.crt --key /certs/client.key --cacert /certs/ca.crt"
+export GH_TOKEN=$(curl $CERT_ARGS -sf https://securetty-creds:8800/token/github 2>/dev/null || curl -sf http://securetty-creds:8800/token/github 2>/dev/null)
 export GITHUB_TOKEN="$GH_TOKEN"
 exec /usr/local/bin/gh.real "$@"

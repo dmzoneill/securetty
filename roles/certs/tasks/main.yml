@@ -18,7 +18,7 @@
     openssl genrsa -out certs/ca.key 4096
     openssl req -x509 -new -key certs/ca.key -sha256 -days 365 \
       -out certs/ca.crt -subj "/CN=securetty-ca/O=securetty"
-    chmod 0600 certs/ca.key certs/ca.crt
+    chmod 0644 certs/ca.key certs/ca.crt
   args:
     creates: "{{ securetty_dir }}/certs/ca.crt"
   tags:
@@ -34,7 +34,7 @@
       -CAcreateserial -out certs/{{ item }}.crt -days 365 -sha256 \
       -extfile <(printf "subjectAltName=DNS:securetty-{{ item }},DNS:{{ item }}")
     rm -f certs/{{ item }}.csr
-    chmod 0600 certs/{{ item }}.key certs/{{ item }}.crt
+    chmod 0644 certs/{{ item }}.key certs/{{ item }}.crt
   args:
     creates: "{{ securetty_dir }}/certs/{{ item }}.crt"
   loop:
@@ -57,7 +57,7 @@
     openssl x509 -req -in certs/client.csr -CA certs/ca.crt -CAkey certs/ca.key \
       -CAcreateserial -out certs/client.crt -days 365 -sha256
     rm -f certs/client.csr
-    chmod 0600 certs/client.key certs/client.crt
+    chmod 0644 certs/client.key certs/client.crt
   args:
     creates: "{{ securetty_dir }}/certs/client.crt"
   tags:
