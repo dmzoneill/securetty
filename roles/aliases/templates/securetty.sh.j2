@@ -266,6 +266,14 @@ _run() {
         "$agent" "$@"
 
     rm -f "$envfile"
+
+    # Log session cost (Claude Code writes cost to ~/.claude/projects/*/usage.json)
+    local cost_dir="{{ securetty_home }}/.securetty/cost"
+    mkdir -p "$cost_dir" 2>/dev/null || true
+    local cost_log="$cost_dir/$(date +%Y-%m-%d).jsonl"
+    local session_end
+    session_end=$(date -u +%FT%TZ)
+    echo "{\"agent\":\"$agent\",\"end\":\"$session_end\",\"mode\":\"${_SECURETTY_MODE:-personal}\"}" >> "$cost_log" 2>/dev/null || true
 }
 
 # =============================================================================
@@ -291,6 +299,7 @@ _run_work() {
         "GOOGLE_APPLICATION_CREDENTIALS={{ securetty_home }}/.config/gcloud/application_default_credentials.json"
     )
     [ "${_SECURETTY_READ_MODE:-}" = "1" ] && _SECURETTY_EXTRA_ENVLINES+=("SECURETTY_MODE=read")
+    _SECURETTY_MODE="work"
     _run "$agent" "$@"
 }
 
@@ -317,6 +326,7 @@ _run_personal() {
 {% endraw %}
     )
     [ "${_SECURETTY_READ_MODE:-}" = "1" ] && _SECURETTY_EXTRA_ENVLINES+=("SECURETTY_MODE=read")
+    _SECURETTY_MODE="personal"
     _run "$agent" "$@"
 }
 
@@ -470,6 +480,70 @@ cmd_clean() {
     fi
 }
 
+cmd_cost() {
+    local cost_dir="{{ securetty_home }}/.securetty/cost"
+    local period="${1:-today}"
+
+    if [ ! -d "$cost_dir" ]; then
+        echo "No cost data yet. Run an agent session first."
+        return 0
+    fi
+
+    case "$period" in
+        today)
+            local file="$cost_dir/$(date +%Y-%m-%d).jsonl"
+            if [ -f "$file" ]; then
+                local count
+                count=$(wc -l < "$file")
+                echo "=== Today ($(date +%Y-%m-%d)) ==="
+                echo "Sessions: $count"
+                echo ""
+                echo "By agent:"
+                jq -r '.agent' "$file" 2>/dev/null | sort | uniq -c | sort -rn
+                echo ""
+                echo "By mode:"
+                jq -r '.mode' "$file" 2>/dev/null | sort | uniq -c | sort -rn
+            else
+                echo "No sessions today."
+            fi
+            ;;
+        week)
+            echo "=== Last 7 days ==="
+            local total=0
+            for i in $(seq 0 6); do
+                local d
+                d=$(date -d "$i days ago" +%Y-%m-%d)
+                local file="$cost_dir/${d}.jsonl"
+                if [ -f "$file" ]; then
+                    local c
+                    c=$(wc -l < "$file")
+                    total=$((total + c))
+                    printf "  %s: %d sessions\n" "$d" "$c"
+                fi
+            done
+            echo ""
+            echo "Total: $total sessions"
+            ;;
+        all)
+            echo "=== All time ==="
+            local total=0
+            for file in "$cost_dir"/*.jsonl; do
+                [ -f "$file" ] || continue
+                local d c
+                d=$(basename "$file" .jsonl)
+                c=$(wc -l < "$file")
+                total=$((total + c))
+                printf "  %s: %d sessions\n" "$d" "$c"
+            done
+            echo ""
+            echo "Total: $total sessions"
+            ;;
+        *)
+            echo "Usage: securetty cost [today|week|all]"
+            ;;
+    esac
+}
+
 cmd_preflight() {
     _preflight
 }
@@ -591,6 +665,7 @@ Configuration:
   scan [alerts|logs]        Package scanner results (GuardDog + OSV)
   volumes                   Show volume sizes (packages, caches, scanners)
   preflight                 Check prerequisites (podman, images, services)
+  cost [today|week|all]     Session cost and usage tracking
   clean                     Remove orphaned containers + stale env files
 
 Examples:
@@ -624,6 +699,7 @@ case "${1:-help}" in
     scan)             shift; cmd_scan "$@" ;;
     volumes)          shift; cmd_volumes "$@" ;;
     clean)            shift; cmd_clean "$@" ;;
+    cost)             shift; cmd_cost "$@" ;;
     preflight)        shift; cmd_preflight "$@" ;;
     help|--help|-h)   cmd_help ;;
     *)                echo "Unknown command: $1. Run 'securetty help' for usage." >&2; exit 1 ;;
