@@ -37,11 +37,11 @@ RUN mkdir -p /home/${USERNAME}/.gnupg \
 RUN echo "ignore-scripts=true" > /home/${USERNAME}/.npmrc \
     && chown ${USERNAME}:${USERNAME} /home/${USERNAME}/.npmrc
 
-# pip config: require virtualenv for project deps
+# pip config: user installs to persistent volume, no system package clobbering
 RUN mkdir -p /home/${USERNAME}/.config/pip \
     && cat > /home/${USERNAME}/.config/pip/pip.conf <<'EOF'
 [global]
-require-virtualenv = true
+user = true
 
 [install]
 no-deps = false
