@@ -1,0 +1,4 @@
+#!/bin/bash
+# glab wrapper — fetches GitLab token from credential proxy
+export GITLAB_TOKEN=$(curl -sf http://securetty-creds:8800/token/gitlab 2>/dev/null)
+exec /usr/local/bin/glab.real "$@"

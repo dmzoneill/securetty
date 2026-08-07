@@ -58,6 +58,8 @@ DOMAINS=(
     "slack.com"
     "enterprise.slack.com"
     "feeditout.com"
+    "osv.dev"
+    "deps.dev"
     "stripe.com"
 )
 
@@ -92,7 +94,6 @@ done
 # Add known cloud provider CIDR ranges that wildcard domains resolve to
 # Google Cloud / googleapis (Vertex AI, OAuth, storage)
 $NETNS_CMD nft add element inet securetty_egress allowed_ipv4 "{ 142.250.0.0/15 }" 2>/dev/null || true
-$NETNS_CMD nft add element inet securetty_egress allowed_ipv4 "{ 142.251.0.0/16 }" 2>/dev/null || true
 $NETNS_CMD nft add element inet securetty_egress allowed_ipv4 "{ 172.217.0.0/16 }" 2>/dev/null || true
 $NETNS_CMD nft add element inet securetty_egress allowed_ipv4 "{ 172.253.0.0/16 }" 2>/dev/null || true
 $NETNS_CMD nft add element inet securetty_egress allowed_ipv4 "{ 216.58.0.0/16 }" 2>/dev/null || true

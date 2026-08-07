@@ -218,7 +218,54 @@ chmod 0600 "$ENV_DIR/.env.cloudcli"
 # Dev container: gets everything (agents need various keys)
 # Uses the main .env file as-is
 
+# MCP service env files (per-service secrets only)
+# Jira
+{
+    grep -E '^(JIRA_JPAT|JIRA_URL|JIRA_PROJECT_KEY|JIRA_BOARD_ID|JIRA_EMAIL|JIRA_COMPONENT_NAME|JIRA_AI_API_KEY)=' "$ENV_FILE" 2>/dev/null || true
+    echo "JIRA_EPIC_FIELD=customfield_10014"
+    echo "JIRA_EPIC_NAME_FIELD=customfield_10011"
+    echo "JIRA_STORY_POINTS_FIELD=customfield_10028"
+    echo "JIRA_SPRINT_FIELD=customfield_10020"
+    echo "JIRA_ACCEPTANCE_CRITERIA_FIELD=customfield_10718"
+    echo "JIRA_BLOCKED_FIELD=customfield_10517"
+    echo "JIRA_BLOCKED_REASON_FIELD=customfield_10483"
+    echo "JIRA_WORKSTREAM_FIELD=customfield_10681"
+    echo "JIRA_WORKSTREAM_VALUE=Cloud Automation Analytics"
+    echo "JIRA_PRIORITY=Normal"
+    echo "JIRA_AFFECTS_VERSION=aa-latest"
+    echo "JIRA_AI_PROVIDER=vertex"
+    echo "JIRA_AI_MODEL=claude-sonnet-4-6@20250514"
+} > "$ENV_DIR/.env.mcp-jira"
+chmod 0600 "$ENV_DIR/.env.mcp-jira"
+
+# GitLab
+grep -E '^GITLAB_TOKEN=' "$ENV_FILE" > "$ENV_DIR/.env.mcp-gitlab" 2>/dev/null || true
+echo "GITLAB_URL=https://gitlab.cee.redhat.com" >> "$ENV_DIR/.env.mcp-gitlab"
+chmod 0600 "$ENV_DIR/.env.mcp-gitlab"
+
+# GitHub
+grep -E '^GITHUB_TOKEN=' "$ENV_FILE" > "$ENV_DIR/.env.mcp-github" 2>/dev/null || true
+chmod 0600 "$ENV_DIR/.env.mcp-github"
+
+# Slack
+grep -E '^(SLACK_XOXC_TOKEN|SLACK_D_COOKIE|SLACK_HOST|SLACK_ENTERPRISE_ID)=' "$ENV_FILE" > "$ENV_DIR/.env.mcp-slack" 2>/dev/null || true
+chmod 0600 "$ENV_DIR/.env.mcp-slack"
+
+# WordPress
+grep -E '^WORDPRESS_' "$ENV_FILE" > "$ENV_DIR/.env.mcp-wordpress" 2>/dev/null || true
+chmod 0600 "$ENV_DIR/.env.mcp-wordpress"
+
+# Credential proxy (git tokens only)
+grep -E '^(GITHUB_TOKEN|GITLAB_TOKEN)=' "$ENV_FILE" > "$ENV_DIR/.env.creds" 2>/dev/null || true
+chmod 0600 "$ENV_DIR/.env.creds"
+
 
 echo "Generated $ENV_FILE ($found/$total keys discovered)"
 echo "  + .env.omniroute (provider keys only)"
 echo "  + .env.cloudcli (Vertex/Anthropic only)"
+echo "  + .env.mcp-jira (Jira secrets)"
+echo "  + .env.mcp-gitlab (GitLab token)"
+echo "  + .env.mcp-github (GitHub token)"
+echo "  + .env.mcp-slack (Slack credentials)"
+echo "  + .env.mcp-wordpress (WordPress credentials)"
+echo "  + .env.creds (git tokens only)"

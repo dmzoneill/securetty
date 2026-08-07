@@ -1,0 +1,13 @@
+FROM localhost/securetty_base:latest
+
+RUN python3.12 -m pip install --target /usr/local/lib/python3.12/site-packages \
+        fastmcp uvicorn httpx requests aiohttp \
+    && ln -sf /usr/local/lib/python3.12/site-packages/bin/uvicorn /usr/local/bin/uvicorn 2>/dev/null || true
+
+RUN groupadd -g 1000 mcp \
+    && useradd -u 1000 -g 1000 -m -s /bin/bash mcp
+
+USER mcp
+WORKDIR /mcp
+
+CMD ["python3.12", "-m", "uvicorn"]

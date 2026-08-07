@@ -20,6 +20,8 @@ RUN python3.12 -m pip install --target /usr/local/lib/python3.12/site-packages h
 RUN python3.12 -m pip install --target /usr/local/lib/python3.12/site-packages requests
 RUN python3.12 -m pip install --target /usr/local/lib/python3.12/site-packages google-api-python-client
 RUN python3.12 -m pip install --target /usr/local/lib/python3.12/site-packages google-auth-oauthlib
+RUN python3.12 -m pip install --target /usr/local/lib/python3.12/site-packages ai-guardian
+RUN python3.12 -m pip install --target /usr/local/lib/python3.12/site-packages pip-audit
 
 # =============================================================================
 # Delayed agent installation — versions >= QUARANTINE_DAYS old
@@ -44,12 +46,10 @@ RUN mkdir -p /home/${USERNAME}/.gnupg \
 RUN echo "ignore-scripts=true" > /home/${USERNAME}/.npmrc \
     && chown ${USERNAME}:${USERNAME} /home/${USERNAME}/.npmrc
 
-# pip config: user installs to persistent volume, no system package clobbering
+# pip config: PIP_USER=1 env var handles user installs at runtime
+# pip.conf only sets non-default install options
 RUN mkdir -p /home/${USERNAME}/.config/pip \
     && cat > /home/${USERNAME}/.config/pip/pip.conf <<'EOF'
-[global]
-user = true
-
 [install]
 no-deps = false
 EOF
@@ -93,6 +93,20 @@ RUN chmod +x /home/${USERNAME}/.local/bin/claude-post-commit-hook.sh
 # Copy project install script
 COPY --chown=${USERNAME}:${USERNAME} scripts/install.sh /workspace/.securetty/install.sh
 RUN chmod +x /workspace/.securetty/install.sh
+
+# git-credential-securetty — fetches credentials from proxy (zero-secret agent env)
+COPY scripts/git-credential-securetty /usr/local/bin/git-credential-securetty
+RUN chmod +x /usr/local/bin/git-credential-securetty
+
+# glab/gh wrappers — fetch tokens from credential proxy on demand
+COPY scripts/glab-wrapper /usr/local/bin/glab-wrapper
+COPY scripts/gh-wrapper /usr/local/bin/gh-wrapper
+RUN chmod +x /usr/local/bin/glab-wrapper /usr/local/bin/gh-wrapper \
+    && if [ -f /usr/local/bin/glab ]; then mv /usr/local/bin/glab /usr/local/bin/glab.real && ln -s /usr/local/bin/glab-wrapper /usr/local/bin/glab; fi \
+    && if [ -f /usr/local/bin/gh ]; then mv /usr/local/bin/gh /usr/local/bin/gh.real && ln -s /usr/local/bin/gh-wrapper /usr/local/bin/gh; fi
+
+# Configure git to use securetty credential helper
+RUN git config --system credential.helper securetty
 
 # xdg-open shim — sends URLs to host relay socket instead of opening locally
 COPY scripts/xdg-open /usr/bin/xdg-open

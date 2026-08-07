@@ -114,6 +114,12 @@ _preflight() {
     # SSH agent
     if [ -S "/run/user/$(id -u)/securetty-ssh-agent.sock" ]; then
         echo "  OK: SSH agent"
+        if [ -f "/run/user/$(id -u)/securetty-ssh-token" ]; then
+            echo "  OK: SSH proxy token"
+        else
+            echo "  WARN: SSH proxy token missing"
+            warnings=$((warnings + 1))
+        fi
     else
         echo "  WARN: SSH agent not running"
         warnings=$((warnings + 1))
@@ -161,8 +167,9 @@ _build_envfile() {
     envfile=$(umask 077; mktemp /run/user/$(id -u)/securetty-env.XXXXXX) || { echo "ERROR: mktemp failed" >&2; return 1; }
     [ -n "$envfile" ] || { echo "ERROR: empty envfile path" >&2; return 1; }
 
-    command cp -f "$SECURETTY_DIR/.env" "$envfile"
-    chmod 0600 "$envfile"
+    # Zero-secret agent env — only OMNIROUTE_API_KEY + non-secret config
+    grep -E '^OMNIROUTE_API_KEY=' "$SECURETTY_DIR/.env" >> "$envfile" 2>/dev/null || true
+    grep -E '^(CLAUDE_CODE_USE_VERTEX|ANTHROPIC_VERTEX_PROJECT_ID|GOOGLE_CLOUD_PROJECT|GOOGLE_CLOUD_LOCATION|CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC)=' "$SECURETTY_DIR/.env" >> "$envfile" 2>/dev/null || true
 
     cat >> "$envfile" <<ENVEOF
 HOME=/home/daoneill
@@ -230,10 +237,11 @@ _run() {
         -v "/home/daoneill/.gnupg/pubring.kbx:/home/daoneill/.gnupg/pubring.kbx:ro" \
         -v "/home/daoneill/.gnupg/trustdb.gpg:/home/daoneill/.gnupg/trustdb.gpg:ro" \
         -v "/run/user/$(id -u)/securetty-ssh-agent.sock:/run/ssh-agent.sock:ro" \
+        -v "/run/user/$(id -u)/securetty-ssh-token:/run/ssh-token:ro" \
         -v "/home/daoneill/.ssh/config:/home/daoneill/.ssh/config:ro" \
         -v "/home/daoneill/.ssh/known_hosts:/home/daoneill/.ssh/known_hosts:ro" \
         -v "/home/daoneill/.claude.json:/home/daoneill/.claude.json" \
-        -v "/home/daoneill/.mcp.json:/home/daoneill/.mcp.json:ro" \
+        \
         -v "/home/daoneill/.claude:/home/daoneill/.claude" \
         -v "/home/daoneill/.codex:/home/daoneill/.codex" \
         -v "/home/daoneill/.gemini:/home/daoneill/.gemini" \

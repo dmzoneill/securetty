@@ -8,7 +8,7 @@ FROM localhost/securetty_base:latest
 # Development Tools group + all system packages
 RUN dnf group install -y development-tools \
     && dnf install -y --setopt=install_weak_deps=False \
-        gsettings-desktop-schemas util-linux glib2 iproute pciutils pipewire-pulseaudio gjs which dnf-plugins-core dbus-tools xdg-utils ansible-core git-core dbus-daemon mesa-dri-drivers python3-devel ImageMagick iputils gcc g++ python3-pytest net-tools sassc python3-flake8 openssh-clients xz gettext rpm-build tree yamllint python3 awscli2 bind-utils findutils unzip glab socat tar dconf golang ruff gnome-extensions-app gnupg2 sound-theme-freedesktop mutter-devkit gnome-shell ffmpeg skopeo mesa-libEGL man-db python3-lxml lsof make gh hostname nmap-ncat git libxml2 pulseaudio-utils python3-ansible-lint ncat sshpass sqlite nmap podman-remote python3-pip glib2-devel \
+        net-tools man-db gnome-shell python3-pip tar nmap golang make findutils iproute gh ansible-core gnupg2 mutter-devkit git xz gsettings-desktop-schemas gnome-extensions-app nmap-ncat pciutils mesa-dri-drivers tree ruff sshpass awscli2 libxml2 dconf pipewire-pulseaudio glab sound-theme-freedesktop dbus-tools python3-devel python3-lxml python3-ansible-lint mesa-libEGL podman-remote unzip socat ImageMagick yamllint g++ python3-flake8 sqlite git-core gcc glib2-devel rpm-build glib2 pulseaudio-utils lsof util-linux ffmpeg python3 sassc which openssh-clients bind-utils gjs python3-pytest dnf-plugins-core hostname iputils gettext ncat skopeo dbus-daemon xdg-utils \
     && dnf clean all \
     && rm -rf /var/cache/dnf
 

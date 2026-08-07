@@ -1,0 +1,5 @@
+#!/bin/bash
+# gh wrapper — fetches GitHub token from credential proxy
+export GH_TOKEN=$(curl -sf http://securetty-creds:8800/token/github 2>/dev/null)
+export GITHUB_TOKEN="$GH_TOKEN"
+exec /usr/local/bin/gh.real "$@"

@@ -38,7 +38,6 @@ services:
 
       # Claude config
       - {{ securetty_home }}/.claude.json:{{ securetty_home }}/.claude.json
-      - {{ securetty_home }}/.mcp.json:{{ securetty_home }}/.mcp.json:ro
 
       # Downloads
       - {{ securetty_home }}/Downloads:{{ securetty_home }}/Downloads
@@ -352,6 +351,12 @@ services:
           cpus: "1"
           memory: 512M
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "bash", "-c", "pgrep -f guarddog-watch || pgrep -f 'sleep'"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   # =================================================================
   # OSV-Scanner — known malicious/vulnerable package database checker
@@ -390,6 +395,12 @@ services:
           cpus: "1"
           memory: 512M
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "bash", "-c", "pgrep -f osv-watch || pgrep -f 'sleep'"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   # =================================================================
   # Credential Proxy — git/glab/gh token provider (zero-secret agents)
@@ -458,6 +469,12 @@ services:
           memory: 256M
     restart: unless-stopped
     command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8801)"]
+    healthcheck:
+      test: ["CMD", "python3.12", "-c", "import socket; s=socket.socket(); s.connect(('localhost',8801)); s.close()"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   mcp-gitlab:
     build:
@@ -484,6 +501,12 @@ services:
           memory: 256M
     restart: unless-stopped
     command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8802)"]
+    healthcheck:
+      test: ["CMD", "python3.12", "-c", "import socket; s=socket.socket(); s.connect(('localhost',8802)); s.close()"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   mcp-github:
     build:
@@ -510,6 +533,12 @@ services:
           memory: 256M
     restart: unless-stopped
     command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8803)"]
+    healthcheck:
+      test: ["CMD", "python3.12", "-c", "import socket; s=socket.socket(); s.connect(('localhost',8803)); s.close()"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   mcp-slack:
     build:
@@ -536,6 +565,12 @@ services:
           memory: 256M
     restart: unless-stopped
     command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8804)"]
+    healthcheck:
+      test: ["CMD", "python3.12", "-c", "import socket; s=socket.socket(); s.connect(('localhost',8804)); s.close()"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   mcp-wordpress:
     build:
@@ -562,6 +597,12 @@ services:
           memory: 256M
     restart: unless-stopped
     command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8805)"]
+    healthcheck:
+      test: ["CMD", "python3.12", "-c", "import socket; s=socket.socket(); s.connect(('localhost',8805)); s.close()"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
 volumes:
   securetty-npm-cache:

@@ -6,6 +6,7 @@ set -euo pipefail
 
 SOCKET_PATH="/run/user/$(id -u)/securetty-ssh-agent.sock"
 PID_FILE="/run/user/$(id -u)/securetty-ssh-agent.pid"
+TOKEN_FILE="/run/user/$(id -u)/securetty-ssh-token"
 KEYS=(
     "$HOME/.ssh/dmzoneill-2024"
     "$HOME/.ssh/id_ecdsa"
@@ -27,15 +28,20 @@ start() {
         fi
     done
 
+    # Generate session token for HMAC proxy validation
+    openssl rand -hex 32 > "$TOKEN_FILE"
+    chmod 0600 "$TOKEN_FILE"
+
     echo "[+] Restricted SSH agent started"
     echo "    Socket: $SOCKET_PATH"
     echo "    PID: $(cat "$PID_FILE")"
+    echo "    Token: $TOKEN_FILE"
 }
 
 stop() {
     if [ -f "$PID_FILE" ]; then
         kill "$(cat "$PID_FILE")" 2>/dev/null || true
-        rm -f "$PID_FILE" "$SOCKET_PATH"
+        rm -f "$PID_FILE" "$SOCKET_PATH" "$TOKEN_FILE"
         echo "[+] Restricted SSH agent stopped"
     fi
 }

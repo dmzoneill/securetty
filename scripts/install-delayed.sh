@@ -89,6 +89,10 @@ for pkg in "${NPM_AGENTS[@]}"; do
     install_npm_delayed "$pkg"
 done
 
+echo ""
+echo "=== npm audit (high+ vulnerabilities) ==="
+npm audit --audit-level=high -g 2>/dev/null || echo "  WARN: npm audit reported issues (see above)"
+
 npm cache clean --force 2>/dev/null || true
 
 # =============================================================================
@@ -127,6 +131,10 @@ for pkg in "${PIP_AGENTS[@]}"; do
         add_manifest "$pkg" "$installed_ver" "before-${CUTOFF_ISO}" "pip"
     fi
 done
+
+echo ""
+echo "=== pip-audit (known vulnerabilities) ==="
+pip-audit --desc 2>/dev/null || echo "  WARN: pip-audit reported issues (see above)"
 
 # =============================================================================
 # Binary agents
@@ -196,17 +204,35 @@ install_github_binary() {
 }
 
 install_github_binary "goose" "block/goose" \
-    "curl -fsSL 'https://github.com/block/goose/releases/download/stable/download_cli.sh' > /tmp/goose-install.sh && bash /tmp/goose-install.sh 2>/dev/null; rm -f /tmp/goose-install.sh; _rescue_binary goose"
+    "curl -fsSL 'https://github.com/block/goose/releases/download/stable/download_cli.sh' > /tmp/goose-install.sh && \
+     [ -s '/tmp/goose-install.sh' ] || { echo '  WARN: empty install script for goose'; return; } && \
+     head -1 '/tmp/goose-install.sh' | grep -q '^#!' || { echo '  WARN: invalid install script for goose'; return; } && \
+     bash /tmp/goose-install.sh 2>/dev/null; rm -f /tmp/goose-install.sh; _rescue_binary goose"
 install_github_binary "grok" "xai-org/grok-build" \
-    "curl -fsSL 'https://x.ai/cli/install.sh' > /tmp/grok-install.sh && bash /tmp/grok-install.sh 2>/dev/null; rm -f /tmp/grok-install.sh; _rescue_binary grok"
+    "curl -fsSL 'https://x.ai/cli/install.sh' > /tmp/grok-install.sh && \
+     [ -s '/tmp/grok-install.sh' ] || { echo '  WARN: empty install script for grok'; return; } && \
+     head -1 '/tmp/grok-install.sh' | grep -q '^#!' || { echo '  WARN: invalid install script for grok'; return; } && \
+     bash /tmp/grok-install.sh 2>/dev/null; rm -f /tmp/grok-install.sh; _rescue_binary grok"
 install_github_binary "forge" "anthropics/claude-code" \
-    "curl -fsSL 'https://forgecode.dev/cli' > /tmp/forge-install.sh && bash /tmp/forge-install.sh 2>/dev/null; rm -f /tmp/forge-install.sh; _rescue_binary forge"
+    "curl -fsSL 'https://forgecode.dev/cli' > /tmp/forge-install.sh && \
+     [ -s '/tmp/forge-install.sh' ] || { echo '  WARN: empty install script for forge'; return; } && \
+     head -1 '/tmp/forge-install.sh' | grep -q '^#!' || { echo '  WARN: invalid install script for forge'; return; } && \
+     bash /tmp/forge-install.sh 2>/dev/null; rm -f /tmp/forge-install.sh; _rescue_binary forge"
 install_github_binary "kiro-cli" "aws/amazon-q-developer-cli" \
-    "curl -fsSL 'https://cli.kiro.dev/install' > /tmp/kiro-cli-install.sh && bash /tmp/kiro-cli-install.sh 2>/dev/null; rm -f /tmp/kiro-cli-install.sh; _rescue_binary kiro-cli"
+    "curl -fsSL 'https://cli.kiro.dev/install' > /tmp/kiro-cli-install.sh && \
+     [ -s '/tmp/kiro-cli-install.sh' ] || { echo '  WARN: empty install script for kiro-cli'; return; } && \
+     head -1 '/tmp/kiro-cli-install.sh' | grep -q '^#!' || { echo '  WARN: invalid install script for kiro-cli'; return; } && \
+     bash /tmp/kiro-cli-install.sh 2>/dev/null; rm -f /tmp/kiro-cli-install.sh; _rescue_binary kiro-cli"
 install_github_binary "cursor" "getcursor/cursor" \
-    "curl -fsSL 'https://cursor.com/install' > /tmp/cursor-install.sh && bash /tmp/cursor-install.sh 2>/dev/null; rm -f /tmp/cursor-install.sh; _rescue_binary cursor"
+    "curl -fsSL 'https://cursor.com/install' > /tmp/cursor-install.sh && \
+     [ -s '/tmp/cursor-install.sh' ] || { echo '  WARN: empty install script for cursor'; return; } && \
+     head -1 '/tmp/cursor-install.sh' | grep -q '^#!' || { echo '  WARN: invalid install script for cursor'; return; } && \
+     bash /tmp/cursor-install.sh 2>/dev/null; rm -f /tmp/cursor-install.sh; _rescue_binary cursor"
 install_github_binary "jcode" "1jehuang/jcode" \
-    "curl -fsSL 'https://raw.githubusercontent.com/1jehuang/jcode/master/scripts/install.sh' > /tmp/jcode-install.sh && bash /tmp/jcode-install.sh 2>/dev/null; rm -f /tmp/jcode-install.sh; _rescue_binary jcode"
+    "curl -fsSL 'https://raw.githubusercontent.com/1jehuang/jcode/master/scripts/install.sh' > /tmp/jcode-install.sh && \
+     [ -s '/tmp/jcode-install.sh' ] || { echo '  WARN: empty install script for jcode'; return; } && \
+     head -1 '/tmp/jcode-install.sh' | grep -q '^#!' || { echo '  WARN: invalid install script for jcode'; return; } && \
+     bash /tmp/jcode-install.sh 2>/dev/null; rm -f /tmp/jcode-install.sh; _rescue_binary jcode"
 
 # =============================================================================
 # Final manifest

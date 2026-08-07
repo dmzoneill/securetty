@@ -350,6 +350,9 @@ services:
       - securetty-usr-local:/scan/usr-local:ro
       - securetty-pip-user:/scan/pip-user:ro
       - securetty-npm-global:/scan/npm-global:ro
+      - securetty-npm-cache:/scan/npm-cache:ro
+      - securetty-cargo-cache:/scan/cargo:ro
+      - securetty-go-cache:/scan/go:ro
       - guarddog_results:/results
       - type: tmpfs
         target: /tmp
@@ -385,6 +388,9 @@ services:
       - securetty-usr-local:/scan/usr-local:ro
       - securetty-pip-user:/scan/pip-user:ro
       - securetty-npm-global:/scan/npm-global:ro
+      - securetty-npm-cache:/scan/npm-cache:ro
+      - securetty-cargo-cache:/scan/cargo:ro
+      - securetty-go-cache:/scan/go:ro
       - osv_results:/results
       - type: tmpfs
         target: /tmp
@@ -399,20 +405,207 @@ services:
           memory: 512M
     restart: unless-stopped
 
+  # =================================================================
+  # Credential Proxy — git/glab/gh token provider (zero-secret agents)
+  # =================================================================
+  creds:
+    build:
+      context: ./creds
+      dockerfile: Containerfile
+    container_name: securetty-creds
+    hostname: creds
+    user: "1000:1000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+      - label=disable
+    read_only: true
+    env_file:
+      - .env.creds
+    volumes:
+      - /home/daoneill/src/securetty/credentials.json:/config/credentials.json:ro
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 64M
+    networks:
+      - securetty_net
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8800/health"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # =================================================================
+  # ThickMCP services — hold secrets, serve MCP over HTTP
+  # =================================================================
+  mcp-jira:
+    build:
+      context: ./mcp
+      dockerfile: Containerfile
+    container_name: securetty-mcp-jira
+    hostname: mcp-jira
+    user: "1000:1000"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true, label=disable]
+    read_only: true
+    env_file: .env.mcp-jira
+    volumes:
+      - /home/daoneill/src/agent-mcp-skills/jira:/mcp:ro
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 64M
+    networks: [securetty_net]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    restart: unless-stopped
+    command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8801)"]
+
+  mcp-gitlab:
+    build:
+      context: ./mcp
+      dockerfile: Containerfile
+    container_name: securetty-mcp-gitlab
+    hostname: mcp-gitlab
+    user: "1000:1000"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true, label=disable]
+    read_only: true
+    env_file: .env.mcp-gitlab
+    volumes:
+      - /home/daoneill/src/agent-mcp-skills/gitlab:/mcp:ro
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 64M
+    networks: [securetty_net]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    restart: unless-stopped
+    command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8802)"]
+
+  mcp-github:
+    build:
+      context: ./mcp
+      dockerfile: Containerfile
+    container_name: securetty-mcp-github
+    hostname: mcp-github
+    user: "1000:1000"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true, label=disable]
+    read_only: true
+    env_file: .env.mcp-github
+    volumes:
+      - /home/daoneill/src/agent-mcp-skills/github:/mcp:ro
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 64M
+    networks: [securetty_net]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    restart: unless-stopped
+    command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8803)"]
+
+  mcp-slack:
+    build:
+      context: ./mcp
+      dockerfile: Containerfile
+    container_name: securetty-mcp-slack
+    hostname: mcp-slack
+    user: "1000:1000"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true, label=disable]
+    read_only: true
+    env_file: .env.mcp-slack
+    volumes:
+      - /home/daoneill/src/agent-mcp-skills/slack:/mcp:ro
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 64M
+    networks: [securetty_net]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    restart: unless-stopped
+    command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8804)"]
+
+  mcp-wordpress:
+    build:
+      context: ./mcp
+      dockerfile: Containerfile
+    container_name: securetty-mcp-wordpress
+    hostname: mcp-wordpress
+    user: "1000:1000"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true, label=disable]
+    read_only: true
+    env_file: .env.mcp-wordpress
+    volumes:
+      - /home/daoneill/src/agent-mcp-skills/wordpress:/mcp:ro
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 64M
+    networks: [securetty_net]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    restart: unless-stopped
+    command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8805)"]
+
 volumes:
   securetty-npm-cache:
+    name: securetty-npm-cache
   securetty-pip-cache:
+    name: securetty-pip-cache
   securetty-uv-cache:
+    name: securetty-uv-cache
   securetty-cargo-cache:
+    name: securetty-cargo-cache
   securetty-go-cache:
+    name: securetty-go-cache
   securetty-pip-user:
+    name: securetty-pip-user
   securetty-npm-global:
+    name: securetty-npm-global
   securetty-usr-local:
+    name: securetty-usr-local
   guarddog_results:
+    name: securetty-guarddog-results
   osv_results:
+    name: securetty-osv-results
   headroom_data:
+    name: securetty-headroom-data
   cloudcli_data:
+    name: securetty-cloudcli-data
   ollama_models:
+    name: securetty-ollama-models
+  securetty-mcp-skills:
+    name: securetty-mcp-skills
 
 networks:
   securetty_net:
