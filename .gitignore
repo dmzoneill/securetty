@@ -4,3 +4,24 @@
 .ansible/
 __pycache__/
 *.pyc
+
+# Rendered by ansible (do not edit directly)
+/securetty
+/podman-compose.yml
+/Containerfile
+/base/Containerfile
+/devbase/Containerfile
+/omniroute/Containerfile
+/headroom/Containerfile
+/cloudcli/Containerfile
+/ollama/Containerfile
+/guarddog/Containerfile
+/osv-scanner/Containerfile
+/mcp/Containerfile
+/creds/Containerfile
+/scripts/install-delayed.sh
+/scripts/generate-env.sh
+/scripts/ssh-agent-restricted.sh
+/scripts/securetty-egress.sh
+/scripts/resolve-egress.sh
+/credentials.json

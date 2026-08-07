@@ -491,9 +491,23 @@ cmd_clean() {
     else
         echo "None"
     fi
+    echo ""
+    echo "=== Orphaned volumes ==="
+    local orphan_vols
+    orphan_vols=$({{ securetty_podman_cmd }} volume ls --format '{% raw %}{{.Name}}{% endraw %}' 2>/dev/null | grep securetty | while read -r vol; do
+        {{ securetty_podman_cmd }} volume inspect "$vol" --format '{% raw %}{{.Containers}}{% endraw %}' 2>/dev/null | grep -q '^\[\]$' && echo "$vol"
+    done || true)
+    if [ -n "$orphan_vols" ]; then
+        echo "$orphan_vols"
+        echo "Removing..."
+        echo "$orphan_vols" | xargs {{ securetty_podman_cmd }} volume rm 2>/dev/null || true
+    else
+        echo "None"
+    fi
 }
 
 cmd_cost() {
+    command -v jq &>/dev/null || { echo "jq required for cost reports. Install: dnf install jq"; return 1; }
     local cost_dir="{{ securetty_home }}/.securetty/cost"
     local period="${1:-today}"
 
@@ -645,6 +659,44 @@ cmd_top() {
     fi
 }
 
+cmd_logs() {
+    local svc="${1:-}"
+    if [ -z "$svc" ]; then
+        echo "Usage: securetty logs <service> [--follow]"
+        echo "Services: omniroute headroom cloudcli ollama guarddog osv-scanner creds mcp-jira mcp-gitlab mcp-github mcp-slack mcp-wordpress"
+        return 1
+    fi
+    shift
+    {{ securetty_podman_cmd }} logs "${@}" "securetty-${svc}" 2>/dev/null || echo "Container securetty-${svc} not found"
+}
+
+cmd_restart() {
+    echo "Restarting services..."
+    (cd "$SECURETTY_DIR" && {{ securetty_compose_cmd }} down 2>/dev/null && {{ securetty_compose_cmd }} up -d --no-build)
+}
+
+cmd_exec() {
+    local container="${1:-}"
+    if [ -z "$container" ]; then
+        echo "Usage: securetty exec <container> <command>"
+        return 1
+    fi
+    shift
+    {{ securetty_podman_cmd }} exec -it "securetty-${container}" "$@"
+}
+
+cmd_version() {
+    echo "securetty CLI"
+    echo "  Dir: $SECURETTY_DIR"
+    echo "  Agents: {{ securetty_agents | length }} configured"
+    local build_date
+    build_date=$({{ securetty_podman_cmd }} run --rm --entrypoint cat securetty_dev /etc/securetty-manifest.json 2>/dev/null | jq -r '.build_date // "unknown"' 2>/dev/null || echo "unknown")
+    echo "  Image built: $build_date"
+    local img_count
+    img_count=$({{ securetty_podman_cmd }} images --format '{% raw %}{{.Repository}}{% endraw %}' 2>/dev/null | grep -c securetty || echo 0)
+    echo "  Images: $img_count"
+}
+
 cmd_help() {
     cat <<'HELP'
   ______                            _______ _______ _     _
@@ -669,6 +721,7 @@ Lifecycle:
   rebuild-agents            Rebuild dev image only (fast)
   up                        Start services
   down                      Stop services
+  restart                   Restart all services
 
 Configuration:
   egress                    Reload nftables egress rules + DNS patch
@@ -680,6 +733,9 @@ Configuration:
   preflight                 Check prerequisites (podman, images, services)
   cost [today|week|all]     Session cost and usage tracking
   clean                     Remove orphaned containers + stale env files
+  logs <service> [--follow] Show container logs
+  exec <container> <cmd>    Run command in container
+  version                   Show CLI and image version info
 
 Examples:
   securetty run claude --dangerously-skip-permissions
@@ -714,6 +770,10 @@ case "${1:-help}" in
     clean)            shift; cmd_clean "$@" ;;
     cost)             shift; cmd_cost "$@" ;;
     preflight)        shift; cmd_preflight "$@" ;;
+    logs)             shift; cmd_logs "$@" ;;
+    restart)          shift; cmd_restart "$@" ;;
+    exec)             shift; cmd_exec "$@" ;;
+    version)          shift; cmd_version "$@" ;;
     help|--help|-h)   cmd_help ;;
     *)                echo "Unknown command: $1. Run 'securetty help' for usage." >&2; exit 1 ;;
 esac

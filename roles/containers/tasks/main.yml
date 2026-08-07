@@ -22,6 +22,8 @@
     - creds
     - creds/scripts
     - scripts
+  tags:
+    - build
 
 # 2. Template all Containerfiles to their build dirs
 - name: Template base Containerfile
@@ -30,6 +32,8 @@
     dest: "{{ securetty_dir }}/base/Containerfile"
     mode: "0644"
   register: base_containerfile
+  tags:
+    - build
 
 - name: Template devbase Containerfile
   ansible.builtin.template:
@@ -37,60 +41,80 @@
     dest: "{{ securetty_dir }}/devbase/Containerfile"
     mode: "0644"
   register: devbase_containerfile
+  tags:
+    - build
 
 - name: Template dev Containerfile
   ansible.builtin.template:
     src: Containerfile.dev.j2
     dest: "{{ securetty_dir }}/Containerfile"
     mode: "0644"
+  tags:
+    - build
 
 - name: Template omniroute Containerfile
   ansible.builtin.template:
     src: Containerfile.omniroute.j2
     dest: "{{ securetty_dir }}/omniroute/Containerfile"
     mode: "0644"
+  tags:
+    - build
 
 - name: Template headroom Containerfile
   ansible.builtin.template:
     src: Containerfile.headroom.j2
     dest: "{{ securetty_dir }}/headroom/Containerfile"
     mode: "0644"
+  tags:
+    - build
 
 - name: Template cloudcli Containerfile
   ansible.builtin.template:
     src: Containerfile.cloudcli.j2
     dest: "{{ securetty_dir }}/cloudcli/Containerfile"
     mode: "0644"
+  tags:
+    - build
 
 - name: Template ollama Containerfile
   ansible.builtin.template:
     src: Containerfile.ollama.j2
     dest: "{{ securetty_dir }}/ollama/Containerfile"
     mode: "0644"
+  tags:
+    - build
 
 - name: Template guarddog Containerfile
   ansible.builtin.template:
     src: Containerfile.guarddog.j2
     dest: "{{ securetty_dir }}/guarddog/Containerfile"
     mode: "0644"
+  tags:
+    - build
 
 - name: Template osv-scanner Containerfile
   ansible.builtin.template:
     src: Containerfile.osv-scanner.j2
     dest: "{{ securetty_dir }}/osv-scanner/Containerfile"
     mode: "0644"
+  tags:
+    - build
 
 - name: Template MCP Containerfile
   ansible.builtin.template:
     src: Containerfile.mcp.j2
     dest: "{{ securetty_dir }}/mcp/Containerfile"
     mode: "0644"
+  tags:
+    - build
 
 - name: Template creds Containerfile
   ansible.builtin.template:
     src: Containerfile.creds.j2
     dest: "{{ securetty_dir }}/creds/Containerfile"
     mode: "0644"
+  tags:
+    - build
 
 - name: Copy credential proxy server
   ansible.builtin.copy:
@@ -105,6 +129,8 @@
     src: credentials.json.j2
     dest: "{{ securetty_dir }}/credentials.json"
     mode: "0600"
+  tags:
+    - build
 
 - name: Copy credential helper scripts to build context
   ansible.builtin.copy:
@@ -135,6 +161,8 @@
     src: podman-compose.yml.j2
     dest: "{{ securetty_dir }}/podman-compose.yml"
     mode: "0644"
+  tags:
+    - build
 
 # 5. Copy static files to scripts/
 - name: Copy static scripts
@@ -207,6 +235,8 @@
       npm cache clean --force 2>/dev/null || true
     dest: "{{ securetty_dir }}/omniroute/install.sh"
     mode: "0755"
+  tags:
+    - build
 
 # 7. Build containers (only when templates changed)
 
