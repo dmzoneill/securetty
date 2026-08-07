@@ -100,6 +100,12 @@
   tags:
     - build
 
+- name: Template credentials config
+  ansible.builtin.template:
+    src: credentials.json.j2
+    dest: "{{ securetty_dir }}/credentials.json"
+    mode: "0600"
+
 - name: Copy credential helper scripts to build context
   ansible.builtin.copy:
     src: "{{ item }}"

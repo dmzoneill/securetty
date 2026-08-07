@@ -410,6 +410,7 @@ services:
     env_file:
       - .env.creds
     volumes:
+      - {{ securetty_dir }}/credentials.json:/config/credentials.json:ro
       - type: tmpfs
         target: /tmp
         tmpfs:

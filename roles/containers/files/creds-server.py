@@ -18,6 +18,26 @@ TOKEN_ALIASES = {
     "gitlab": "GITLAB_TOKEN",
 }
 
+CONFIG_FILE = os.environ.get("CREDS_CONFIG", "/config/credentials.json")
+
+
+def load_token_map():
+    """Load per-org credential mapping from JSON config, merged with defaults."""
+    config_map = dict(TOKEN_MAP)  # start with defaults
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE) as f:
+            cfg = json.load(f)
+        for entry in cfg.get("credentials", []):
+            host = entry.get("host", "")
+            config_map[host] = {
+                "username": entry.get("username", "oauth2"),
+                "token_var": entry.get("token_var", ""),
+            }
+        for alias_name, var in cfg.get("token_aliases", {}).items():
+            TOKEN_ALIASES[alias_name] = var
+    return config_map
+
+
 class CredentialHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass  # silent
@@ -29,7 +49,8 @@ class CredentialHandler(BaseHTTPRequestHandler):
         if parsed.path == "/credential":
             host = params.get("host", [""])[0]
             protocol = params.get("protocol", ["https"])[0]
-            entry = TOKEN_MAP.get(host)
+            token_map = load_token_map()
+            entry = token_map.get(host)
             if entry:
                 token = os.environ.get(entry["token_var"], "")
                 if token:
