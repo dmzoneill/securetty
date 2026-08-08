@@ -68,6 +68,9 @@ services:
       - {{ securetty_home }}/.gnupg/trustdb.gpg:{{ securetty_home }}/.gnupg/trustdb.gpg:ro
       - {{ securetty_home }}/.gitconfig:{{ securetty_home }}/.gitconfig:ro
 
+      # TLS certificates for credential proxy mTLS
+      - {{ securetty_dir }}/certs:/certs:ro
+
       # Shared package caches (persist across containers)
       - securetty-npm-cache:{{ securetty_home }}/.npm
       - securetty-pip-cache:{{ securetty_home }}/.cache/pip

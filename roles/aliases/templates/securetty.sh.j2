@@ -184,6 +184,7 @@ GPG_AGENT_INFO=/run/gpg-agent.sock
 XDG_RUNTIME_DIR=/run/user/$(id -u)
 NODE_ENV=development
 npm_config_ignore_scripts=true
+NODE_EXTRA_CA_CERTS=/certs/ca.crt
 npm_config_cache={{ securetty_home }}/.npm
 npm_config_prefix={{ securetty_home }}/.npm-global
 CARGO_HOME={{ securetty_home }}/.cargo

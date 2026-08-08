@@ -26,3 +26,4 @@ __pycache__/
 /scripts/resolve-egress.sh
 /credentials.json
 /certs/
+/scripts/securetty-egress.nft
