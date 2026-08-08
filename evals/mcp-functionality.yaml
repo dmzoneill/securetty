@@ -1,0 +1,252 @@
+# promptfoo eval config — MCP skill functionality and response format validation
+# Run: npx promptfoo@latest eval --config evals/mcp-functionality.yaml
+#
+# Tests that MCP skill descriptions accurately convey capabilities and that
+# responses follow expected formats. Uses both deterministic (contains) and
+# LLM-as-judge (llm-rubric) assertions.
+
+description: securetty MCP skill functionality evaluation
+
+prompts:
+  - |
+    You are an AI assistant with access to MCP skills for interacting with
+    external services. Based on the skill description below, answer the
+    question about expected behavior and response format.
+
+    Skill: {{skill_name}}
+    Description: {{skill_description}}
+
+    Question: {{question}}
+
+providers:
+  - id: openai:chat:gpt-4o-mini
+    config:
+      temperature: 0
+
+tests:
+  # ==========================================================================
+  # JIRA skill tests
+  # ==========================================================================
+
+  - description: JIRA issue creation returns expected fields
+    vars:
+      skill_name: jira-query
+      skill_description: >
+        Search, view, create, and manage Jira issues. Supports JQL queries,
+        issue creation with summary/description/type/priority, transitions,
+        comments, and sprint management. Uses JIRA REST API with personal
+        access token authentication.
+      question: >
+        When creating a JIRA issue, what fields should the response include?
+        Describe the expected response format for a successfully created issue.
+    assert:
+      - type: llm-rubric
+        value: >
+          The response must indicate that a created JIRA issue response
+          includes at minimum: issue key (e.g. PROJ-123), summary, issue
+          type, and a URL or self link. Optionally: status, assignee,
+          priority. Award full marks if key, summary, and URL are mentioned.
+      - type: contains
+        value: "key"
+      - type: contains
+        value: "summary"
+
+  - description: JIRA JQL search produces structured results
+    vars:
+      skill_name: jira-query
+      skill_description: >
+        Search, view, create, and manage Jira issues. Supports JQL queries,
+        issue creation with summary/description/type/priority, transitions,
+        comments, and sprint management. Uses JIRA REST API with personal
+        access token authentication.
+      question: >
+        When searching JIRA with a JQL query like "project = AAP AND status = Open",
+        what structure should the results have? How are multiple issues
+        represented in the response?
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should describe a list/array of issues, each with at
+          least key, summary, status, and assignee. It should mention
+          pagination or total count. Award full marks if the response
+          describes structured, iterable results with core fields.
+
+  # ==========================================================================
+  # GitLab skill tests
+  # ==========================================================================
+
+  - description: GitLab MR listing returns merge request metadata
+    vars:
+      skill_name: gitlab-query
+      skill_description: >
+        Check GitLab merge request feedback, reviews, approvals, and activity.
+        Lists MRs by state, shows pipeline status, approval status, comments,
+        and review threads. Uses GitLab REST API with personal access token.
+      question: >
+        When listing open merge requests, what fields should each MR include
+        in the response? Describe the expected format.
+    assert:
+      - type: llm-rubric
+        value: >
+          Each merge request should include: MR ID or IID, title, author,
+          source branch, target branch, state (open/merged/closed), and
+          pipeline status. Award full marks if at least 5 of these fields
+          are identified.
+      - type: contains
+        value: "title"
+      - type: contains
+        value: "branch"
+
+  - description: GitLab pipeline status reflects CI state
+    vars:
+      skill_name: gitlab-query
+      skill_description: >
+        Check GitLab merge request feedback, reviews, approvals, and activity.
+        Lists MRs by state, shows pipeline status, approval status, comments,
+        and review threads. Uses GitLab REST API with personal access token.
+      question: >
+        How should pipeline status be represented in an MR response? What
+        are the possible pipeline states?
+    assert:
+      - type: llm-rubric
+        value: >
+          Pipeline status should include states like: pending, running,
+          success, failed, canceled, skipped. The response should mention
+          that pipeline status is tied to the latest commit on the MR branch.
+          Award full marks if at least 4 pipeline states are listed.
+
+  # ==========================================================================
+  # GitHub skill tests
+  # ==========================================================================
+
+  - description: GitHub PR response includes review information
+    vars:
+      skill_name: github-query
+      skill_description: >
+        Check GitHub pull request feedback, reviews, and activity. Lists PRs,
+        shows check run status, review requests, comments, and approval
+        state. Uses GitHub REST API via gh CLI with token authentication.
+      question: >
+        When fetching a pull request, what review-related information should
+        be included? Describe how reviews and check runs appear in the response.
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should describe: review state (approved, changes
+          requested, commented, pending), reviewer names, check run results
+          (pass/fail/pending), and overall mergeable status. Award full
+          marks if review state and check runs are both covered.
+      - type: contains
+        value: "review"
+
+  - description: GitHub PR listing supports filtering by state
+    vars:
+      skill_name: github-query
+      skill_description: >
+        Check GitHub pull request feedback, reviews, and activity. Lists PRs,
+        shows check run status, review requests, comments, and approval
+        state. Uses GitHub REST API via gh CLI with token authentication.
+      question: >
+        How should PR listing support filtering? What filter parameters
+        are commonly available (state, author, label, etc.)?
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should mention filtering by: state (open/closed/all),
+          author, labels, base branch, and sort order. Award full marks if
+          at least 3 filter types are described.
+
+  # ==========================================================================
+  # Slack skill tests
+  # ==========================================================================
+
+  - description: Slack search returns message context
+    vars:
+      skill_name: slack-query
+      skill_description: >
+        Search Slack for messages, find channels and users, retrieve
+        conversation history. Supports keyword search across channels with
+        timestamp and permalink context.
+      question: >
+        When searching Slack messages, what context should each result include?
+        How should thread messages be represented?
+    assert:
+      - type: llm-rubric
+        value: >
+          Each search result should include: message text, author/sender,
+          channel name, timestamp, and permalink. Thread replies should be
+          indicated with thread_ts or reply count. Award full marks if text,
+          author, channel, and timestamp are all mentioned.
+
+  # ==========================================================================
+  # Credential proxy tests (existing service)
+  # ==========================================================================
+
+  - description: Credential proxy health endpoint format
+    vars:
+      skill_name: securetty-creds
+      skill_description: >
+        securetty credential proxy service. Serves API keys from GNU pass
+        store over mTLS. Health endpoint returns "ok". Credentials endpoint
+        requires client certificate authentication.
+      question: >
+        What is the expected response format for the credential proxy health
+        check? What authentication is required?
+    assert:
+      - type: llm-rubric
+        value: >
+          The health endpoint should return a simple "ok" string. It requires
+          mTLS (mutual TLS) with client certificate and CA certificate.
+          Unauthenticated requests should be rejected. Award full marks if
+          mTLS and the "ok" response are both mentioned.
+      - type: contains
+        value: "ok"
+
+  # ==========================================================================
+  # Headroom (token compression) MCP tests
+  # ==========================================================================
+
+  - description: Headroom MCP server compresses token context
+    vars:
+      skill_name: headroom
+      skill_description: >
+        Token compression MCP server running on port 8787. Reduces context
+        window usage by compressing repetitive or verbose tool outputs.
+        Accepts text input and returns compressed representation.
+      question: >
+        How should the Headroom MCP server handle a compression request?
+        What should the response include (compressed text, compression ratio,
+        token savings)?
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should describe: compressed text output, a compression
+          ratio or percentage, and optionally original vs compressed token
+          counts. The compression should preserve semantic meaning while
+          reducing token usage. Award full marks if compressed output and
+          some measure of savings are mentioned.
+
+  # ==========================================================================
+  # Cross-skill integration tests
+  # ==========================================================================
+
+  - description: Skills use consistent error response format
+    vars:
+      skill_name: all-skills
+      skill_description: >
+        All securetty MCP skills (jira-query, gitlab-query, github-query,
+        slack-query, gmail-query, wordpress-query, securetty-creds, headroom)
+        interact with external APIs and should handle errors gracefully.
+      question: >
+        When an MCP skill encounters an error (API timeout, auth failure,
+        invalid input), what should the error response look like? Should
+        there be a consistent error format across all skills?
+    assert:
+      - type: llm-rubric
+        value: >
+          Error responses should include: an error indicator (error field
+          or status code), a human-readable message describing what went
+          wrong, and enough context to diagnose the issue (e.g. which API
+          failed, what was attempted). All skills should follow a consistent
+          error format. Award full marks if error indicator, message, and
+          consistency across skills are mentioned.

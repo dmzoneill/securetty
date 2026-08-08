@@ -1,0 +1,194 @@
+# promptfoo eval config — AGENTS.md and instruction quality benchmarks
+# Run: npx promptfoo@latest eval --config evals/skill-quality.yaml
+#
+# Tests quality dimensions of AGENTS.md: clarity, actionability, completeness,
+# consistency, and conciseness. Uses LLM-as-judge (llm-rubric) assertions.
+
+description: securetty AGENTS.md quality evaluation
+
+prompts:
+  - |
+    You are a documentation quality evaluator. Analyze the following AI agent
+    configuration guide (AGENTS.md) and answer the question that follows.
+
+    ---
+    {{agents_md}}
+    ---
+
+    Question: {{question}}
+
+providers:
+  - id: openai:chat:gpt-4o-mini
+    config:
+      temperature: 0
+
+defaultTest:
+  vars:
+    agents_md: "file://../AGENTS.md"
+
+tests:
+  # --- Clarity ---
+  - description: AGENTS.md explains how to add a new agent
+    vars:
+      question: >
+        Does this document clearly explain how to add a new AI agent to the
+        system? Describe the steps a developer would follow based solely on
+        the information provided.
+    assert:
+      - type: llm-rubric
+        value: >
+          The response must identify a concrete, step-by-step procedure for
+          adding a new agent. It should mention editing group_vars/all.yml,
+          adding to the appropriate agent list (npm, pip, or binary), adding
+          an alias entry to securetty_agents, and running a rebuild command.
+          Award full marks if all four elements are present.
+
+  # --- Completeness: commands ---
+  - description: All key commands are documented
+    vars:
+      question: >
+        List every command or make target documented in this guide. Are any
+        essential lifecycle commands (build, start, stop, status, clean)
+        missing?
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should enumerate the commands from the Key Commands
+          table. It should confirm that build (make setup/rebuild),
+          start (make up implied by setup), status, and clean commands are
+          present. Deduct points only if a critical lifecycle command
+          (build, status, clean) is entirely absent.
+      - type: contains
+        value: "make setup"
+      - type: contains
+        value: "securetty status"
+
+  # --- Actionability: rules ---
+  - description: Rules are actionable and enforceable
+    vars:
+      question: >
+        Evaluate each rule listed in the Rules section. Is each rule specific
+        enough that a developer could follow it without asking for
+        clarification? Are any rules vague or unenforceable?
+    assert:
+      - type: llm-rubric
+        value: >
+          Each rule should name a specific file, tool, or practice (e.g.
+          "agent lists live in group_vars/all.yml", "secrets come from GNU
+          pass"). A good rule references concrete paths or mechanisms. The
+          response should confirm that at least 4 out of 5 rules are
+          actionable and specific. Deduct if any rule is purely aspirational
+          with no mechanism to enforce or verify it.
+
+  # --- Architecture overview ---
+  - description: Architecture section describes container layers and services
+    vars:
+      question: >
+        Summarize the system architecture described in this document. Does
+        it explain the container image layers and the service topology?
+    assert:
+      - type: llm-rubric
+        value: >
+          The response must describe three container image layers (base,
+          devbase, dev) and list the sibling services (OmniRoute, Headroom,
+          CloudCLI, Ollama) with their ports. It should mention the podman
+          bridge network. Full marks if all layers and at least 3 services
+          are identified.
+      - type: contains
+        value: "base"
+      - type: contains
+        value: "devbase"
+
+  # --- Security posture ---
+  - description: Security model is clearly conveyed
+    vars:
+      question: >
+        What security mechanisms does this document describe? Does it
+        explain credential isolation, network restrictions, and the
+        quarantine system?
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should identify: (1) rootless podman containers for
+          sandboxing, (2) nftables egress whitelist / default-drop policy,
+          (3) GNU pass for secret management, (4) delayed ingestion /
+          quarantine. Award full marks if at least 3 of 4 are mentioned.
+
+  # --- Conciseness ---
+  - description: AGENTS.md stays within length budget
+    vars:
+      question: >
+        Count the approximate number of lines and sections in this document.
+        Is it concise enough to serve as a quick-reference guide (under 150
+        lines), or is it bloated with unnecessary detail?
+    assert:
+      - type: llm-rubric
+        value: >
+          The document should be under 150 lines with 5-7 major sections.
+          Award full marks if it is concise and well-structured. Deduct
+          points if sections contain redundant information or if the
+          document exceeds 150 lines significantly.
+
+  # --- Cross-references ---
+  - description: Design document references are present and complete
+    vars:
+      question: >
+        Does the document link to related design documents? List every
+        cross-reference found. Are the referenced documents relevant?
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should identify references to THREAT_MODEL.md,
+          security-levels.md, trust-model.md, and repo-access.md. Award
+          full marks if at least 3 design documents are referenced with
+          file paths.
+      - type: contains
+        value: "THREAT_MODEL.md"
+
+  # --- Common changes coverage ---
+  - description: Common changes section covers key workflows
+    vars:
+      question: >
+        What common change workflows are documented? Does the guide cover
+        adding agents, adding providers, adding egress domains, and adding
+        packages?
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should identify at least 4 documented change
+          workflows: adding an AI agent, adding an AI provider, adding an
+          egress domain, and adding dev tool packages. Each workflow should
+          reference the file to edit and the command to run afterward.
+
+  # --- Consistency ---
+  - description: Terminology is consistent throughout
+    vars:
+      question: >
+        Check for terminology consistency. Does the document use the same
+        terms for the same concepts throughout (e.g. "container" vs "pod",
+        "agent" vs "tool", "layer" vs "stage")? Flag any inconsistencies.
+    assert:
+      - type: llm-rubric
+        value: >
+          The document should use consistent terminology. "Agent" should
+          refer to AI CLI tools, "layer" to container image layers, and
+          "service" to running containers. Deduct points if the same concept
+          is referred to by different names without clarification, creating
+          ambiguity.
+
+  # --- Newcomer onboarding ---
+  - description: A newcomer can get started from AGENTS.md alone
+    vars:
+      question: >
+        Imagine you are a new developer joining this project. Based solely on
+        this document, could you: (1) understand what the project does,
+        (2) set up the environment, (3) add a new agent, and (4) know where
+        to find more details? Rate on a 1-5 scale and explain.
+    assert:
+      - type: llm-rubric
+        value: >
+          The response should rate the onboarding experience at 3 or higher
+          (out of 5). The document must convey the project purpose, provide
+          a setup command (make setup), explain the agent addition workflow,
+          and reference further reading. Deduct if any of these four
+          elements is entirely missing.

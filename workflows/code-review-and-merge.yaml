@@ -1,0 +1,13 @@
+name: code-review-and-merge
+stages:
+  - name: review
+    skill: code-review
+    agent: claude
+  - name: test
+    skill: run-tests
+    agent: claude
+    depends_on: [review]
+  - name: merge
+    skill: merge-pr
+    agent: claude
+    depends_on: [review, test]

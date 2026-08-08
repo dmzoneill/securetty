@@ -1,0 +1,29 @@
+# promptfoo eval config for securetty MCP services
+# Run: make eval (or: npx promptfoo@latest eval --config evals/promptfooconfig.yaml)
+
+description: securetty MCP service health and response validation
+
+providers:
+  - id: exec:curl
+    config:
+      command: >-
+        curl -sf --cacert certs/ca.crt
+        --cert certs/client.crt --key certs/client.key
+        "https://securetty-creds:8800/health" 2>/dev/null || echo "UNREACHABLE"
+
+tests:
+  - description: credential proxy responds to health check
+    vars: {}
+    assert:
+      - type: equals
+        value: "ok"
+
+  - description: credential proxy rejects unauthenticated requests
+    provider:
+      id: exec:curl
+      config:
+        command: >-
+          curl -sf "http://securetty-creds:8800/health" 2>/dev/null; echo "exit:$?"
+    assert:
+      - type: contains
+        value: "exit:7"

@@ -21,6 +21,7 @@
     - mcp
     - creds
     - creds/scripts
+    - dispatcher
     - scripts
   tags:
     - build
@@ -108,6 +109,14 @@
   tags:
     - build
 
+- name: Template dispatcher Containerfile
+  ansible.builtin.template:
+    src: Containerfile.dispatcher.j2
+    dest: "{{ securetty_dir }}/dispatcher/Containerfile"
+    mode: "0644"
+  tags:
+    - build
+
 - name: Template creds Containerfile
   ansible.builtin.template:
     src: Containerfile.creds.j2
@@ -153,6 +162,11 @@
   loop:
     - { src: guarddog-watch.sh, dest: guarddog/scripts/guarddog-watch.sh }
     - { src: osv-watch.sh, dest: osv-scanner/scripts/osv-watch.sh }
+    - { src: securetty-provenance.sh, dest: scripts/securetty-provenance.sh }
+    - { src: securetty-risk-classifier.sh, dest: scripts/securetty-risk-classifier.sh }
+    - { src: verify-signatures.sh, dest: scripts/verify-signatures.sh }
+    - { src: securetty-governance-hook.sh, dest: scripts/securetty-governance-hook.sh }
+    - { src: workflows.toon, dest: scripts/workflows.toon }
   tags:
     - build
 
@@ -177,6 +191,7 @@
     - xdg-open
     - open-relay-host.sh
     - headroom-entrypoint.sh
+    - ai-guardian-setup.sh
   tags:
     - build
 

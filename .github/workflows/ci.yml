@@ -27,6 +27,9 @@ jobs:
       - name: Ansible Lint
         run: ansible-lint site.yml || true
 
+      - name: skillsaw lint
+        run: docker run --rm -v ${{ github.workspace }}:/workspace ghcr.io/stbenjam/skillsaw:latest --strict
+
   structure:
     runs-on: ubuntu-latest
     steps:

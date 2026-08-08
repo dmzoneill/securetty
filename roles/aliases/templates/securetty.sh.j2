@@ -6,6 +6,11 @@ set -euo pipefail
 SECURETTY_DIR="$(cd "$(dirname "$0")" && pwd)"
 SECURETTY_IMAGE="${SECURETTY_IMAGE:-securetty_dev}"
 
+# Source session outcome logging helpers
+# shellcheck source=roles/aliases/files/securetty-outcomes.sh
+[ -f "$SECURETTY_DIR/roles/aliases/files/securetty-outcomes.sh" ] && \
+    source "$SECURETTY_DIR/roles/aliases/files/securetty-outcomes.sh"
+
 # =============================================================================
 # Internal functions
 # =============================================================================
@@ -15,13 +20,24 @@ _ensure_dirs() {
 }
 
 _generate_env() {
-    bash "$SECURETTY_DIR/scripts/generate-env.sh" "$SECURETTY_DIR/.env" 2>/dev/null
+    local env_file="$SECURETTY_DIR/.env"
+    local max_age=300
+    if [ -f "$env_file" ]; then
+        local file_age=$(( $(date +%s) - $(stat -c %Y "$env_file") ))
+        if [ "$file_age" -lt "$max_age" ]; then
+            : # skip regeneration, .env is fresh (<5min)
+        else
+            bash "$SECURETTY_DIR/scripts/generate-env.sh" "$env_file" 2>/dev/null
+        fi
+    else
+        bash "$SECURETTY_DIR/scripts/generate-env.sh" "$env_file" 2>/dev/null
+    fi
     # Only extract non-secret vars needed for _run_personal/_run_work
     # Never source full .env into shell (leaks secrets to /proc/PID/environ)
-    OMNIROUTE_API_KEY=$(grep -m1 '^OMNIROUTE_API_KEY=' "$SECURETTY_DIR/.env" 2>/dev/null | cut -d= -f2-)
-    ANTHROPIC_VERTEX_PROJECT_ID=$(grep -m1 '^ANTHROPIC_VERTEX_PROJECT_ID=' "$SECURETTY_DIR/.env" 2>/dev/null | cut -d= -f2-)
-    GOOGLE_CLOUD_PROJECT=$(grep -m1 '^GOOGLE_CLOUD_PROJECT=' "$SECURETTY_DIR/.env" 2>/dev/null | cut -d= -f2-)
-    GOOGLE_CLOUD_LOCATION=$(grep -m1 '^GOOGLE_CLOUD_LOCATION=' "$SECURETTY_DIR/.env" 2>/dev/null | cut -d= -f2-)
+    OMNIROUTE_API_KEY=$(grep -m1 '^OMNIROUTE_API_KEY=' "$env_file" 2>/dev/null | cut -d= -f2-)
+    ANTHROPIC_VERTEX_PROJECT_ID=$(grep -m1 '^ANTHROPIC_VERTEX_PROJECT_ID=' "$env_file" 2>/dev/null | cut -d= -f2-)
+    GOOGLE_CLOUD_PROJECT=$(grep -m1 '^GOOGLE_CLOUD_PROJECT=' "$env_file" 2>/dev/null | cut -d= -f2-)
+    GOOGLE_CLOUD_LOCATION=$(grep -m1 '^GOOGLE_CLOUD_LOCATION=' "$env_file" 2>/dev/null | cut -d= -f2-)
     export OMNIROUTE_API_KEY ANTHROPIC_VERTEX_PROJECT_ID GOOGLE_CLOUD_PROJECT GOOGLE_CLOUD_LOCATION
 }
 
@@ -167,6 +183,41 @@ _extract_workdir() {
     done
 }
 
+_convert_timeout_to_seconds() {
+    local val="$1"
+    local num="${val%[smhd]}"
+    local unit="${val##*[0-9]}"
+    case "$unit" in
+        s|"") echo "$num" ;;
+        m)    echo $((num * 60)) ;;
+        h)    echo $((num * 3600)) ;;
+        d)    echo $((num * 86400)) ;;
+        *)    echo "$num" ;;
+    esac
+}
+
+_parse_run_flags() {
+    _SECURETTY_MAX_TURNS=""
+    _SECURETTY_TIMEOUT=""
+    _SECURETTY_FLAGPARSED_ARGS=()
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --max-turns)
+                _SECURETTY_MAX_TURNS="${2:-}"
+                shift 2
+                ;;
+            --timeout)
+                _SECURETTY_TIMEOUT="${2:-}"
+                shift 2
+                ;;
+            *)
+                _SECURETTY_FLAGPARSED_ARGS+=("$1")
+                shift
+                ;;
+        esac
+    done
+}
+
 _build_envfile() {
     local envfile
     envfile=$(umask 077; mktemp /run/user/$(id -u)/securetty-env.XXXXXX) || { echo "ERROR: mktemp failed" >&2; return 1; }
@@ -199,6 +250,9 @@ OLLAMA_HOST=http://securetty-ollama:11434
 CLOUDCLI_URL=http://securetty-cloudcli:3001
 ENVEOF
 
+    [ -n "${_SECURETTY_MAX_TURNS:-}" ] && echo "SECURETTY_MAX_TURNS=${_SECURETTY_MAX_TURNS}" >> "$envfile"
+    [ -n "${_SECURETTY_TIMEOUT:-}" ] && echo "SECURETTY_TIMEOUT=${_SECURETTY_TIMEOUT}" >> "$envfile"
+
     if [ -n "${_SECURETTY_EXTRA_ENVLINES+x}" ]; then
         printf '%s\n' "${_SECURETTY_EXTRA_ENVLINES[@]}" >> "$envfile"
     fi
@@ -220,67 +274,89 @@ _run() {
     envfile=$(_build_envfile) || return 1
     trap "rm -f '$envfile'" EXIT
 
+    _SSH_TOKEN_MOUNT=""
+    [ -f "/run/user/$(id -u)/securetty-ssh-token" ] && _SSH_TOKEN_MOUNT="-v /run/user/$(id -u)/securetty-ssh-token:/run/ssh-token:ro"
+
     _ensure_egress 2>/dev/null
     _patch_dns 2>/dev/null
     { sleep 2 && _patch_dns; } &>/dev/null & disown
 
-    {{ securetty_podman_cmd }} run --rm -it \
-        --env-file "$envfile" \
-        --network {{ securetty_network_name }} \
-        --name "securetty-${agent}-$$" \
-        --hostname "securetty-${agent}" \
-        --user "$(id -u):$(id -g)" \
-        --userns=keep-id \
-        --cap-drop ALL \
-        --security-opt no-new-privileges:true \
-        --security-opt label=disable \
-        --security-opt "mask=/proc/mounts:/proc/self/mounts:/proc/self/mountinfo:/proc/cmdline:/proc/partitions:/proc/diskstats:/proc/version:/sys/class/dmi" \
-        --read-only \
-        --pids-limit 4096 \
-        \
-        -v "{{ securetty_home }}/src:{{ securetty_home }}/src" \
-        -v "{{ securetty_home }}/.gitconfig:{{ securetty_home }}/.gitconfig:ro" \
-        -v "{{ securetty_home }}/.gnupg/pubring.kbx:{{ securetty_home }}/.gnupg/pubring.kbx:ro" \
-        -v "{{ securetty_home }}/.gnupg/trustdb.gpg:{{ securetty_home }}/.gnupg/trustdb.gpg:ro" \
-        -v "/run/user/$(id -u)/securetty-ssh-agent.sock:/run/ssh-agent.sock:ro" \
-        -v "/run/user/$(id -u)/securetty-ssh-token:/run/ssh-token:ro" \
-        -v "{{ securetty_home }}/.ssh/config:{{ securetty_home }}/.ssh/config:ro" \
-        -v "{{ securetty_home }}/.ssh/known_hosts:{{ securetty_home }}/.ssh/known_hosts:ro" \
-        -v "{{ securetty_home }}/.claude.json:{{ securetty_home }}/.claude.json" \
-        \
+    local _run_start_ts
+    _run_start_ts=$(date +%s)
+
+    # Build the podman command
+    local _podman_cmd=(
+        {{ securetty_podman_cmd }} run --rm -it
+        --env-file "$envfile"
+        --network {{ securetty_network_name }}
+        --name "securetty-${agent}-$$"
+        --hostname "securetty-${agent}"
+        --user "$(id -u):$(id -g)"
+        --userns=keep-id
+        --cap-drop ALL
+        --security-opt no-new-privileges:true
+        --security-opt label=disable
+        --security-opt "mask=/proc/mounts:/proc/self/mounts:/proc/self/mountinfo:/proc/cmdline:/proc/partitions:/proc/diskstats:/proc/version:/sys/class/dmi"
+        --read-only
+        --pids-limit 4096
+        -v "{{ securetty_home }}/src:{{ securetty_home }}/src"
+        -v "{{ securetty_home }}/.gitconfig:{{ securetty_home }}/.gitconfig:ro"
+        -v "{{ securetty_home }}/.gnupg/pubring.kbx:{{ securetty_home }}/.gnupg/pubring.kbx:ro"
+        -v "{{ securetty_home }}/.gnupg/trustdb.gpg:{{ securetty_home }}/.gnupg/trustdb.gpg:ro"
+        -v "/run/user/$(id -u)/securetty-ssh-agent.sock:/run/ssh-agent.sock:ro"
+        ${_SSH_TOKEN_MOUNT:-}
+        -v "{{ securetty_home }}/.ssh/config:{{ securetty_home }}/.ssh/config:ro"
+        -v "{{ securetty_home }}/.ssh/known_hosts:{{ securetty_home }}/.ssh/known_hosts:ro"
+        -v "{{ securetty_home }}/.claude.json:{{ securetty_home }}/.claude.json"
 {% for dir in securetty_agent_config_dirs %}
-        -v "{{ securetty_home }}/{{ dir }}:{{ securetty_home }}/{{ dir }}" \
+        -v "{{ securetty_home }}/{{ dir }}:{{ securetty_home }}/{{ dir }}"
 {% endfor %}
-        -v "{{ securetty_home }}/bin:{{ securetty_home }}/bin:ro" \
-        -v "{{ securetty_home }}/.kube:{{ securetty_home }}/.kube" \
-        -v "{{ securetty_home }}/.aws:{{ securetty_home }}/.aws:ro" \
-        -v "{{ securetty_home }}/Downloads:{{ securetty_home }}/Downloads" \
-        -v "{{ securetty_home }}/.local/bin:{{ securetty_home }}/.local/bin:ro" \
-        -v "{{ securetty_home }}/.local/share/virtualenvs:{{ securetty_home }}/.local/share/virtualenvs" \
-        -v "/run/user/$(id -u)/pipewire-0:/run/user/$(id -u)/pipewire-0" \
-        -v "/run/user/$(id -u)/pulse:/run/user/$(id -u)/pulse" \
-        \
-        -v "${GPG_AGENT_EXTRA_SOCK:-/dev/null}:/run/gpg-agent.sock:ro" \
-        -v "/run/user/$(id -u)/securetty-open.sock:/run/securetty-open.sock" \
-        -v "$SECURETTY_DIR/certs:/certs:ro" \
-        \
-        --tmpfs /tmp:size=512M \
-        -v securetty-npm-cache:{{ securetty_home }}/.npm \
-        -v securetty-pip-cache:{{ securetty_home }}/.cache/pip \
-        -v securetty-uv-cache:{{ securetty_home }}/.cache/uv \
-        -v securetty-cargo-cache:{{ securetty_home }}/.cargo \
-        -v securetty-go-cache:{{ securetty_home }}/go \
-        -v securetty-pip-user:{{ securetty_home }}/.local/lib \
-        -v securetty-npm-global:{{ securetty_home }}/.npm-global \
-        -v securetty-usr-local:/usr/local \
-        --tmpfs {{ securetty_home }}/.cache/mesa_shader_cache:size=128M \
-        \
-        -w "${_SECURETTY_WORKDIR:-$(pwd)}" \
-        \
-        "$SECURETTY_IMAGE" \
+        -v "{{ securetty_home }}/bin:{{ securetty_home }}/bin:ro"
+        -v "{{ securetty_home }}/.kube:{{ securetty_home }}/.kube"
+        -v "{{ securetty_home }}/.aws:{{ securetty_home }}/.aws:ro"
+        -v "{{ securetty_home }}/Downloads:{{ securetty_home }}/Downloads"
+        -v "{{ securetty_home }}/.local/bin:{{ securetty_home }}/.local/bin:ro"
+        -v "{{ securetty_home }}/.local/share/virtualenvs:{{ securetty_home }}/.local/share/virtualenvs"
+        -v "/run/user/$(id -u)/pipewire-0:/run/user/$(id -u)/pipewire-0"
+        -v "/run/user/$(id -u)/pulse:/run/user/$(id -u)/pulse"
+        -v "${GPG_AGENT_EXTRA_SOCK:-/dev/null}:/run/gpg-agent.sock:ro"
+        -v "/run/user/$(id -u)/securetty-open.sock:/run/securetty-open.sock"
+        -v "$SECURETTY_DIR/certs:/certs:ro"
+        --tmpfs /tmp:size=512M
+        -v securetty-npm-cache:{{ securetty_home }}/.npm
+        -v securetty-pip-cache:{{ securetty_home }}/.cache/pip
+        -v securetty-uv-cache:{{ securetty_home }}/.cache/uv
+        -v securetty-cargo-cache:{{ securetty_home }}/.cargo
+        -v securetty-go-cache:{{ securetty_home }}/go
+        -v securetty-pip-user:{{ securetty_home }}/.local/lib
+        -v securetty-npm-global:{{ securetty_home }}/.npm-global
+        -v securetty-usr-local:/usr/local
+        --tmpfs {{ securetty_home }}/.cache/mesa_shader_cache:size=128M
+        -w "${_SECURETTY_WORKDIR:-$(pwd)}"
+        "$SECURETTY_IMAGE"
         "$agent" "$@"
+    )
+
+    # Execute with optional timeout enforcement
+    local _run_exit_code=0
+    if [ -n "${_SECURETTY_TIMEOUT:-}" ]; then
+        local _timeout_seconds
+        _timeout_seconds=$(_convert_timeout_to_seconds "$_SECURETTY_TIMEOUT")
+        timeout --signal=TERM --kill-after=30 "$_timeout_seconds" "${_podman_cmd[@]}" || _run_exit_code=$?
+    else
+        "${_podman_cmd[@]}" || _run_exit_code=$?
+    fi
 
     rm -f "$envfile"
+
+    # Calculate session duration and log outcome
+    local _run_end_ts _run_duration
+    _run_end_ts=$(date +%s)
+    _run_duration=$(( _run_end_ts - _run_start_ts ))
+
+    if type -t _log_session_outcome &>/dev/null; then
+        _log_session_outcome "$agent" "$_run_exit_code" "$_run_duration" "${_SECURETTY_WORKDIR:-$(pwd)}"
+    fi
 
     # Log session cost (Claude Code writes cost to ~/.claude/projects/*/usage.json)
     local cost_dir="{{ securetty_home }}/.securetty/cost"
@@ -288,7 +364,9 @@ _run() {
     local cost_log="$cost_dir/$(date +%Y-%m-%d).jsonl"
     local session_end
     session_end=$(date -u +%FT%TZ)
-    echo "{\"agent\":\"$agent\",\"end\":\"$session_end\",\"mode\":\"${_SECURETTY_MODE:-personal}\"}" >> "$cost_log" 2>/dev/null || true
+    echo "{\"agent\":\"$agent\",\"end\":\"$session_end\",\"mode\":\"${_SECURETTY_MODE:-personal}\",\"exit_code\":${_run_exit_code},\"duration\":${_run_duration}}" >> "$cost_log" 2>/dev/null || true
+
+    return $_run_exit_code
 }
 
 # =============================================================================
@@ -350,18 +428,29 @@ _run_personal() {
 # =============================================================================
 
 cmd_run() {
-    _extract_workdir "$@"
+    if [ $# -eq 0 ]; then
+        echo "Usage: securetty run <agent> [--max-turns N] [--timeout T] [workdir]" >&2
+        echo "Available agents: {{ securetty_agents | map(attribute='name') | join(', ') }}" >&2
+        return 1
+    fi
+    _parse_run_flags "$@"
+    _extract_workdir "${_SECURETTY_FLAGPARSED_ARGS[@]}"
     _run_personal "${_SECURETTY_ARGS[@]}"
 }
 
 cmd_run_work() {
-    _extract_workdir "$@"
+    if [ $# -eq 0 ]; then
+        echo "Usage: securetty run-work <agent> [--max-turns N] [--timeout T] [workdir]" >&2
+        return 1
+    fi
+    _parse_run_flags "$@"
+    _extract_workdir "${_SECURETTY_FLAGPARSED_ARGS[@]}"
     _run_work "${_SECURETTY_ARGS[@]}"
 }
 
 cmd_shell() {
     _extract_workdir "$@"
-    _run_personal /bin/bash "${_SECURETTY_ARGS[@]}"
+    _run_personal /bin/bash
 }
 
 cmd_setup() {
@@ -687,6 +776,97 @@ cmd_exec() {
     {{ securetty_podman_cmd }} exec -it "securetty-${container}" "$@"
 }
 
+_dispatcher_url() {
+    local cert_args=""
+    [ -f "$SECURETTY_DIR/certs/client.crt" ] && cert_args="--cert $SECURETTY_DIR/certs/client.crt --key $SECURETTY_DIR/certs/client.key --cacert $SECURETTY_DIR/certs/ca.crt"
+    echo "$cert_args"
+}
+
+cmd_dispatch() {
+    if [ $# -eq 0 ]; then
+        echo "Usage: securetty dispatch <work-item> [--agent <name>] [--skill <name>]" >&2
+        return 1
+    fi
+    local work_item="$1"; shift
+    local agent="claude" skill=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --agent) agent="$2"; shift 2 ;;
+            --skill) skill="$2"; shift 2 ;;
+            *) shift ;;
+        esac
+    done
+    local cert_args
+    cert_args=$(_dispatcher_url)
+    local body="{\"work_item\":\"$work_item\",\"agent\":\"$agent\""
+    [ -n "$skill" ] && body="$body,\"skill\":\"$skill\""
+    body="$body}"
+    curl $cert_args -sf -X POST "https://securetty-dispatcher:8900/dispatch" \
+        -H "Content-Type: application/json" \
+        -d "$body" 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "ERROR: dispatcher unavailable" >&2
+}
+
+cmd_jobs() {
+    local cert_args
+    cert_args=$(_dispatcher_url)
+    local filter=""
+    [ -n "${1:-}" ] && filter="?status=$1"
+    curl $cert_args -sf "https://securetty-dispatcher:8900/jobs${filter}" 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "ERROR: dispatcher unavailable" >&2
+}
+
+cmd_watch() {
+    if [ $# -eq 0 ]; then
+        echo "Usage: securetty watch <repo> [--source github|gitlab|jira] [--event <type>] [--interval <seconds>]" >&2
+        return 1
+    fi
+    local repo="$1"; shift
+    local source="github" event="push" interval="300"
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --source) source="$2"; shift 2 ;;
+            --event) event="$2"; shift 2 ;;
+            --interval) interval="$2"; shift 2 ;;
+            *) shift ;;
+        esac
+    done
+    local cert_args
+    cert_args=$(_dispatcher_url)
+    curl $cert_args -sf -X POST "https://securetty-dispatcher:8900/triggers?source=$source&repo=$repo&event_type=$event&poll_interval=$interval" \
+        -H "Content-Type: application/json" 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "ERROR: dispatcher unavailable" >&2
+}
+
+cmd_dashboard() {
+    bash "$SECURETTY_DIR/roles/containers/files/securetty-dashboard.sh" "$@"
+}
+
+cmd_alerts() {
+    bash "$SECURETTY_DIR/roles/containers/files/securetty-alerts.sh" "$@"
+}
+
+cmd_retro() {
+    bash "$SECURETTY_DIR/roles/containers/files/securetty-retro.sh" "$@"
+}
+
+cmd_eval() {
+    bash "$SECURETTY_DIR/roles/containers/files/securetty-eval.sh" "$@"
+}
+
+cmd_daemon() {
+    bash "$SECURETTY_DIR/roles/containers/files/securetty-daemon.sh" "$@"
+}
+
+cmd_init() {
+    bash "$SECURETTY_DIR/roles/containers/files/securetty-init.sh" "$@"
+}
+
+cmd_skill() {
+    bash "$SECURETTY_DIR/roles/containers/files/securetty-skill-manager.sh" "$@"
+}
+
+cmd_confidence() {
+    python3 "$SECURETTY_DIR/roles/containers/files/securetty-confidence.py" "$@"
+}
+
 cmd_version() {
     echo "securetty CLI"
     echo "  Dir: $SECURETTY_DIR"
@@ -713,9 +893,14 @@ cmd_help() {
 Usage: securetty <command> [options]
 
 Agent commands:
-  run <agent> [--read] [args]       Launch agent in personal mode (--read for read-only)
-  run-work <agent> [--read] [args]  Launch agent in work mode (--read blocks writes)
+  run <agent> [options] [args]      Launch agent in personal mode
+  run-work <agent> [options] [args] Launch agent in work mode
   shell [dir]                       Interactive shell in container
+
+Agent options:
+  --read                            Read-only mode (blocks writes)
+  --max-turns N                     Limit agent to N turns (passed as env var)
+  --timeout T                       Kill session after T (e.g. 30m, 1h, 90s)
 
 Lifecycle:
   setup                     Full setup (build + configure + start)
@@ -739,8 +924,25 @@ Configuration:
   exec <container> <cmd>    Run command in container
   version                   Show CLI and image version info
 
+Orchestration:
+  dispatch <work-item>      Route work item to agent via dispatcher
+  jobs [status]             List dispatched jobs (pending/running/completed/failed)
+  watch <repo>              Add polling trigger for repo events
+  daemon start|stop|status  Background agent daemon
+  dashboard [--once|--json] Real-time TUI dashboard
+  alerts --check|--notify   SLI alerting (container health, error rate, cost)
+
+Analysis:
+  retro [--json] [--since]  Retrospective failure analysis
+  confidence --score|--report  Agent confidence scoring
+  eval run|list|report      Run promptfoo evaluation suite
+  skill list|search|install Skill marketplace management
+  init <project-dir>        Bootstrap securetty in a new project
+
 Examples:
   securetty run claude --dangerously-skip-permissions
+  securetty run claude --max-turns 50 ~/src/myproject
+  securetty run claude --timeout 30m --max-turns 100
   securetty run-work gemini ~/src/myproject
   securetty shell
   securetty status
@@ -775,6 +977,17 @@ case "${1:-help}" in
     logs)             shift; cmd_logs "$@" ;;
     restart)          shift; cmd_restart "$@" ;;
     exec)             shift; cmd_exec "$@" ;;
+    dispatch)         shift; cmd_dispatch "$@" ;;
+    jobs)             shift; cmd_jobs "$@" ;;
+    watch)            shift; cmd_watch "$@" ;;
+    dashboard)        shift; cmd_dashboard "$@" ;;
+    alerts)           shift; cmd_alerts "$@" ;;
+    retro)            shift; cmd_retro "$@" ;;
+    eval)             shift; cmd_eval "$@" ;;
+    daemon)           shift; cmd_daemon "$@" ;;
+    init)             shift; cmd_init "$@" ;;
+    skill)            shift; cmd_skill "$@" ;;
+    confidence)       shift; cmd_confidence "$@" ;;
     version)          shift; cmd_version "$@" ;;
     help|--help|-h)   cmd_help ;;
     *)                echo "Unknown command: $1. Run 'securetty help' for usage." >&2; exit 1 ;;

@@ -1,0 +1,16 @@
+namespace: dmzoneill
+name: securetty
+version: 1.0.0
+readme: README.md
+authors:
+  - David O'Neill
+description: Sandboxed AI development environment with rootless podman containers
+license_file: LICENSE
+tags:
+  - ai
+  - security
+  - podman
+  - sandbox
+  - development
+dependencies: {}
+repository: https://github.com/dmzoneill/securetty

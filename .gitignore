@@ -27,3 +27,4 @@ __pycache__/
 /credentials.json
 /certs/
 /scripts/securetty-egress.nft
+*.tar.gz

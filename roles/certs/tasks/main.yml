@@ -45,6 +45,7 @@
     - mcp-slack
     - mcp-wordpress
     - headroom
+    - dispatcher
   tags:
     - certs
 

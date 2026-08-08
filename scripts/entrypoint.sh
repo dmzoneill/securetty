@@ -42,8 +42,20 @@ show_banner() {
         stale_warn=" | \033[1;31mSTALE (${age_days}d) -- rebuild recommended\033[0m"
     fi
 
-    echo -e "\033[0;36msecuretty\033[0m | built ${age_days}d ago | ${agent_count} agents | quarantine: ${quarantine_days}d${stale_warn}" > /dev/tty
-    [ -n "$oldest" ] && echo -e "\033[0;36msecuretty\033[0m | oldest: ${oldest} | newest: ${newest}" > /dev/tty
+    local C="\033[0;36m"
+    local G="\033[0;32m"
+    local D="\033[2m"
+    local R="\033[0m"
+
+    echo -e "" > /dev/tty
+    echo -e "${C}  ___  ___  ___ _   _ _ __ ___| |_| |_ _   _ ${R}" > /dev/tty
+    echo -e "${C} / __|/ _ \\/ __| | | | '__/ _ \\ __| __| | | |${R}" > /dev/tty
+    echo -e "${C} \\__ \\  __/ (__| |_| | | |  __/ |_| |_| |_| |${R}" > /dev/tty
+    echo -e "${C} |___/\\___|\\___|\\___|_|  \\___|\\__|\\__|\\__, |${R}" > /dev/tty
+    echo -e "${C}                                      |___/ ${R}" > /dev/tty
+    echo -e "${D} built ${age_days}d ago | ${agent_count} agents | quarantine: ${quarantine_days}d${stale_warn}${R}" > /dev/tty
+    [ -n "$oldest" ] && echo -e "${D} oldest: ${oldest} | newest: ${newest}${R}" > /dev/tty
+    echo -e "" > /dev/tty
 }
 
 # Sync /usr/local volume from image on version mismatch
@@ -68,7 +80,14 @@ _sync_usr_local() {
     fi
 }
 
+_setup_ai_guardian() {
+    command -v ai-guardian >/dev/null 2>&1 || return 0
+    [ -f "$HOME/.config/ai-guardian/ai-guardian.json" ] && return 0
+    bash /usr/bin/ai-guardian-setup.sh 2>/dev/null || true
+}
+
 _sync_usr_local 2>/dev/null || true
+_setup_ai_guardian 2>/dev/null || true
 
 # Only show banner when TTY attached
 if [ -t 0 ] && [ -e /dev/tty ]; then

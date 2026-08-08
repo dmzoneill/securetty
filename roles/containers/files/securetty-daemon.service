@@ -1,0 +1,15 @@
+[Unit]
+Description=securetty agent daemon
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=%h/src/securetty/securetty daemon start --foreground
+ExecStop=%h/src/securetty/securetty daemon stop
+Restart=on-failure
+RestartSec=30
+Environment=SECURETTY_DAEMON_POLL=10
+Environment=SECURETTY_DAEMON_MAX_SESSIONS=3
+
+[Install]
+WantedBy=default.target

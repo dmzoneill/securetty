@@ -1,0 +1,3 @@
+skill_name,triggers,requires,type
+code-review,review;cr,,review
+feedback,feedback;retro,,feedback

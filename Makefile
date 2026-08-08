@@ -1,4 +1,4 @@
-.PHONY: setup build rebuild rebuild-agents up env aliases egress omniroute ollama certs scan migrate down nuke status help test lint audit lockfiles
+.PHONY: setup build rebuild rebuild-agents up env aliases egress omniroute ollama certs scan migrate down nuke status help test lint audit lockfiles skillsaw eval
 
 help:
 	@echo "securetty — sandboxed AI development environment (Ansible)"
@@ -93,5 +93,11 @@ audit:
 
 lockfiles:
 	bash roles/containers/files/generate-lockfiles.sh @anthropic-ai/claude-code @openai/codex @google/gemini-cli cline opencode-ai @ampcode/cli @kilocode/cli @earendil-works/pi-ai
+
+skillsaw:
+	podman run --rm -v $$(pwd):/workspace:Z ghcr.io/stbenjam/skillsaw:latest --strict
+
+eval:
+	npx promptfoo@latest eval --config evals/promptfooconfig.yaml
 
 lint: test

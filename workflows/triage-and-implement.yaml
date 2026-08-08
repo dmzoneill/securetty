@@ -1,0 +1,13 @@
+name: triage-and-implement
+stages:
+  - name: triage
+    skill: triage-issue
+    agent: claude
+  - name: implement
+    skill: implement-fix
+    agent: claude
+    depends_on: [triage]
+  - name: create-pr
+    skill: create-pr
+    agent: claude
+    depends_on: [implement]

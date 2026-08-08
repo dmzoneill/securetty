@@ -1,0 +1,186 @@
+# skillsaw configuration for securetty
+# https://github.com/stbenjam/skillsaw
+
+version: "0.18.0"
+
+rules:
+
+  # --- Plugin rules (disabled — securetty is not a plugin) ---
+  plugin-json-required:
+    enabled: false
+  plugin-json-valid:
+    enabled: false
+  plugin-naming:
+    enabled: false
+  plugin-readme:
+    enabled: false
+  marketplace-json-valid:
+    enabled: false
+  marketplace-registration:
+    enabled: false
+  command-naming:
+    enabled: false
+  command-frontmatter:
+    enabled: false
+  command-sections:
+    enabled: false
+  command-name-format:
+    enabled: false
+
+  # --- Instruction file rules (enabled) ---
+  agent-frontmatter:
+    enabled: true
+    severity: error
+
+  instruction-file-valid:
+    enabled: true
+    severity: error
+
+  instruction-imports-valid:
+    enabled: true
+    severity: error
+
+  context-budget:
+    enabled: true
+    severity: warning
+
+  # --- Content quality rules ---
+  content-weak-language:
+    enabled: true
+    severity: warning
+
+  content-tautological:
+    enabled: true
+    severity: warning
+
+
+  content-redundant-with-tooling:
+    enabled: true
+    severity: warning
+
+  content-instruction-budget:
+    enabled: true
+    severity: warning
+
+  content-negative-only:
+    enabled: true
+    severity: warning
+
+  content-section-length:
+    enabled: true
+    severity: info
+
+  content-contradiction:
+    enabled: true
+    severity: warning
+
+  content-hook-candidate:
+    enabled: true
+    severity: info
+
+
+  content-cognitive-chunks:
+    enabled: true
+    severity: info
+
+  content-embedded-secrets:
+    enabled: true
+    severity: error
+
+  content-banned-references:
+    enabled: true
+    severity: warning
+
+  content-inconsistent-terminology:
+    enabled: true
+    severity: info
+
+  content-broken-internal-reference:
+    enabled: true
+    severity: warning
+
+  content-unlinked-internal-reference:
+    enabled: false
+
+  content-placeholder-text:
+    enabled: true
+    severity: warning
+
+  # --- Skill rules ---
+
+  agentskill-valid:
+    enabled: auto
+    severity: error
+
+  agentskill-name:
+    enabled: auto
+    severity: error
+
+  agentskill-rename-refs:
+    enabled: auto
+    severity: warning
+
+  agentskill-description:
+    enabled: auto
+    severity: warning
+
+  agentskill-structure:
+    enabled: false
+
+  agentskill-evals-required:
+    enabled: false
+
+  agentskill-evals:
+    enabled: auto
+    severity: warning
+
+  # --- Hook/MCP rules ---
+  hooks-json-valid:
+    enabled: true
+    severity: error
+
+  mcp-valid-json:
+    enabled: true
+    severity: error
+
+  mcp-prohibited:
+    enabled: false
+
+  rules-valid:
+    enabled: auto
+    severity: error
+
+  # --- Eval rules ---
+  promptfoo-valid:
+    enabled: true
+    severity: error
+
+  promptfoo-assertions:
+    enabled: false
+
+  promptfoo-metadata:
+    enabled: false
+
+  # --- Other ---
+  openclaw-metadata:
+    enabled: false
+
+  coderabbit-yaml-valid:
+    enabled: auto
+    severity: error
+
+  apm-yaml-valid:
+    enabled: false
+
+  apm-structure-valid:
+    enabled: false
+
+custom-rules: []
+
+exclude:
+  - "**/templates/**"
+  - "**/node_modules/**"
+
+content-paths: []
+
+strict: true

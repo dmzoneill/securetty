@@ -440,11 +440,11 @@ services:
           memory: 128M
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python3.12", "-c", "import socket; s=socket.socket(); s.connect(('localhost',8800)); s.close()"]
+      test: ["CMD", "python3.12", "-c", "import ssl,http.client;ctx=ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT);ctx.check_hostname=False;ctx.load_cert_chain('/certs/client.crt','/certs/client.key');ctx.load_verify_locations('/certs/ca.crt');c=http.client.HTTPSConnection('localhost',8800,context=ctx);c.request('GET','/health');exit(0 if c.getresponse().status==200 else 1)"]
       interval: 60s
       timeout: 5s
       retries: 3
-      start_period: 5s
+      start_period: 10s
 
   # =================================================================
   # ThickMCP services — hold secrets, serve MCP over HTTP
@@ -475,7 +475,7 @@ services:
           cpus: "0.5"
           memory: 256M
     restart: unless-stopped
-    command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8801, ssl_certfile='/certs/server.crt', ssl_keyfile='/certs/server.key')"]
+    command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8801, ssl_certfile='/certs/mcp-jira.crt', ssl_keyfile='/certs/mcp-jira.key')"]
     healthcheck:
       test: ["CMD", "python3.12", "-c", "import socket; s=socket.socket(); s.connect(('localhost',8801)); s.close()"]
       interval: 60s
@@ -509,7 +509,7 @@ services:
           cpus: "0.5"
           memory: 256M
     restart: unless-stopped
-    command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8802, ssl_certfile='/certs/server.crt', ssl_keyfile='/certs/server.key')"]
+    command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8802, ssl_certfile='/certs/mcp-gitlab.crt', ssl_keyfile='/certs/mcp-gitlab.key')"]
     healthcheck:
       test: ["CMD", "python3.12", "-c", "import socket; s=socket.socket(); s.connect(('localhost',8802)); s.close()"]
       interval: 60s
@@ -543,7 +543,7 @@ services:
           cpus: "0.5"
           memory: 256M
     restart: unless-stopped
-    command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8803, ssl_certfile='/certs/server.crt', ssl_keyfile='/certs/server.key')"]
+    command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8803, ssl_certfile='/certs/mcp-github.crt', ssl_keyfile='/certs/mcp-github.key')"]
     healthcheck:
       test: ["CMD", "python3.12", "-c", "import socket; s=socket.socket(); s.connect(('localhost',8803)); s.close()"]
       interval: 60s
@@ -577,7 +577,7 @@ services:
           cpus: "0.5"
           memory: 256M
     restart: unless-stopped
-    command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8804, ssl_certfile='/certs/server.crt', ssl_keyfile='/certs/server.key')"]
+    command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8804, ssl_certfile='/certs/mcp-slack.crt', ssl_keyfile='/certs/mcp-slack.key')"]
     healthcheck:
       test: ["CMD", "python3.12", "-c", "import socket; s=socket.socket(); s.connect(('localhost',8804)); s.close()"]
       interval: 60s
@@ -611,9 +611,49 @@ services:
           cpus: "0.5"
           memory: 256M
     restart: unless-stopped
-    command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8805, ssl_certfile='/certs/server.crt', ssl_keyfile='/certs/server.key')"]
+    command: ["python3.12", "-c", "import sys; sys.path.insert(0,'/mcp'); from server import mcp; app=mcp.http_app(); import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8805, ssl_certfile='/certs/mcp-wordpress.crt', ssl_keyfile='/certs/mcp-wordpress.key')"]
     healthcheck:
       test: ["CMD", "python3.12", "-c", "import socket; s=socket.socket(); s.connect(('localhost',8805)); s.close()"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # =================================================================
+  # Dispatcher — workflow routing, job queue, event triggers
+  # =================================================================
+  dispatcher:
+    build:
+      context: .
+      dockerfile: dispatcher/Containerfile
+    container_name: securetty-dispatcher
+    hostname: dispatcher
+    user: "{{ securetty_uid }}:{{ securetty_gid }}"
+    userns_mode: keep-id
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true, label=disable]
+    read_only: true
+    volumes:
+      - {{ securetty_dir }}/certs:/certs:ro
+      - {{ securetty_dir }}/roles/containers/files/workflows.toon:/config/workflows.toon:ro
+      - {{ securetty_dir }}/workflows:/workflows:ro
+      - dispatcher_data:/data
+      - /run/user/{{ securetty_uid }}/podman/podman.sock:/run/podman/podman.sock:ro
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 64M
+    networks: [securetty_net]
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M
+    pids_limit: 256
+    restart: unless-stopped
+    command: ["python3.12", "-c", "from app import app; import uvicorn; uvicorn.run(app, host='0.0.0.0', port=8900, ssl_certfile='/certs/dispatcher.crt', ssl_keyfile='/certs/dispatcher.key', ssl_ca_certs='/certs/ca.crt')"]
+    healthcheck:
+      test: ["CMD", "python3.12", "-c", "import socket; s=socket.socket(); s.connect(('localhost',8900)); s.close()"]
       interval: 60s
       timeout: 5s
       retries: 3
@@ -646,6 +686,8 @@ volumes:
     name: securetty-cloudcli-data
   ollama_models:
     name: securetty-ollama-models
+  dispatcher_data:
+    name: securetty-dispatcher-data
 
 networks:
   securetty_net:

@@ -49,8 +49,22 @@ Makefile targets (`make setup`, `make rebuild`, etc.) are thin wrappers around t
 
 - [THREAT_MODEL.md](THREAT_MODEL.md) — 8-section threat assessment
 - [docs/security-levels.md](docs/security-levels.md) — what's enforced vs not
+- [docs/security-tiers.md](docs/security-tiers.md) — graduated 3-tier isolation model
 - [docs/trust-model.md](docs/trust-model.md) — trusted/untrusted inputs
 - [docs/repo-access.md](docs/repo-access.md) — platform/CLI/auth per repo
+- [docs/escalation-gates.md](docs/escalation-gates.md) — confidence gates and risk classification
+- [docs/confidence-scoring.md](docs/confidence-scoring.md) — learned escalation model
+- [docs/observability.md](docs/observability.md) — Prometheus metrics and OTEL tracing
+- [docs/sli-dashboard.md](docs/sli-dashboard.md) — real-time dashboard and SLI alerting
+- [docs/evaluation-framework.md](docs/evaluation-framework.md) — promptfoo eval harness
+- [docs/ci-eval-gates.md](docs/ci-eval-gates.md) — CI quality gates
+- [docs/skill-marketplace.md](docs/skill-marketplace.md) — skill management and sharing
+- [docs/adoption-guide.md](docs/adoption-guide.md) — team adoption and bootstrapping
+- [docs/daemon-mode.md](docs/daemon-mode.md) — background agent daemon
+- [docs/provenance.md](docs/provenance.md) — agent action provenance
+- [docs/sigstore-verification.md](docs/sigstore-verification.md) — supply chain verification
+- [docs/workload-identity-federation.md](docs/workload-identity-federation.md) — WIF for CI/CD
+- [docs/closed-loop-remediation.md](docs/closed-loop-remediation.md) — automated SKILL.md fixes
 
 ## Rules
 

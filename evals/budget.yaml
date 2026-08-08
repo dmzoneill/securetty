@@ -1,0 +1,6 @@
+max_eval_cost_per_pr: 1.00
+max_eval_duration_minutes: 10
+provider_limits:
+  anthropic: 0.50
+  openai: 0.50
+skip_expensive_evals_on_draft: true

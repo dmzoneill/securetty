@@ -215,6 +215,7 @@ install_github_binary "{{ agent.name }}" "{{ agent.repo }}" \
 # Final manifest
 # =============================================================================
 echo ""
+chmod 644 "$MANIFEST"
 echo "=== Manifest ==="
 jq '.' "$MANIFEST"
 echo ""
