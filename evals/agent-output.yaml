@@ -1,0 +1,231 @@
+# promptfoo eval config — agent execution output quality benchmarks
+# Run: npx promptfoo@latest eval --config evals/agent-output.yaml
+#
+# Tests that agent task outputs contain expected code patterns, follow
+# conventions, and produce correct results. Uses deterministic (contains,
+# regex) and LLM-as-judge (llm-rubric) assertions.
+
+description: securetty agent output quality evaluation
+
+prompts:
+  - |
+    You are a senior software engineer AI assistant. Complete the following
+    task. Respond with only the requested output (code, text, or
+    documentation) — no preamble or explanation unless the task asks for one.
+
+    Task: {{task}}
+
+providers:
+  - id: openai:chat:gpt-4o-mini
+    config:
+      temperature: 0
+
+tests:
+  # ==========================================================================
+  # 1. Code generation — Python sort function
+  # ==========================================================================
+
+  - description: generates a Python sort function with correct structure
+    vars:
+      task: "Write a Python function that sorts a list."
+    assert:
+      - type: contains
+        value: "def"
+      - type: contains
+        value: "sort"
+      - type: contains
+        value: "return"
+      - type: llm-rubric
+        value: >
+          The response must contain a valid Python function definition that
+          accepts a list parameter and returns a sorted version of that list.
+          The function should be syntactically correct and handle the basic
+          case. Award full marks if the function is complete and would execute
+          without errors.
+
+  # ==========================================================================
+  # 2. Bug fix — arithmetic operator
+  # ==========================================================================
+
+  - description: fixes subtraction bug to addition
+    vars:
+      task: "Fix the bug in this code: def add(a,b): return a-b"
+    assert:
+      - type: regex
+        value: "a\\s*\\+\\s*b"
+      - type: llm-rubric
+        value: >
+          The response must identify that the minus operator should be a plus
+          operator and provide the corrected code with `a + b`. Award full
+          marks if the fix is correct and clearly presented.
+
+  # ==========================================================================
+  # 3. Git commit message — conventional format
+  # ==========================================================================
+
+  - description: produces a conventional commit message for login feature
+    vars:
+      task: "Write a git commit message for adding login feature."
+    assert:
+      - type: regex
+        value: "(?i)(feat|feature|add|implement)"
+      - type: regex
+        value: "(?i)login"
+      - type: llm-rubric
+        value: >
+          The commit message should follow conventional commit format or a
+          widely accepted git commit convention. It should have a concise
+          subject line (under 72 characters) that describes adding a login
+          feature. Optionally it may include a body with more detail. Award
+          full marks if the message is concise, uses imperative mood or a
+          conventional prefix (feat:, add:), and mentions login.
+
+  # ==========================================================================
+  # 4. Security review — eval injection
+  # ==========================================================================
+
+  - description: identifies eval injection risk in code review
+    vars:
+      task: "Review this code for security issues: eval(user_input)"
+    assert:
+      - type: regex
+        value: "(?i)(inject|injection|arbitrary|unsafe|dangerous|malicious|remote code|code execution)"
+      - type: regex
+        value: "(?i)eval"
+      - type: llm-rubric
+        value: >
+          The response must identify that using eval() on user input is a
+          critical security vulnerability — specifically code injection or
+          arbitrary code execution. It should recommend alternatives such as
+          ast.literal_eval, input validation, or avoiding eval entirely.
+          Award full marks if the risk is named, severity is conveyed, and
+          a mitigation is suggested.
+
+  # ==========================================================================
+  # 5. Dockerfile — Python Flask app
+  # ==========================================================================
+
+  - description: generates a valid Dockerfile for Python Flask
+    vars:
+      task: "Create a Dockerfile for a Python Flask app."
+    assert:
+      - type: contains
+        value: "FROM"
+      - type: regex
+        value: "(?i)(COPY|ADD)"
+      - type: regex
+        value: "(?i)(CMD|ENTRYPOINT)"
+      - type: llm-rubric
+        value: >
+          The Dockerfile must include: a FROM directive with a Python base
+          image, a COPY or ADD to bring application files into the image,
+          dependency installation (pip install / requirements.txt), EXPOSE
+          for the Flask port (commonly 5000), and a CMD or ENTRYPOINT to
+          run the Flask application. Award full marks if all five elements
+          are present and the Dockerfile would build successfully.
+
+  # ==========================================================================
+  # 6. Unit tests — calculator add function
+  # ==========================================================================
+
+  - description: generates unit tests for calculator add function
+    vars:
+      task: "Write unit tests for a calculator add() function."
+    assert:
+      - type: regex
+        value: "(?i)(def test|test_|assert|assertEqual|pytest)"
+      - type: regex
+        value: "(?i)(test|assert)"
+      - type: llm-rubric
+        value: >
+          The response must contain at least 2 test cases for an add()
+          function. Tests should cover basic addition (e.g. add(2,3) == 5),
+          and ideally edge cases such as negative numbers, zero, or floating
+          point. Tests should use a recognized framework (unittest, pytest)
+          or plain assert statements. Award full marks if there are at least
+          2 distinct test cases with assertions.
+
+  # ==========================================================================
+  # 7. Regex explanation — email pattern
+  # ==========================================================================
+
+  - description: explains email regex pattern correctly
+    vars:
+      task: "Explain what this regex does: ^[a-zA-Z0-9._%+-]+@"
+    assert:
+      - type: regex
+        value: "(?i)email"
+      - type: llm-rubric
+        value: >
+          The response must explain that this regex matches the local part
+          (username portion) of an email address. It should describe: the ^
+          anchor (start of string), the character class [a-zA-Z0-9._%+-]
+          allowing alphanumeric and special characters, the + quantifier
+          (one or more), and the literal @ sign. It must mention email in
+          the explanation. Award full marks if the pattern components are
+          correctly described and email context is given.
+
+  # ==========================================================================
+  # 8. Refactoring — list comprehension
+  # ==========================================================================
+
+  - description: refactors loop to list comprehension
+    vars:
+      task: >
+        Refactor this to use list comprehension:
+        result=[]; for x in items: result.append(x*2)
+    assert:
+      - type: regex
+        value: "\\[.*for.*in"
+      - type: llm-rubric
+        value: >
+          The response must convert the explicit for-loop with append into
+          a Python list comprehension of the form [x*2 for x in items] or
+          equivalent. The comprehension must preserve the original behavior
+          (doubling each element). Award full marks if the list comprehension
+          is syntactically correct and semantically equivalent to the original.
+
+  # ==========================================================================
+  # 9. Bash script — file existence check
+  # ==========================================================================
+
+  - description: generates bash script with file existence check
+    vars:
+      task: "Write a bash script that checks if a file exists."
+    assert:
+      - type: regex
+        value: "(\\[ -[fFeE] |test -[fFeE] |-f )"
+      - type: regex
+        value: "(?i)(if|then|fi|&&|\\|\\|)"
+      - type: llm-rubric
+        value: >
+          The response must contain a bash script that uses either [ -f ],
+          [[ -f ]], or test -f to check file existence. It should include
+          conditional logic (if/then/fi or && / ||) to handle both the
+          exists and not-exists cases. A shebang line (#!/bin/bash) is
+          expected. Award full marks if the script is syntactically valid
+          and handles both outcomes.
+
+  # ==========================================================================
+  # 10. API documentation — get_user function
+  # ==========================================================================
+
+  - description: generates API documentation for get_user function
+    vars:
+      task: "Generate API documentation for: def get_user(id: int) -> User"
+    assert:
+      - type: regex
+        value: "(?i)(param|parameter|argument|arg)"
+      - type: regex
+        value: "(?i)(return|response)"
+      - type: regex
+        value: "(?i)(description|summary|overview|purpose)"
+      - type: llm-rubric
+        value: >
+          The documentation must include: a description of the function
+          purpose (retrieving a user), parameter documentation for `id`
+          (noting it is an integer), and return type documentation for
+          `User`. It should follow a recognized documentation format
+          (docstring, OpenAPI, or structured markdown). Award full marks
+          if all three elements (description, parameters, returns) are
+          present and accurate.

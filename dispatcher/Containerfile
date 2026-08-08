@@ -1,0 +1,19 @@
+FROM localhost/securetty_base:latest
+
+RUN python3.12 -m pip install --break-system-packages \
+        fastapi uvicorn pydantic prometheus_client
+
+RUN groupadd -g 1000 dispatcher \
+    && useradd -u 1000 -g 1000 -m -s /bin/bash dispatcher \
+    && mkdir -p /data /config && chown -R dispatcher:dispatcher /data /config
+
+COPY dispatcher/app.py /app/app.py
+COPY dispatcher/metrics.py /app/metrics.py
+COPY dispatcher/workflows.py /app/workflows.py
+
+USER dispatcher
+WORKDIR /app
+
+EXPOSE 8900
+
+CMD ["python3.12", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8900"]

@@ -1,3 +1,11 @@
 skill_name,triggers,requires,type
-code-review,review;cr,,review
-feedback,feedback;retro,,feedback
+code-review,review;cr;pr;mr,,review
+feedback,feedback;retro;retrospective,,feedback
+jira-query,jira;ticket;issue;sprint,,query
+gitlab-query,gitlab;merge request;mr;pipeline,,query
+github-query,github;pull request;pr;gist,,query
+slack-query,slack;channel;message,,query
+wordpress-query,wordpress;blog;post;publish,,content
+gmail-query,gmail;email;inbox,,query
+gworkspace-query,drive;docs;sheets;calendar;google,,query
+billing-query,billing;cost;tenant;subscription,,query

@@ -1,0 +1,338 @@
+# promptfoo eval config — end-to-end task completion workflow benchmarks
+# Run: npx promptfoo@latest eval --config evals/task-completion.yaml
+#
+# Tests agent ability to complete realistic multi-step workflows: debugging
+# from failing tests, reviewing PRs, and diagnosing production errors.
+# Primarily uses LLM-as-judge (llm-rubric) for quality assessment with
+# deterministic (contains, regex) guards for key indicators.
+
+description: securetty agent task completion evaluation
+
+prompts:
+  - |
+    You are a senior software engineer AI assistant. You are given a
+    realistic task with context. Analyze the situation and provide a
+    thorough, actionable response.
+
+    Context:
+    {{context}}
+
+    Task: {{task}}
+
+providers:
+  - id: openai:chat:gpt-4o-mini
+    config:
+      temperature: 0
+
+tests:
+  # ==========================================================================
+  # Bug identification from failing test
+  # ==========================================================================
+
+  - description: identifies off-by-one bug from failing test output
+    vars:
+      context: |
+        Test file: test_pagination.py
+
+        def get_page(items, page_num, page_size=10):
+            start = page_num * page_size
+            end = start + page_size
+            return items[start:end]
+
+        def test_first_page():
+            items = list(range(100))
+            result = get_page(items, page_num=1, page_size=10)
+            assert result == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+        Test output:
+        FAILED test_pagination.py::test_first_page
+        AssertionError: assert [10, 11, 12, 13, 14, 15, 16, 17, 18, 19] == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+      task: >
+        Given this failing test, identify the bug and suggest a fix.
+    assert:
+      - type: llm-rubric
+        value: >
+          The response must correctly identify the root cause: page_num=1
+          is being used as a zero-based index, so page 1 returns items
+          10-19 instead of 0-9. The fix should either subtract 1 from
+          page_num (making it 1-based: start = (page_num - 1) * page_size)
+          or change the test to use page_num=0. The explanation must be
+          clear about whether pagination is 0-based or 1-based. Award full
+          marks if the root cause is correctly identified and the fix is
+          logically sound.
+      - type: regex
+        value: "(?i)(off.by.one|zero.based|1.based|one.based|page_num\\s*-\\s*1|page_num\\s*=\\s*0)"
+      - type: contains
+        value: "page_num"
+
+  - description: identifies type error from stack trace
+    vars:
+      context: |
+        File: user_service.py
+
+        def format_user_display(user):
+            return f"{user['name']} ({user['age']} years old)"
+
+        def get_users_display(users):
+            return [format_user_display(u) for u in users]
+
+        Test output:
+        TypeError: string indices must be integers, not 'str'
+          File "user_service.py", line 2, in format_user_display
+            return f"{user['name']} ({user['age']} years old)"
+          File "user_service.py", line 5, in get_users_display
+            return [format_user_display(u) for u in users]
+
+        The function is called as: get_users_display(response.json())
+        The API returns: {"users": [{"name": "Alice", "age": 30}]}
+      task: >
+        Given this error trace, identify the bug and suggest a fix.
+    assert:
+      - type: llm-rubric
+        value: >
+          The response must identify that response.json() returns the full
+          response dict {"users": [...]}, not the list of users directly.
+          Iterating over a dict yields its keys (strings), so
+          format_user_display receives a string like "users" instead of a
+          user dict. The fix should be to pass response.json()["users"]
+          instead of response.json(). Award full marks if the root cause
+          (iterating over dict keys vs list items) is correctly identified
+          and the fix extracts the "users" key.
+      - type: regex
+        value: '(?i)(\["users"\]|\.get\("users"|dict|keys)'
+      - type: contains
+        value: "users"
+
+  - description: identifies race condition from intermittent failure
+    vars:
+      context: |
+        File: counter.py
+
+        import threading
+
+        class Counter:
+            def __init__(self):
+                self.count = 0
+
+            def increment(self):
+                current = self.count
+                self.count = current + 1
+
+        Test output (intermittent failure):
+        def test_concurrent_increments():
+            counter = Counter()
+            threads = [threading.Thread(target=counter.increment) for _ in range(1000)]
+            for t in threads: t.start()
+            for t in threads: t.join()
+            assert counter.count == 1000  # Sometimes passes, sometimes fails
+
+        FAILED: assert 987 == 1000
+      task: >
+        Given this intermittently failing test, identify the bug and suggest a fix.
+    assert:
+      - type: llm-rubric
+        value: >
+          The response must identify a race condition (data race / TOCTOU)
+          in the increment method. Two threads can read the same value of
+          self.count before either writes, causing lost updates. The fix
+          should use a threading.Lock, or atomic operations, or
+          self.count += 1 with a lock. Award full marks if the race
+          condition is correctly described and a thread-safe fix using a
+          lock or mutex is provided.
+      - type: regex
+        value: "(?i)(race condition|thread.safe|lock|mutex|atomic|concurrent|synchroniz)"
+
+  # ==========================================================================
+  # PR review — actionable comments
+  # ==========================================================================
+
+  - description: produces actionable review comments for SQL injection PR
+    vars:
+      context: |
+        PR #42: Add user search endpoint
+        Author: junior-dev
+
+        diff --git a/app/routes.py b/app/routes.py
+        +@app.route('/search')
+        +def search_users():
+        +    query = request.args.get('q', '')
+        +    sql = f"SELECT * FROM users WHERE name LIKE '%{query}%'"
+        +    results = db.execute(sql)
+        +    return jsonify([dict(r) for r in results])
+        +
+        +@app.route('/admin/delete/<user_id>')
+        +def delete_user(user_id):
+        +    db.execute(f"DELETE FROM users WHERE id = {user_id}")
+        +    return jsonify({"status": "deleted"})
+      task: >
+        Write code review comments for this PR. Focus on correctness,
+        security, and best practices.
+    assert:
+      - type: llm-rubric
+        value: >
+          The review must identify: (1) SQL injection vulnerability in both
+          endpoints via f-string interpolation of user input, (2) the
+          delete endpoint lacks authentication/authorization checks, (3)
+          the delete endpoint should use a POST/DELETE HTTP method not GET.
+          Comments should be specific and actionable — recommending
+          parameterized queries, auth middleware, and proper HTTP methods.
+          Award full marks if SQL injection is flagged in both endpoints
+          and at least one other issue is raised.
+      - type: regex
+        value: "(?i)(sql injection|parameterized|prepared statement|query parameter|sanitiz)"
+      - type: regex
+        value: "(?i)(auth|permission|authorization|access control)"
+
+  - description: produces review comments for error handling gaps
+    vars:
+      context: |
+        PR #58: Add payment processing integration
+        Author: backend-dev
+
+        diff --git a/payments/processor.py b/payments/processor.py
+        +import requests
+        +
+        +def process_payment(amount, card_token):
+        +    response = requests.post(
+        +        "https://api.payments.com/charge",
+        +        json={"amount": amount, "token": card_token}
+        +    )
+        +    data = response.json()
+        +    save_transaction(data["transaction_id"], amount)
+        +    return data["transaction_id"]
+        +
+        +def refund_payment(transaction_id):
+        +    response = requests.post(
+        +        "https://api.payments.com/refund",
+        +        json={"transaction_id": transaction_id}
+        +    )
+        +    return response.json()["status"]
+      task: >
+        Write code review comments for this PR. Focus on reliability,
+        error handling, and production readiness.
+    assert:
+      - type: llm-rubric
+        value: >
+          The review must identify: (1) no error handling for HTTP request
+          failures (network errors, timeouts, non-2xx responses), (2) no
+          validation of response structure before accessing keys (could
+          raise KeyError), (3) no retry logic for transient failures, (4)
+          no timeout set on requests (could hang indefinitely), (5) no
+          logging for audit trail on payment operations. Comments should
+          be actionable, suggesting try/except, response.raise_for_status(),
+          timeout parameter, and response validation. Award full marks if
+          at least 3 of these issues are raised with specific fixes.
+      - type: regex
+        value: "(?i)(error handling|exception|try|except|raise_for_status|timeout)"
+
+  # ==========================================================================
+  # Error log diagnosis
+  # ==========================================================================
+
+  - description: diagnoses OOM error from application log
+    vars:
+      context: |
+        Application: data-pipeline (Python)
+        Environment: production k8s pod
+        Pod memory limit: 512Mi
+
+        Log output:
+        2026-08-07 14:23:01 INFO  Loading dataset from s3://data/exports/full_export.csv
+        2026-08-07 14:23:02 INFO  Dataset loaded: 15,234,891 rows
+        2026-08-07 14:23:02 INFO  Processing all rows...
+        2026-08-07 14:23:15 INFO  Processed 5,000,000 rows
+        2026-08-07 14:23:28 INFO  Processed 10,000,000 rows
+        2026-08-07 14:23:35 WARNING Memory usage: 487Mi / 512Mi
+        2026-08-07 14:23:36 FATAL  Container killed: OOMKilled (exit code 137)
+      task: >
+        Given this error log, diagnose the problem and suggest a fix.
+    assert:
+      - type: llm-rubric
+        value: >
+          The response must identify that the pod is running out of memory
+          (OOMKilled) because it loads a 15M-row dataset entirely into
+          memory, exceeding the 512Mi pod limit. The fix should recommend
+          one or more of: chunked/streaming processing (pandas chunksize,
+          generators), increasing the pod memory limit, using a more
+          memory-efficient data format (parquet, arrow), or processing
+          rows in batches. Award full marks if the root cause (loading
+          full dataset into memory) is identified and a practical fix
+          involving chunked processing or memory reduction is suggested.
+      - type: regex
+        value: "(?i)(OOM|out of memory|memory limit|killed|137)"
+      - type: regex
+        value: "(?i)(chunk|batch|stream|generator|iterator|incremental|page)"
+
+  - description: diagnoses connection pool exhaustion from error log
+    vars:
+      context: |
+        Application: web-api (Python/FastAPI)
+        Environment: production
+        Database: PostgreSQL via SQLAlchemy (pool_size=5, max_overflow=10)
+
+        Log output:
+        2026-08-07 09:00:00 INFO  Server started on port 8000
+        2026-08-07 09:15:22 WARNING Connection pool reaching limit: 14/15 active
+        2026-08-07 09:15:23 WARNING Connection pool reaching limit: 15/15 active
+        2026-08-07 09:15:24 ERROR  QueuePool limit of size 5 overflow 10 reached,
+          connection timed out, timeout 30.0
+          (sqlalchemy.exc.TimeoutError)
+        2026-08-07 09:15:24 ERROR  GET /api/reports/generate - 500 Internal Server Error
+        2026-08-07 09:15:25 INFO   Active request count: 23
+        2026-08-07 09:15:25 DEBUG  /api/reports/generate avg response time: 45s
+      task: >
+        Given this error log, diagnose the problem and suggest a fix.
+    assert:
+      - type: llm-rubric
+        value: >
+          The response must identify connection pool exhaustion as the root
+          cause: the /api/reports/generate endpoint takes 45 seconds on
+          average, holding database connections far longer than typical
+          requests. With 23 concurrent requests competing for 15 max
+          connections (5 + 10 overflow), the pool is starved. Fixes should
+          include: moving long-running report generation to a background
+          task queue (Celery, etc.), increasing pool size cautiously,
+          optimizing the slow query, or adding connection timeout handling.
+          Award full marks if pool exhaustion is identified, the slow
+          endpoint is linked to the problem, and a background task or
+          optimization fix is suggested.
+      - type: regex
+        value: "(?i)(pool|connection|exhaust|timeout|overflow)"
+      - type: regex
+        value: "(?i)(background|async|queue|celery|task|worker|optimiz)"
+
+  - description: diagnoses certificate expiry from TLS error
+    vars:
+      context: |
+        Application: microservice-gateway
+        Environment: production k8s
+        Time: 2026-08-07T00:00:05Z
+
+        Log output:
+        2026-08-07 00:00:01 INFO  Health check: upstream auth-service OK
+        2026-08-07 00:00:03 ERROR  Failed to connect to upstream payment-service:
+          SSL: CERTIFICATE_VERIFY_FAILED - certificate has expired
+          (ssl.SSLCertificateError)
+        2026-08-07 00:00:03 ERROR  Upstream payment-service certificate:
+          Subject: CN=payment-service.prod.internal
+          Issuer: CN=Internal CA
+          Not After: Aug 6 23:59:59 2026 GMT
+        2026-08-07 00:00:04 ERROR  All requests to /api/payments/* returning 502
+        2026-08-07 00:00:05 WARN   Circuit breaker OPEN for payment-service
+      task: >
+        Given this error log, diagnose the problem and suggest a fix.
+    assert:
+      - type: llm-rubric
+        value: >
+          The response must identify that the payment-service TLS
+          certificate expired on Aug 6 2026 and the gateway cannot
+          establish SSL connections to it. The immediate fix is to renew
+          or rotate the certificate. The longer-term fix should recommend
+          automated certificate rotation (cert-manager, ACME, or similar)
+          and monitoring/alerting on certificate expiry dates. Award full
+          marks if certificate expiry is identified as root cause and both
+          immediate (renewal) and preventive (automation) fixes are given.
+      - type: regex
+        value: "(?i)(certificate|cert|TLS|SSL|expir)"
+      - type: regex
+        value: "(?i)(renew|rotat|reissue|cert.manager|automat)"
