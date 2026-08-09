@@ -35,6 +35,8 @@ Services run as sibling containers on the same podman bridge network (172.30.100
 | `securetty top` | Container resource usage (CPU, mem, net) |
 | `securetty volumes` | Show volume sizes |
 | `securetty clean` | Remove orphaned containers and stale files |
+| `securetty jira-triage start` | Start Jira auto-triage poller |
+| `securetty review-manager start` | Start MR/PR review feedback manager |
 
 Makefile targets (`make setup`, `make rebuild`, etc.) are thin wrappers around the CLI.
 
@@ -65,6 +67,7 @@ Makefile targets (`make setup`, `make rebuild`, etc.) are thin wrappers around t
 - [docs/sigstore-verification.md](docs/sigstore-verification.md) — supply chain verification
 - [docs/workload-identity-federation.md](docs/workload-identity-federation.md) — WIF for CI/CD
 - [docs/closed-loop-remediation.md](docs/closed-loop-remediation.md) — automated SKILL.md fixes
+- [docs/jira-auto-triage.md](docs/jira-auto-triage.md) — Jira auto-triage agent with label state tracking
 
 ## Rules
 

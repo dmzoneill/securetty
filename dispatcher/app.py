@@ -78,6 +78,24 @@ def init_db():
             config TEXT DEFAULT '{}'
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS triage_history (
+            id TEXT PRIMARY KEY,
+            issue_key TEXT NOT NULL,
+            project TEXT,
+            summary TEXT,
+            classification TEXT,
+            action_taken TEXT,
+            job_id TEXT,
+            pr_url TEXT,
+            feedback_status TEXT DEFAULT 'none',
+            created_at TEXT NOT NULL,
+            updated_at TEXT,
+            duration_seconds REAL,
+            outcome TEXT,
+            metadata TEXT DEFAULT '{}'
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -127,6 +145,27 @@ class WebhookPayload(BaseModel):
     event: str = ""
     repo: str = ""
     data: dict = Field(default_factory=dict)
+
+
+class TriageCreateRequest(BaseModel):
+    issue_key: str
+    project: str | None = None
+    summary: str | None = None
+    classification: str | None = None
+    action_taken: str | None = None
+    job_id: str | None = None
+    pr_url: str | None = None
+    feedback_status: str = "none"
+    duration_seconds: float | None = None
+    outcome: str | None = None
+    metadata: dict = Field(default_factory=dict)
+
+
+class TriageUpdateRequest(BaseModel):
+    status: str | None = None
+    feedback_status: str | None = None
+    pr_url: str | None = None
+    outcome: str | None = None
 
 
 @app.on_event("startup")
@@ -304,6 +343,124 @@ def delete_trigger(trigger_id: str):
     conn.commit()
     conn.close()
     return {"deleted": trigger_id}
+
+
+# ---------------------------------------------------------------------------
+# Triage history endpoints
+# ---------------------------------------------------------------------------
+
+
+@app.post("/triage")
+def create_triage(req: TriageCreateRequest):
+    """Create a new triage history entry."""
+    triage_id = str(uuid.uuid4())[:8]
+    now = datetime.now(timezone.utc).isoformat()
+
+    conn = get_db()
+    conn.execute(
+        """INSERT INTO triage_history
+           (id, issue_key, project, summary, classification, action_taken,
+            job_id, pr_url, feedback_status, created_at, updated_at,
+            duration_seconds, outcome, metadata)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (
+            triage_id,
+            req.issue_key,
+            req.project,
+            req.summary,
+            req.classification,
+            req.action_taken,
+            req.job_id,
+            req.pr_url,
+            req.feedback_status,
+            now,
+            now,
+            req.duration_seconds,
+            req.outcome,
+            json.dumps(req.metadata),
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    return {
+        "id": triage_id,
+        "issue_key": req.issue_key,
+        "feedback_status": req.feedback_status,
+        "created_at": now,
+    }
+
+
+@app.get("/triage/{issue_key}")
+def get_triage_history(issue_key: str):
+    """Return all triage history entries for a given issue key."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM triage_history WHERE issue_key=? ORDER BY created_at DESC",
+        (issue_key,),
+    ).fetchall()
+    conn.close()
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"No triage history for {issue_key}")
+    return [dict(r) for r in rows]
+
+
+@app.put("/triage/{issue_key}")
+def update_triage(issue_key: str, req: TriageUpdateRequest):
+    """Update the most recent triage entry for an issue key."""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT id FROM triage_history WHERE issue_key=? ORDER BY created_at DESC LIMIT 1",
+        (issue_key,),
+    ).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail=f"No triage history for {issue_key}")
+
+    now = datetime.now(timezone.utc).isoformat()
+    updates = ["updated_at=?"]
+    params: list = [now]
+
+    if req.status is not None:
+        updates.append("action_taken=?")
+        params.append(req.status)
+    if req.feedback_status is not None:
+        updates.append("feedback_status=?")
+        params.append(req.feedback_status)
+    if req.pr_url is not None:
+        updates.append("pr_url=?")
+        params.append(req.pr_url)
+    if req.outcome is not None:
+        updates.append("outcome=?")
+        params.append(req.outcome)
+
+    params.append(row["id"])
+    conn.execute(
+        f"UPDATE triage_history SET {', '.join(updates)} WHERE id=?",
+        params,
+    )
+    conn.commit()
+    conn.close()
+
+    return {"issue_key": issue_key, "updated": True}
+
+
+@app.get("/triage")
+def list_triage(status: str | None = None, limit: int = 50):
+    """List recent triage entries, optionally filtered by feedback_status."""
+    conn = get_db()
+    if status:
+        rows = conn.execute(
+            "SELECT * FROM triage_history WHERE feedback_status=? ORDER BY created_at DESC LIMIT ?",
+            (status, limit),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM triage_history ORDER BY created_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 
 # ---------------------------------------------------------------------------

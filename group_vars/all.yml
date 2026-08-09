@@ -420,3 +420,20 @@ securetty_services_disable:
 
 securetty_rpms_remove:
   - cursor
+
+# Jira auto-triage configuration
+securetty_jira_triage:
+  enabled: true
+  projects: "AAP"
+  poll_interval: 300
+  review_poll_interval: 120
+  auto_merge: false
+  stale_review_hours: 24
+  labels:
+    triaged: "agent:triaged"
+    needs_info: "agent:needs-info"
+    in_progress: "agent:in-progress"
+    in_review: "agent:in-review"
+    completed: "agent:completed"
+    skipped: "agent:skipped"
+    blocked: "agent:blocked"

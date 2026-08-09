@@ -867,6 +867,26 @@ cmd_confidence() {
     python3 "$SECURETTY_DIR/roles/containers/files/securetty-confidence.py" "$@"
 }
 
+cmd_jira_triage() {
+    case "${1:-}" in
+        start|stop|status)
+            bash "$SECURETTY_DIR/roles/containers/files/securetty-jira-poller.sh" "$@"
+            ;;
+        run)
+            shift
+            bash "$SECURETTY_DIR/roles/containers/files/securetty-jira-triage.sh" "$@"
+            ;;
+        *)
+            echo "Usage: securetty jira-triage start|stop|status|run <ISSUE-KEY>" >&2
+            return 1
+            ;;
+    esac
+}
+
+cmd_review_manager() {
+    bash "$SECURETTY_DIR/roles/containers/files/securetty-review-manager.sh" "$@"
+}
+
 cmd_version() {
     echo "securetty CLI"
     echo "  Dir: $SECURETTY_DIR"
@@ -931,6 +951,8 @@ Orchestration:
   daemon start|stop|status  Background agent daemon
   dashboard [--once|--json] Real-time TUI dashboard
   alerts --check|--notify   SLI alerting (container health, error rate, cost)
+  jira-triage start|stop    Jira auto-triage poller (poll + classify + act)
+  review-manager start|stop MR/PR review feedback manager (poll + respond)
 
 Analysis:
   retro [--json] [--since]  Retrospective failure analysis
@@ -988,6 +1010,8 @@ case "${1:-help}" in
     init)             shift; cmd_init "$@" ;;
     skill)            shift; cmd_skill "$@" ;;
     confidence)       shift; cmd_confidence "$@" ;;
+    jira-triage)      shift; cmd_jira_triage "$@" ;;
+    review-manager)   shift; cmd_review_manager "$@" ;;
     version)          shift; cmd_version "$@" ;;
     help|--help|-h)   cmd_help ;;
     *)                echo "Unknown command: $1. Run 'securetty help' for usage." >&2; exit 1 ;;

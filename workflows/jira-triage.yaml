@@ -1,0 +1,14 @@
+name: jira-triage
+description: Auto-triage Jira issues assigned to operator
+stages:
+  - name: classify
+    skill: jira-query
+    agent: claude
+  - name: act
+    skill: code-review
+    agent: claude
+    depends_on: [classify]
+  - name: report
+    skill: jira-query
+    agent: claude
+    depends_on: [act]
