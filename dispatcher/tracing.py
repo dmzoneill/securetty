@@ -34,8 +34,12 @@ _status_mod: Any = None  # opentelemetry.trace.StatusCode enum
 
 if _OTEL_ENDPOINT:
     try:
-        from opentelemetry import trace as _trace_mod_import  # type: ignore[import-untyped]
-        from opentelemetry.trace import StatusCode as _StatusCode  # type: ignore[import-untyped]
+        from opentelemetry import (
+            trace as _trace_mod_import,  # type: ignore[import-untyped]
+        )
+        from opentelemetry.trace import (
+            StatusCode as _StatusCode,  # type: ignore[import-untyped]
+        )
 
         _trace_mod = _trace_mod_import
         _status_mod = _StatusCode
@@ -156,14 +160,18 @@ def inject_trace_context(env: dict[str, str]) -> dict[str, str]:
         return env
 
     try:
-        from opentelemetry.context import get_current  # type: ignore[import-untyped]
-        from opentelemetry.trace.propagation import get_current_span  # type: ignore[import-untyped]
+        from opentelemetry.trace.propagation import (
+            get_current_span,  # type: ignore[import-untyped]
+        )
 
         span = get_current_span()
         ctx = span.get_span_context()
         if ctx and ctx.trace_id:
             # Build a W3C traceparent header value.
-            traceparent = f"00-{format(ctx.trace_id, '032x')}-{format(ctx.span_id, '016x')}-{format(ctx.trace_flags, '02x')}"
+            tid = format(ctx.trace_id, "032x")
+            sid = format(ctx.span_id, "016x")
+            flg = format(ctx.trace_flags, "02x")
+            traceparent = f"00-{tid}-{sid}-{flg}"
             env["TRACEPARENT"] = traceparent
     except (ImportError, AttributeError):
         pass

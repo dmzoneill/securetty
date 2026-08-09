@@ -34,24 +34,24 @@ securetty is a sandboxed AI development environment running on Fedora 45 with ro
 
 | entry_point | description | trust_boundary | reachable_assets |
 |---|---|---|---|
-| Container process (npm/pip packages) | Semi-trusted process execution; quarantine mitigates but does not eliminate supply chain risk; npm `ignore-scripts=true` set | Host ↔ Container: rootless podman, `no-new-privileges`, all caps dropped, read-only root FS, private PID/IPC namespaces | AI provider API keys, GitLab PAT, Jira PAT, Slack session cookies, Source code repositories, Agent config directories |
+| Container process (npm/pip packages) | Semi-trusted process execution; quarantine mitigates but does not eliminate supply chain risk; npm `ignore-scripts=true` set | Host ↔ Container: rootless podman, `no-new-privileges`, all caps dropped, read-only root FS, private PID/IPC namespaces | AI provider API keys, GitLab PAT, Jira PAT, Slack session cookies, source code repos, agent config dirs |
 | MCP stdio servers | Semi-trusted stdin/stdout JSON-RPC (headroom, tokensave, custom skills); run as same UID | Host ↔ Container: same UID, no privilege escalation boundary | Source code repositories, Agent config directories |
-| Egress network | Untrusted HTTPS (443); filtered by nftables allowlist + domain resolution | Container ↔ Internet: nftables egress whitelist in rootless-netns, only resolved IPs from approved domain list | AI provider API keys, GitLab PAT, Jira PAT |
+| Egress network | Untrusted HTTPS (443); filtered by nftables allowlist + domain resolution | Container ↔ internet: nftables egress whitelist in rootless-netns, only resolved IPs from approved domain list | AI provider API keys, GitLab PAT, Jira PAT |
 | Bind-mounted host dirs | Trusted filesystem access: `~/src/` RW, `~/bin/` RO, `~/.ssh/config` RO | Host ↔ Container: rootless podman bind mounts, read-only for sensitive paths | Source code repositories, SSH private keys, Agent config directories |
-| aardvark DNS | Trusted UDP/53 to gateway; container-internal, forwards to host resolver | Container ↔ Internet: DNS forwarding via pasta forwarder (169.254.1.1) | DNS cache |
+| aardvark DNS | Trusted UDP/53 to gateway; container-internal, forwards to host resolver | Container ↔ internet: DNS forwarding via pasta forwarder (169.254.1.1) | DNS cache |
 | OmniRoute API | Trusted HTTP (4000); internal network only, 127.0.0.1 on host | Container ↔ Container: podman bridge network (securetty 172.30.100.0/24) | AI provider API keys |
 | Ollama API | Trusted HTTP (11434); internal network only, local LLM inference | Container ↔ Container: podman bridge network (securetty 172.30.100.0/24) | — |
 
 **Trust boundary details:**
 
 1. **Host ↔ Container**: rootless podman, `no-new-privileges`, all capabilities dropped except `no capabilities added`, read-only root filesystem, private PID/IPC namespaces
-2. **Container ↔ Internet**: nftables egress whitelist in rootless-netns, only resolved IPs from approved domain list
+2. **Container ↔ internet**: nftables egress whitelist in rootless-netns, only resolved IPs from approved domain list
 3. **Container ↔ Host secrets**: SSH/GPG sockets forwarded read-only (private keys never enter container); API keys injected via `.env` files regenerated at each start
 4. **Container ↔ Container**: podman bridge network (securetty 172.30.100.0/24), inter-container traffic allowed
 
 ## 4. Threats
 
-| id | threat | actor | surface | asset | impact | likelihood | status | controls | evidence |
+| ID | threat | actor | surface | asset | impact | likelihood | status | controls | evidence |
 |---|---|---|---|---|---|---|---|---|---|
 | T1 | Malicious package exfiltrates secrets via network | supply_chain | npm/pip dependency in agent | AI provider API keys, GitLab PAT, Jira PAT, Slack session cookies | critical | possible | mitigated | Egress whitelist (nftables default-drop), 7-day quarantine, `npm ignore-scripts=true`, per-service `.env` least privilege | — |
 | T2 | `curl \| sh` supply chain compromise during build | supply_chain | Binary agent installers (goose, grok, forge, kiro, cursor, jcode) | Container images | critical | possible | partially_mitigated | Quarantine checks GitHub release age before install; pinned repos; but installer scripts themselves are not hash-verified | — |
