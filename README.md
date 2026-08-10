@@ -136,9 +136,11 @@ Agent options:
 
 Lifecycle:
   setup [--ide cursor|vscode]       Full setup or generate IDE devcontainer
+  build                             Build container images (skip if exist)
   rebuild                           Full rebuild (all image layers)
   rebuild-agents                    Rebuild dev image only (fast)
   up / down / restart               Start / stop / restart services
+  nuke                              Remove containers + volumes (destructive)
   update [release|rc|latest]        Update securetty (channel-based)
   rollback --list|--set <tag>       Version management
 
@@ -184,7 +186,15 @@ Project management:
   group <repo> [ls|status|add|clean]  Git worktree management
   cursor [<path>]                   Launch Cursor with devcontainer
   plugin list|install|remove|update Plugin management
+
+Security:
+  scan [alerts|logs]                Package scanner results (GuardDog + OSV)
+  audit                             Run npm audit + pip-audit inside container
+  test                              Run shellcheck, yamllint, ansible-lint
+  migrate                           Remove AI agents from host (destructive)
 ```
+
+> **Note:** All commands go through `securetty`. The Makefile targets (`make setup`, `make rebuild`, etc.) are thin wrappers that call the same ansible playbooks. Use `securetty` as the single CLI interface.
 
 ## Two Modes
 

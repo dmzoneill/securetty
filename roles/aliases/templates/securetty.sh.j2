@@ -542,6 +542,49 @@ cmd_down() {
     (cd "$SECURETTY_DIR" && {{ securetty_compose_cmd }} down)
 }
 
+cmd_omniroute() {
+    (cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,omniroute "$@")
+}
+
+cmd_ollama() {
+    (cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,ollama "$@")
+}
+
+cmd_aliases() {
+    (cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,aliases "$@")
+}
+
+cmd_certs() {
+    (cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,certs "$@")
+}
+
+cmd_build() {
+    (cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,build "$@")
+}
+
+cmd_nuke() {
+    echo "This will remove ALL securetty containers AND volumes (cached packages, models, data)."
+    echo "Press Ctrl-C to cancel, or Enter to continue."
+    read -r
+    (cd "$SECURETTY_DIR" && {{ securetty_compose_cmd }} down -v)
+}
+
+cmd_audit() {
+    {{ securetty_podman_cmd }} run --rm securetty_dev bash -c \
+        'echo "=== npm audit ===" && npm audit --audit-level=high -g 2>/dev/null; echo "=== pip-audit ===" && pip-audit --desc 2>/dev/null || true'
+}
+
+cmd_test() {
+    (cd "$SECURETTY_DIR" && make test)
+}
+
+cmd_migrate() {
+    echo "This will REMOVE AI agents from the host. Destructive operation."
+    echo "Press Ctrl-C to cancel, or Enter to continue."
+    read -r
+    (cd "$SECURETTY_DIR" && ansible-playbook migrate.yml "$@")
+}
+
 cmd_egress() {
     (cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,egress "$@")
 }
@@ -1863,11 +1906,13 @@ Agent options:
 
 Lifecycle:
   setup [--ide cursor|vscode]  Full setup or generate IDE devcontainer
+  build                     Build container images (skip if exist)
   rebuild                   Full rebuild (all image layers)
   rebuild-agents            Rebuild dev image only (fast)
   up                        Start services
   down                      Stop services
   restart                   Restart all services
+  nuke                      Remove containers + volumes (destructive)
   update [release|rc|latest] Update securetty (channel-based)
   rollback --list|--set <tag> Version management
 
@@ -1877,6 +1922,10 @@ Configuration:
   check [--fix] [--ai]     Health check with auto-repair
   egress                    Reload nftables egress rules + DNS patch
   env                       Regenerate .env files
+  omniroute                 Configure AI provider routing
+  ollama                    Pull local LLM models
+  aliases                   Regenerate shell aliases + CLI
+  certs                     Generate TLS certificates
   status                    Dashboard — containers, network, egress, scanners
   list [--all] [--json]     List securetty containers
   top [--live]              Container resource usage (CPU, mem, net, PIDs)
@@ -1911,6 +1960,12 @@ Project management:
   group <repo> [ls|status|add|clean]  Git worktree management
   cursor [<path>]           Launch Cursor with devcontainer
   plugin list|install|remove|update  Plugin management
+
+Security:
+  scan [alerts|logs]        Package scanner results (GuardDog + OSV)
+  audit                     Run npm audit + pip-audit inside container
+  test                      Run shellcheck, yamllint, ansible-lint
+  migrate                   Remove AI agents from host (destructive)
 
 Examples:
   securetty run claude -p "fix the auth bug"
@@ -1950,12 +2005,21 @@ case "${1:-help}" in
     setup-cursor)     shift; cmd_setup_ide cursor "$@" ;;
     setup-vscode)     shift; cmd_setup_ide vscode "$@" ;;
     cursor)           shift; cmd_cursor "$@" ;;
+    build)            shift; cmd_build "$@" ;;
     rebuild)          shift; cmd_rebuild "$@" ;;
     rebuild-agents)   shift; cmd_rebuild_agents "$@" ;;
     up)               shift; cmd_up "$@" ;;
     down)             shift; cmd_down "$@" ;;
+    nuke)             shift; cmd_nuke "$@" ;;
     egress)           shift; cmd_egress "$@" ;;
     env)              shift; cmd_env "$@" ;;
+    omniroute)        shift; cmd_omniroute "$@" ;;
+    ollama)           shift; cmd_ollama "$@" ;;
+    aliases)          shift; cmd_aliases "$@" ;;
+    certs)            shift; cmd_certs "$@" ;;
+    audit)            shift; cmd_audit "$@" ;;
+    test)             shift; cmd_test "$@" ;;
+    migrate)          shift; cmd_migrate "$@" ;;
     config)           shift; cmd_config "$@" ;;
     check)            shift; cmd_check "$@" ;;
     status)           shift; cmd_status "$@" ;;
