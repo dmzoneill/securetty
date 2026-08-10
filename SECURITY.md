@@ -16,4 +16,4 @@ Only the latest commit on `main` is supported.
 
 ## Security Controls
 
-See [docs/security-levels.md](docs/security-levels.md) for current enforcement status and [docs/trust-model.md](docs/trust-model.md) for trust boundaries.
+See [docs/security-tiers.md](docs/security-tiers.md) for current enforcement status and [docs/trust-model.md](docs/trust-model.md) for trust boundaries.

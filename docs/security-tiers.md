@@ -18,7 +18,7 @@ For documentation, tests, and formatting changes where the blast radius of a com
 
 ### Tier 2 -- Medium Risk (Current Default)
 
-The standard securetty posture. This is what every session gets today and what the existing documentation in [security-levels.md](security-levels.md) describes.
+The standard securetty posture. This is what every session gets today.
 
 | Control | Setting |
 |---------|---------|
@@ -94,7 +94,7 @@ The classifier uses path-based pattern matching against the list of changed file
 | `Dockerfile*`, `Containerfile*` | Container image definitions |
 | `.github/workflows/`, `.gitlab-ci*`, `Jenkinsfile`, `.circleci/` | CI/CD pipeline configuration |
 
-These patterns are aligned with `securetty_escalation.high_risk_patterns` in `roles/escalation/defaults/main.yml`.
+These patterns are aligned with `securetty_escalation.high_risk_patterns` in `group_vars/all.yml`.
 
 ### Medium risk
 
@@ -150,7 +150,7 @@ Carbonite defines seven graduated security levels. securetty consolidates these 
 
 - **Carbonite tiers 1-3** are subsumed by securetty's baseline -- even Tier 1 (low risk) runs inside rootless containers with dropped capabilities, resource limits, and `no-new-privileges`. There is no "unrestricted" mode.
 - **Carbonite tiers 4-6** map to securetty's Tier 2 (medium), which is the current default posture and where most development work happens.
-- **Carbonite tier 7** (zero trust) is partially addressed by securetty's Tier 3 (high risk) via zero credentials and read-only mounts, but securetty does not yet implement image signing, admission control, or runtime integrity monitoring (see [security-levels.md](security-levels.md) for the full gap analysis).
+- **Carbonite tier 7** (zero trust) is partially addressed by securetty's Tier 3 (high risk) via zero credentials and read-only mounts, but securetty does not yet implement image signing, admission control, or runtime integrity monitoring (see "What Is Not Enforced" below).
 - securetty's three-tier model is deliberately simpler. Seven tiers create decision fatigue for operators who run ad-hoc AI coding sessions. Three tiers with automatic classification removes the burden of choosing.
 
 ## Integration with Escalation Gates
@@ -166,9 +166,36 @@ The risk classifier feeds into the escalation gate system documented in [escalat
 | High-risk patterns | Logged | Enforced (pause) | Enforced (abort) |
 | Escalation action | As configured | `warn` promoted to `pause` | Forced `pause`; pattern match forces `abort` |
 
+## What Is Enforced
+
+- Rootless containers with all capabilities dropped
+- `no-new-privileges` on every container
+- Read-only root filesystem with explicit writable tmpfs mounts
+- Private PID and IPC namespaces
+- procfs masking (`/proc/mounts`, `/proc/cmdline`, `/proc/version`, `/sys/class/dmi`, etc.)
+- Unique machine-id per container build
+- nftables default-drop egress with domain-resolved allowlist
+- SSH agent restricted to configured keys only, socket forwarded read-only
+- GPG agent extra-socket forwarding, read-only
+- API keys from GNU pass, regenerated at every container start
+- Per-service `.env` files (OmniRoute gets provider keys only, CloudCLI gets Vertex only)
+- 7-day package quarantine for npm, pip, and GitHub binary releases
+- npm `ignore-scripts=true` globally
+- Container resource limits (CPU + memory per service)
+
+## What Is Not Enforced
+
+- **Image signing/verification** -- images built locally, not signed or verified
+- **SBOM generation** -- no software bill of materials at build time
+- **Hash pinning for binary installers** -- `curl | sh` installers not hash-verified
+- **DNS filtering** -- no query-level DNS filtering; DNS tunneling possible
+- **Runtime integrity monitoring** -- no AIDE/Tripwire or eBPF-based security
+- **SELinux inside containers** -- `label=disable` set for bind-mount compatibility
+- **Automatic egress rule refresh** -- nftables rules static until `securetty egress` re-run
+- **Secrets rotation** -- API keys long-lived; no automatic rotation
+- **Network policy between containers** -- all containers on same bridge communicate freely
+
 ## Related Documentation
 
-- [security-levels.md](security-levels.md) -- What is and is not enforced today
 - [escalation-gates.md](escalation-gates.md) -- Session-level escalation controls
 - [trust-model.md](trust-model.md) -- Input trust classification
-- `roles/escalation/defaults/main.yml` -- Escalation gate configuration

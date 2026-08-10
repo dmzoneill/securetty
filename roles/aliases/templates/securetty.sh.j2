@@ -50,9 +50,7 @@ _ensure_ssh_agent() {
 }
 
 _ensure_services() {
-    if [ "$({{ securetty_podman_cmd }} inspect securetty-omniroute --format '{{ '{{' }}.State.Running{{ '}}' }}' 2>/dev/null)" != "true" ] || \
-       [ "$({{ securetty_podman_cmd }} inspect securetty-headroom --format '{{ '{{' }}.State.Running{{ '}}' }}' 2>/dev/null)" != "true" ] || \
-       [ "$({{ securetty_podman_cmd }} inspect securetty-creds --format '{{ '{{' }}.State.Running{{ '}}' }}' 2>/dev/null)" != "true" ]; then
+    if ! _container_running securetty-omniroute || ! _container_running securetty-headroom || ! _container_running securetty-creds; then
         echo "Starting services..."
         (cd "$SECURETTY_DIR" && {{ securetty_compose_cmd }} up -d --no-build 2>/dev/null) || true
         sleep 1
@@ -485,9 +483,9 @@ _run_personal() {
 # Subcommands
 # =============================================================================
 
-cmd_run() {
+_prepare_run() {
     if [ $# -eq 0 ]; then
-        echo "Usage: securetty run <agent> [--max-turns N] [--timeout T] [workdir]" >&2
+        echo "Usage: securetty run|run-work <agent> [--max-turns N] [--timeout T] [workdir]" >&2
         echo "Available agents: {{ securetty_agents | map(attribute='name') | join(', ') }}" >&2
         return 1
     fi
@@ -498,68 +496,41 @@ cmd_run() {
         echo "ERROR: workdir does not exist: $_SECURETTY_WORKDIR" >&2
         return 1
     fi
-    _run_personal "${_SECURETTY_ARGS[@]}"
 }
 
-cmd_run_work() {
-    if [ $# -eq 0 ]; then
-        echo "Usage: securetty run-work <agent> [--max-turns N] [--timeout T] [workdir]" >&2
-        echo "Available agents: {{ securetty_agents | map(attribute='name') | join(', ') }}" >&2
-        return 1
-    fi
-    _parse_run_flags "$@" || return 1
-    _extract_workdir "${_SECURETTY_FLAGPARSED_ARGS[@]}"
-    _validate_agent "${_SECURETTY_ARGS[0]}" || return 1
-    if [ -n "$_SECURETTY_WORKDIR" ] && [ ! -d "$_SECURETTY_WORKDIR" ]; then
-        echo "ERROR: workdir does not exist: $_SECURETTY_WORKDIR" >&2
-        return 1
-    fi
-    _run_work "${_SECURETTY_ARGS[@]}"
-}
+cmd_run() {      _prepare_run "$@" && _run_personal "${_SECURETTY_ARGS[@]}"; }
+cmd_run_work() { _prepare_run "$@" && _run_work "${_SECURETTY_ARGS[@]}"; }
 
 cmd_shell() {
     _extract_workdir "$@"
     _run_personal /bin/bash "${_SECURETTY_ARGS[@]}"
 }
 
-cmd_setup() {
-    (cd "$SECURETTY_DIR" && ansible-playbook site.yml "$@")
+_ansible() {
+    (cd "$SECURETTY_DIR" && ansible-playbook "$@")
 }
 
-cmd_rebuild() {
-    (cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,build -e securetty_force_rebuild=true "$@")
+_container_running() {
+    [ "$({{ securetty_podman_cmd }} inspect "$1" --format '{% raw %}{{.State.Running}}{% endraw %}' 2>/dev/null)" = "true" ]
 }
 
-cmd_rebuild_agents() {
-    (cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,build -e securetty_force_rebuild=true -e securetty_skip_devbase=true -e securetty_dev_only=true "$@")
+_container_status() {
+    {{ securetty_podman_cmd }} inspect "$1" --format '{% raw %}{{.State.Status}}{% endraw %}' 2>/dev/null || echo "missing"
 }
 
-cmd_up() {
-    (cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,up "$@")
-}
+cmd_setup() {    _ansible site.yml "$@"; }
+cmd_build() {    _ansible site.yml --tags prereqs,build "$@"; }
+cmd_rebuild() {  _ansible site.yml --tags prereqs,build -e securetty_force_rebuild=true "$@"; }
+cmd_rebuild_agents() { _ansible site.yml --tags prereqs,build -e securetty_force_rebuild=true -e securetty_skip_devbase=true -e securetty_dev_only=true "$@"; }
+cmd_up() {       _ansible site.yml --tags prereqs,up "$@"; }
+cmd_egress() {   _ansible site.yml --tags prereqs,egress "$@"; }
+cmd_omniroute() { _ansible site.yml --tags prereqs,omniroute "$@"; }
+cmd_ollama() {   _ansible site.yml --tags prereqs,ollama "$@"; }
+cmd_aliases() {  _ansible site.yml --tags prereqs,aliases "$@"; }
+cmd_certs() {    _ansible site.yml --tags prereqs,certs "$@"; }
 
 cmd_down() {
     (cd "$SECURETTY_DIR" && {{ securetty_compose_cmd }} down)
-}
-
-cmd_omniroute() {
-    (cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,omniroute "$@")
-}
-
-cmd_ollama() {
-    (cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,ollama "$@")
-}
-
-cmd_aliases() {
-    (cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,aliases "$@")
-}
-
-cmd_certs() {
-    (cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,certs "$@")
-}
-
-cmd_build() {
-    (cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,build "$@")
 }
 
 cmd_nuke() {
@@ -588,15 +559,11 @@ cmd_migrate() {
     echo "This will REMOVE AI agents from the host. Destructive operation."
     echo "Press Ctrl-C to cancel, or Enter to continue."
     read -r
-    (cd "$SECURETTY_DIR" && ansible-playbook migrate.yml "$@")
-}
-
-cmd_egress() {
-    (cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,egress "$@")
+    _ansible migrate.yml "$@"
 }
 
 cmd_env() {
-    (cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,env "$@")
+    _ansible site.yml --tags prereqs,env "$@"
     local env_file="$SECURETTY_DIR/.env"
     if [ -f "$env_file" ]; then
         local _missing=0
@@ -617,10 +584,7 @@ cmd_env() {
 
 cmd_scan() {
     local mode="${1:-summary}"
-    local _gd_running _osv_running
-    _gd_running=$({{ securetty_podman_cmd }} inspect securetty-guarddog --format '{% raw %}{{.State.Running}}{% endraw %}' 2>/dev/null || echo "false")
-    _osv_running=$({{ securetty_podman_cmd }} inspect securetty-osv-scanner --format '{% raw %}{{.State.Running}}{% endraw %}' 2>/dev/null || echo "false")
-    if [ "$_gd_running" != "true" ] && [ "$_osv_running" != "true" ]; then
+    if ! _container_running securetty-guarddog && ! _container_running securetty-osv-scanner; then
         echo "Scanners not deployed. Run 'securetty up' first." >&2
         return 1
     fi
@@ -1039,56 +1003,14 @@ cmd_watch() {
     esac
 }
 
-cmd_dashboard() {
-    bash "$SECURETTY_DIR/roles/containers/files/securetty-dashboard.sh" "$@"
-}
-
-cmd_alerts() {
-    bash "$SECURETTY_DIR/roles/containers/files/securetty-alerts.sh" "$@"
-}
-
-cmd_retro() {
-    bash "$SECURETTY_DIR/roles/containers/files/securetty-retro.sh" "$@"
-}
-
-cmd_eval() {
-    bash "$SECURETTY_DIR/roles/containers/files/securetty-eval.sh" "$@"
-}
-
-cmd_daemon() {
-    bash "$SECURETTY_DIR/roles/containers/files/securetty-daemon.sh" "$@"
-}
-
-cmd_init() {
-    bash "$SECURETTY_DIR/roles/containers/files/securetty-init.sh" "$@"
-}
-
-cmd_skill() {
-    bash "$SECURETTY_DIR/roles/containers/files/securetty-skill-manager.sh" "$@"
-}
-
-cmd_confidence() {
-    python3 "$SECURETTY_DIR/roles/containers/files/securetty-confidence.py" "$@"
-}
+_run_script() { bash "$SECURETTY_DIR/roles/containers/files/$1" "${@:2}"; }
 
 cmd_jira_triage() {
     case "${1:-}" in
-        start|stop|status)
-            bash "$SECURETTY_DIR/roles/containers/files/securetty-jira-poller.sh" "$@"
-            ;;
-        run)
-            shift
-            bash "$SECURETTY_DIR/roles/containers/files/securetty-jira-triage.sh" "$@"
-            ;;
-        *)
-            echo "Usage: securetty jira-triage start|stop|status|run <ISSUE-KEY>" >&2
-            return 1
-            ;;
+        start|stop|status) _run_script securetty-jira-poller.sh "$@" ;;
+        run) shift; _run_script securetty-jira-triage.sh "$@" ;;
+        *) echo "Usage: securetty jira-triage start|stop|status|run <ISSUE-KEY>" >&2; return 1 ;;
     esac
-}
-
-cmd_review_manager() {
-    bash "$SECURETTY_DIR/roles/containers/files/securetty-review-manager.sh" "$@"
 }
 
 cmd_version() {
@@ -2041,24 +1963,17 @@ case "${1:-help}" in
     dispatch)         shift; cmd_dispatch "$@" ;;
     jobs)             shift; cmd_jobs "$@" ;;
     watch)            shift; cmd_watch "$@" ;;
-    dashboard)        shift; cmd_dashboard "$@" ;;
-    alerts)           shift; cmd_alerts "$@" ;;
-    retro)            shift; cmd_retro "$@" ;;
-    eval)             shift; cmd_eval "$@" ;;
-    daemon)           shift; cmd_daemon "$@" ;;
-    init)             shift; cmd_init "$@" ;;
-    skill)
-        shift
-        if [ "${1:-}" = "run" ]; then
-            shift; cmd_skill_run "$@"
-        else
-            bash "$SECURETTY_DIR/roles/containers/files/securetty-skill-manager.sh" "$@"
-        fi
-        ;;
+    dashboard)        shift; _run_script securetty-dashboard.sh "$@" ;;
+    alerts)           shift; _run_script securetty-alerts.sh "$@" ;;
+    retro)            shift; _run_script securetty-retro.sh "$@" ;;
+    eval)             shift; _run_script securetty-eval.sh "$@" ;;
+    daemon)           shift; _run_script securetty-daemon.sh "$@" ;;
+    init)             shift; _run_script securetty-init.sh "$@" ;;
+    skill)            shift; if [ "${1:-}" = "run" ]; then shift; cmd_skill_run "$@"; else _run_script securetty-skill-manager.sh "$@"; fi ;;
     code-review)      shift; cmd_code_review "$@" ;;
-    confidence)       shift; cmd_confidence "$@" ;;
+    confidence)       shift; python3 "$SECURETTY_DIR/roles/containers/files/securetty-confidence.py" "$@" ;;
     jira-triage)      shift; cmd_jira_triage "$@" ;;
-    review-manager)   shift; cmd_review_manager "$@" ;;
+    review-manager)   shift; _run_script securetty-review-manager.sh "$@" ;;
     update)           shift; cmd_update "$@" ;;
     rollback)         shift; cmd_rollback "$@" ;;
     group)            shift; cmd_group "$@" ;;

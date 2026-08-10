@@ -1,8 +1,0 @@
----
-- name: Template ssh-agent-restricted script
-  ansible.builtin.template:
-    src: ssh-agent-restricted.sh.j2
-    dest: "{{ securetty_dir }}/scripts/ssh-agent-restricted.sh"
-    mode: "0755"
-  tags:
-    - ssh

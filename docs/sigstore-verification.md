@@ -16,7 +16,7 @@ Together these enable *keyless signing*: a CI pipeline (e.g., GitHub Actions) ca
 
 securetty installs six binary agents via `curl | sh` (goose, grok, forge, kiro, cursor, jcode). The 7-day quarantine mitigates time-sensitive compromises, but does not prove that a release was produced by the project's CI pipeline. Sigstore verification closes this gap: if a project signs its releases, cosign can cryptographically confirm that the artifact was built by a trusted GitHub Actions workflow in the correct repository.
 
-This moves securetty from Tier 6 ("partially enforced supply chain hardening") toward Tier 7 on the [Carbonite security model](security-levels.md).
+This moves securetty from Tier 6 ("partially enforced supply chain hardening") toward Tier 7 on the [Carbonite security model](security-tiers.md).
 
 ## How securetty Uses It
 
@@ -108,5 +108,5 @@ The egress allowlist in `group_vars/all.yml` already includes `*.sigstore.dev`, 
 - `roles/containers/files/verify-signatures.sh` -- verification script
 - `roles/containers/templates/install-delayed.sh.j2` -- binary agent installer (integration target)
 - `group_vars/all.yml` -- `securetty_binary_agents` list and `securetty_allowed_domains` (includes `*.sigstore.dev`)
-- `docs/security-levels.md` -- Tier 6/7 supply chain hardening status
+- `docs/security-tiers.md` -- Tier 6/7 supply chain hardening status
 - `docs/trust-model.md` -- binary installer trust classification

@@ -354,8 +354,7 @@ All configuration lives in `group_vars/all.yml`:
 | Document | Description |
 |----------|-------------|
 | [THREAT_MODEL.md](THREAT_MODEL.md) | 8-section threat assessment |
-| [docs/security-levels.md](docs/security-levels.md) | What's enforced vs advisory |
-| [docs/security-tiers.md](docs/security-tiers.md) | Graduated 3-tier isolation model |
+| [docs/security-tiers.md](docs/security-tiers.md) | Graduated 3-tier isolation model + enforcement status |
 | [docs/trust-model.md](docs/trust-model.md) | Trusted/untrusted input boundaries |
 | [docs/escalation-gates.md](docs/escalation-gates.md) | Confidence gates and risk classification |
 | [docs/confidence-scoring.md](docs/confidence-scoring.md) | Learned escalation model |
