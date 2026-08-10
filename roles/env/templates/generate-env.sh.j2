@@ -101,7 +101,7 @@ VERTEX_VARS=(
 {% endfor %}
 
     # Slack credentials (extracted fresh from Chrome on host — parsed, not eval'd)
-    SLACK_CREDS_SCRIPT="{{ securetty_home }}/src/agent-mcp-skills/slack/get-slack-creds"
+    SLACK_CREDS_SCRIPT="{{ securetty_mcp_skills_dir }}/slack/get-slack-creds"
     if [ -x "$SLACK_CREDS_SCRIPT" ]; then
         _slack_out=$("$SLACK_CREDS_SCRIPT" --quiet 2>/dev/null) || true
         _slack_xoxc=$(echo "$_slack_out" | grep -oP '(?<=SLACK_XOXC_TOKEN=")[^"]+' || true)
@@ -170,6 +170,9 @@ ENV_DIR="$(dirname "$ENV_FILE")"
     grep -E '^(CLAUDE_CODE_USE_VERTEX|ANTHROPIC_VERTEX_PROJECT_ID|GOOGLE_CLOUD_PROJECT|GOOGLE_CLOUD_LOCATION)=' "$ENV_FILE" 2>/dev/null || true
     echo "OLLAMA_HOST=http://ollama:11434"
     grep -E '^OMNIROUTE_INITIAL_PASSWORD=' "$ENV_FILE" 2>/dev/null || true
+    # OmniRoute reads INITIAL_PASSWORD (not OMNIROUTE_ prefixed)
+    val=$(grep -oP '(?<=^OMNIROUTE_INITIAL_PASSWORD=).+' "$ENV_FILE" 2>/dev/null || true)
+    [ -n "$val" ] && echo "INITIAL_PASSWORD=${val}"
 {% raw %}
 } > "$ENV_DIR/.env.omniroute"
 chmod 0600 "$ENV_DIR/.env.omniroute"

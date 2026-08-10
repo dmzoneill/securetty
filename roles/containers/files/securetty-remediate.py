@@ -36,7 +36,8 @@ DB_PATH = os.environ.get(
     "SECURETTY_FAILURE_DB", os.path.expanduser("~/.securetty/failures.db")
 )
 BUILTIN_SKILLS_DIR = os.environ.get(
-    "SECURETTY_BUILTIN_SKILLS", os.path.expanduser("~/src/agent-mcp-skills")
+    "SECURETTY_MCP_SKILLS_DIR",
+    os.environ.get("SECURETTY_BUILTIN_SKILLS", os.path.expanduser("~/src/usr/agent-mcp-skills"))
 )
 USER_SKILLS_DIR = os.environ.get(
     "SECURETTY_USER_SKILLS", os.path.expanduser("~/.securetty/skills")

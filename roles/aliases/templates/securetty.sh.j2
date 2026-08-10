@@ -5,6 +5,8 @@ set -euo pipefail
 
 SECURETTY_DIR="$(cd "$(dirname "$0")" && pwd)"
 SECURETTY_IMAGE="${SECURETTY_IMAGE:-securetty_dev}"
+export SECURETTY_MCP_SKILLS_DIR="${SECURETTY_MCP_SKILLS_DIR:-{{ securetty_mcp_skills_dir }}}"
+export SECURETTY_WORK_DIR="${SECURETTY_WORK_DIR:-{{ securetty_work_dir }}}"
 
 # Source session outcome logging helpers
 # shellcheck source=roles/aliases/files/securetty-outcomes.sh
@@ -196,18 +198,62 @@ _convert_timeout_to_seconds() {
     esac
 }
 
+_validate_agent() {
+    local agent="$1"
+    local valid_agents="{{ securetty_agents | map(attribute='name') | join(' ') }}"
+    for a in $valid_agents; do
+        [ "$a" = "$agent" ] && return 0
+    done
+    echo "ERROR: unknown agent '${agent}'" >&2
+    echo "Available agents: ${valid_agents// /, }" >&2
+    return 1
+}
+
 _parse_run_flags() {
     _SECURETTY_MAX_TURNS=""
     _SECURETTY_TIMEOUT=""
+    _SECURETTY_PROMPT=""
+    _SECURETTY_CLEANUP="remove"
+    _SECURETTY_EXTRA_VOLUMES=()
+    _SECURETTY_IMAGE_OVERRIDE=""
+    _SECURETTY_READ_MODE=""
     _SECURETTY_FLAGPARSED_ARGS=()
     while [ $# -gt 0 ]; do
         case "$1" in
             --max-turns)
-                _SECURETTY_MAX_TURNS="${2:-}"
+                if ! [[ "${2:-}" =~ ^[0-9]+$ ]]; then
+                    echo "ERROR: --max-turns requires a positive integer" >&2
+                    return 1
+                fi
+                _SECURETTY_MAX_TURNS="$2"
                 shift 2
                 ;;
             --timeout)
-                _SECURETTY_TIMEOUT="${2:-}"
+                if ! [[ "${2:-}" =~ ^[0-9]+[smhd]?$ ]]; then
+                    echo "ERROR: --timeout requires a value like 30s, 5m, 1h, or 1d" >&2
+                    return 1
+                fi
+                _SECURETTY_TIMEOUT="$2"
+                shift 2
+                ;;
+            -p|--prompt)
+                _SECURETTY_PROMPT="${2:-}"
+                shift 2
+                ;;
+            --cleanup)
+                _SECURETTY_CLEANUP="${2:-remove}"
+                shift 2
+                ;;
+            --image)
+                _SECURETTY_IMAGE_OVERRIDE="${2:-}"
+                shift 2
+                ;;
+            --read)
+                _SECURETTY_READ_MODE=1
+                shift
+                ;;
+            -v)
+                _SECURETTY_EXTRA_VOLUMES+=("-v" "${2:-}")
                 shift 2
                 ;;
             *)
@@ -233,6 +279,7 @@ USER={{ securetty_user }}
 SSH_AUTH_SOCK=/run/ssh-agent.sock
 GPG_AGENT_INFO=/run/gpg-agent.sock
 XDG_RUNTIME_DIR=/run/user/$(id -u)
+PULSE_SERVER=unix:/run/user/$(id -u)/pulse/native
 NODE_ENV=development
 npm_config_ignore_scripts=true
 NODE_EXTRA_CA_CERTS=/certs/ca.crt
@@ -272,7 +319,11 @@ _run() {
 
     local envfile
     envfile=$(_build_envfile) || return 1
-    trap "rm -f '$envfile'" EXIT
+    trap "rm -f '$envfile'" EXIT INT TERM
+
+    if [ -z "${GPG_AGENT_EXTRA_SOCK:-}" ]; then
+        echo "WARN: GPG_AGENT_EXTRA_SOCK unset — commit signing disabled in container" >&2
+    fi
 
     _SSH_TOKEN_MOUNT=""
     [ -f "/run/user/$(id -u)/securetty-ssh-token" ] && _SSH_TOKEN_MOUNT="-v /run/user/$(id -u)/securetty-ssh-token:/run/ssh-token:ro"
@@ -284,9 +335,25 @@ _run() {
     local _run_start_ts
     _run_start_ts=$(date +%s)
 
+    # Apply image override if set
+    local _image="${SECURETTY_IMAGE}"
+    [ -n "${_SECURETTY_IMAGE_OVERRIDE:-}" ] && _image="$_SECURETTY_IMAGE_OVERRIDE"
+
+    # Container lifecycle: --rm or persist
+    local _rm_flag="--rm"
+    [ "${_SECURETTY_CLEANUP:-remove}" = "keep" ] && _rm_flag=""
+
+    # Interactive vs prompt mode
+    local _it_flags="-it"
+    local _extra_agent_args=()
+    if [ -n "${_SECURETTY_PROMPT:-}" ]; then
+        _it_flags="-i"
+        _extra_agent_args+=("--prompt" "$_SECURETTY_PROMPT")
+    fi
+
     # Build the podman command
     local _podman_cmd=(
-        {{ securetty_podman_cmd }} run --rm -it
+        {{ securetty_podman_cmd }} run ${_rm_flag} ${_it_flags}
         --env-file "$envfile"
         --network {{ securetty_network_name }}
         --name "securetty-${agent}-$$"
@@ -317,10 +384,8 @@ _run() {
         -v "{{ securetty_home }}/Downloads:{{ securetty_home }}/Downloads"
         -v "{{ securetty_home }}/.local/bin:{{ securetty_home }}/.local/bin:ro"
         -v "{{ securetty_home }}/.local/share/virtualenvs:{{ securetty_home }}/.local/share/virtualenvs"
-        -v "/run/user/$(id -u)/pipewire-0:/run/user/$(id -u)/pipewire-0"
-        -v "/run/user/$(id -u)/pulse:/run/user/$(id -u)/pulse"
+        -v "/run/user/$(id -u):/run/user/$(id -u)"
         -v "${GPG_AGENT_EXTRA_SOCK:-/dev/null}:/run/gpg-agent.sock:ro"
-        -v "/run/user/$(id -u)/securetty-open.sock:/run/securetty-open.sock"
         -v "$SECURETTY_DIR/certs:/certs:ro"
         --tmpfs /tmp:size=512M
         -v securetty-npm-cache:{{ securetty_home }}/.npm
@@ -332,9 +397,10 @@ _run() {
         -v securetty-npm-global:{{ securetty_home }}/.npm-global
         -v securetty-usr-local:/usr/local
         --tmpfs {{ securetty_home }}/.cache/mesa_shader_cache:size=128M
+        "${_SECURETTY_EXTRA_VOLUMES[@]}"
         -w "${_SECURETTY_WORKDIR:-$(pwd)}"
-        "$SECURETTY_IMAGE"
-        "$agent" "$@"
+        "$_image"
+        "$agent" "${_extra_agent_args[@]}" "$@"
     )
 
     # Execute with optional timeout enforcement
@@ -376,10 +442,6 @@ _run() {
 _run_work() {
     local agent="$1"
     shift
-    if [ "${1:-}" = "--read" ]; then
-        shift
-        _SECURETTY_READ_MODE=1
-    fi
     _SECURETTY_EXTRA_ENVLINES=(
         "CLAUDE_CODE_USE_VERTEX=1"
 {% raw %}
@@ -399,10 +461,6 @@ _run_work() {
 _run_personal() {
     local agent="$1"
     shift
-    if [ "${1:-}" = "--read" ]; then
-        shift
-        _SECURETTY_READ_MODE=1
-    fi
 {% raw %}
     local omni_key="${OMNIROUTE_API_KEY:-}"
 {% endraw %}
@@ -433,24 +491,35 @@ cmd_run() {
         echo "Available agents: {{ securetty_agents | map(attribute='name') | join(', ') }}" >&2
         return 1
     fi
-    _parse_run_flags "$@"
+    _parse_run_flags "$@" || return 1
     _extract_workdir "${_SECURETTY_FLAGPARSED_ARGS[@]}"
+    _validate_agent "${_SECURETTY_ARGS[0]}" || return 1
+    if [ -n "$_SECURETTY_WORKDIR" ] && [ ! -d "$_SECURETTY_WORKDIR" ]; then
+        echo "ERROR: workdir does not exist: $_SECURETTY_WORKDIR" >&2
+        return 1
+    fi
     _run_personal "${_SECURETTY_ARGS[@]}"
 }
 
 cmd_run_work() {
     if [ $# -eq 0 ]; then
         echo "Usage: securetty run-work <agent> [--max-turns N] [--timeout T] [workdir]" >&2
+        echo "Available agents: {{ securetty_agents | map(attribute='name') | join(', ') }}" >&2
         return 1
     fi
-    _parse_run_flags "$@"
+    _parse_run_flags "$@" || return 1
     _extract_workdir "${_SECURETTY_FLAGPARSED_ARGS[@]}"
+    _validate_agent "${_SECURETTY_ARGS[0]}" || return 1
+    if [ -n "$_SECURETTY_WORKDIR" ] && [ ! -d "$_SECURETTY_WORKDIR" ]; then
+        echo "ERROR: workdir does not exist: $_SECURETTY_WORKDIR" >&2
+        return 1
+    fi
     _run_work "${_SECURETTY_ARGS[@]}"
 }
 
 cmd_shell() {
     _extract_workdir "$@"
-    _run_personal /bin/bash
+    _run_personal /bin/bash "${_SECURETTY_ARGS[@]}"
 }
 
 cmd_setup() {
@@ -479,10 +548,33 @@ cmd_egress() {
 
 cmd_env() {
     (cd "$SECURETTY_DIR" && ansible-playbook site.yml --tags prereqs,env "$@")
+    local env_file="$SECURETTY_DIR/.env"
+    if [ -f "$env_file" ]; then
+        local _missing=0
+        for key in OMNIROUTE_API_KEY; do
+            if ! grep -q "^${key}=.\+" "$env_file" 2>/dev/null; then
+                echo "WARN: ${key} missing or empty in .env" >&2
+                _missing=$((_missing + 1))
+            fi
+        done
+        local _count
+        _count=$(grep -c '=' "$env_file" 2>/dev/null || echo 0)
+        echo "Generated .env with ${_count} keys (${_missing} missing)"
+    else
+        echo "ERROR: .env was not generated" >&2
+        return 1
+    fi
 }
 
 cmd_scan() {
     local mode="${1:-summary}"
+    local _gd_running _osv_running
+    _gd_running=$({{ securetty_podman_cmd }} inspect securetty-guarddog --format '{% raw %}{{.State.Running}}{% endraw %}' 2>/dev/null || echo "false")
+    _osv_running=$({{ securetty_podman_cmd }} inspect securetty-osv-scanner --format '{% raw %}{{.State.Running}}{% endraw %}' 2>/dev/null || echo "false")
+    if [ "$_gd_running" != "true" ] && [ "$_osv_running" != "true" ]; then
+        echo "Scanners not deployed. Run 'securetty up' first." >&2
+        return 1
+    fi
     case "$mode" in
         alerts)
             echo "=== GuardDog Alerts ==="
@@ -517,47 +609,41 @@ cmd_scan() {
 }
 
 cmd_volumes() {
-    echo "=== Package Volumes ==="
-    for vol in securetty-usr-local securetty-npm-cache securetty-npm-global securetty-pip-cache securetty-pip-user securetty-uv-cache securetty-cargo-cache securetty-go-cache; do
-        local size
-        size=$({{ securetty_podman_cmd }} volume inspect "$vol" --format '{% raw %}{{.Mountpoint}}{% endraw %}' 2>/dev/null)
-        if [ -n "$size" ]; then
+    _show_volume() {
+        local vol="$1"
+        local mountpoint
+        mountpoint=$({{ securetty_podman_cmd }} volume inspect "$vol" --format '{% raw %}{{.Mountpoint}}{% endraw %}' 2>/dev/null)
+        if [ -n "$mountpoint" ]; then
             local du_size
-            du_size=$(du -sh "$size" 2>/dev/null | awk '{print $1}' || echo "?")
-            printf "  %-25s %s\n" "$vol" "$du_size"
+            du_size=$(du -sh "$mountpoint" 2>/dev/null | awk '{print $1}' || echo "?")
+            printf "  %-30s %s\n" "$vol" "$du_size"
         else
-            printf "  %-25s %s\n" "$vol" "(not created)"
+            printf "  %-30s %s\n" "$vol" "(not created)"
         fi
-    done
+    }
+
+    local _all_vols _total=0
+    _all_vols=$({{ securetty_podman_cmd }} volume ls --format '{% raw %}{{.Name}}{% endraw %}' 2>/dev/null | grep -E 'securetty|guarddog|osv|headroom|cloudcli|ollama' | sort)
+
+    if [ -z "$_all_vols" ]; then
+        echo "No securetty volumes found."
+        return 0
+    fi
+
+    echo "=== Package Volumes ==="
+    echo "$_all_vols" | grep -E '^securetty-' | while read -r vol; do _show_volume "$vol"; _total=$((_total+1)); done
     echo ""
     echo "=== Scanner Volumes ==="
-    for vol in guarddog_results osv_results; do
-        local size
-        size=$({{ securetty_podman_cmd }} volume inspect "$vol" --format '{% raw %}{{.Mountpoint}}{% endraw %}' 2>/dev/null)
-        if [ -n "$size" ]; then
-            local du_size
-            du_size=$(du -sh "$size" 2>/dev/null | awk '{print $1}' || echo "?")
-            printf "  %-25s %s\n" "$vol" "$du_size"
-        else
-            printf "  %-25s %s\n" "$vol" "(not created)"
-        fi
-    done
+    echo "$_all_vols" | grep -E 'guarddog|osv' | while read -r vol; do _show_volume "$vol"; done
     echo ""
     echo "=== Service Volumes ==="
-    for vol in headroom_data cloudcli_data ollama_models; do
-        local size
-        size=$({{ securetty_podman_cmd }} volume inspect "$vol" --format '{% raw %}{{.Mountpoint}}{% endraw %}' 2>/dev/null)
-        if [ -n "$size" ]; then
-            local du_size
-            du_size=$(du -sh "$size" 2>/dev/null | awk '{print $1}' || echo "?")
-            printf "  %-25s %s\n" "$vol" "$du_size"
-        else
-            printf "  %-25s %s\n" "$vol" "(not created)"
-        fi
-    done
+    echo "$_all_vols" | grep -E 'headroom|cloudcli|ollama' | while read -r vol; do _show_volume "$vol"; done
 }
 
 cmd_clean() {
+    local _force=0
+    [ "${1:-}" = "--yes" ] || [ "${1:-}" = "-y" ] && _force=1
+
     echo "=== Orphaned containers ==="
     local orphans
     orphans=$({{ securetty_podman_cmd }} ps -a --format '{% raw %}{{.Names}}{% endraw %}' --filter status=exited | grep securetty || true)
@@ -590,8 +676,12 @@ cmd_clean() {
     done || true)
     if [ -n "$orphan_vols" ]; then
         echo "$orphan_vols"
-        echo "Removing..."
-        echo "$orphan_vols" | xargs {{ securetty_podman_cmd }} volume rm 2>/dev/null || true
+        if [ "$_force" -eq 1 ]; then
+            echo "Removing..."
+            echo "$orphan_vols" | xargs {{ securetty_podman_cmd }} volume rm 2>/dev/null || true
+        else
+            echo "Run 'securetty clean --yes' to remove orphaned volumes"
+        fi
     else
         echo "None"
     fi
@@ -752,24 +842,48 @@ cmd_top() {
 
 cmd_logs() {
     local svc="${1:-}"
+    local _valid_services
+    _valid_services=$({{ securetty_podman_cmd }} ps -a --format '{% raw %}{{.Names}}{% endraw %}' 2>/dev/null | grep securetty | sed 's/^securetty-//' | sort)
     if [ -z "$svc" ]; then
         echo "Usage: securetty logs <service> [--follow]"
-        echo "Services: omniroute headroom cloudcli ollama guarddog osv-scanner creds mcp-jira mcp-gitlab mcp-github mcp-slack mcp-wordpress"
+        echo "Services: $(echo "$_valid_services" | tr '\n' ' ')"
+        return 1
+    fi
+    if ! echo "$_valid_services" | grep -qx "$svc"; then
+        echo "ERROR: unknown service '${svc}'" >&2
+        echo "Available: $(echo "$_valid_services" | tr '\n' ' ')" >&2
         return 1
     fi
     shift
-    {{ securetty_podman_cmd }} logs "${@}" "securetty-${svc}" 2>/dev/null || echo "Container securetty-${svc} not found"
+    {{ securetty_podman_cmd }} logs "${@}" "securetty-${svc}"
 }
 
 cmd_restart() {
     echo "Restarting services..."
     (cd "$SECURETTY_DIR" && {{ securetty_compose_cmd }} down 2>/dev/null && {{ securetty_compose_cmd }} up -d --no-build)
+    sleep 2
+    _ensure_egress 2>/dev/null
+    _patch_dns 2>/dev/null
+    echo ""
+    local _running
+    _running=$({{ securetty_podman_cmd }} ps --format '{% raw %}{{.Names}}{% endraw %}' 2>/dev/null | grep -c securetty || echo 0)
+    echo "${_running} services running."
 }
 
 cmd_exec() {
     local container="${1:-}"
     if [ -z "$container" ]; then
         echo "Usage: securetty exec <container> <command>"
+        return 1
+    fi
+    local _state
+    _state=$({{ securetty_podman_cmd }} inspect "securetty-${container}" --format '{% raw %}{{.State.Status}}{% endraw %}' 2>/dev/null || echo "missing")
+    if [ "$_state" = "missing" ]; then
+        echo "ERROR: container securetty-${container} not found" >&2
+        return 1
+    fi
+    if [ "$_state" != "running" ]; then
+        echo "ERROR: container securetty-${container} is ${_state}, not running" >&2
         return 1
     fi
     shift
@@ -815,24 +929,39 @@ cmd_jobs() {
 }
 
 cmd_watch() {
-    if [ $# -eq 0 ]; then
-        echo "Usage: securetty watch <repo> [--source github|gitlab|jira] [--event <type>] [--interval <seconds>]" >&2
-        return 1
-    fi
-    local repo="$1"; shift
-    local source="github" event="push" interval="300"
-    while [ $# -gt 0 ]; do
-        case "$1" in
-            --source) source="$2"; shift 2 ;;
-            --event) event="$2"; shift 2 ;;
-            --interval) interval="$2"; shift 2 ;;
-            *) shift ;;
-        esac
-    done
     local cert_args
     cert_args=$(_dispatcher_url)
-    curl $cert_args -sf -X POST "https://securetty-dispatcher:8900/triggers?source=$source&repo=$repo&event_type=$event&poll_interval=$interval" \
-        -H "Content-Type: application/json" 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "ERROR: dispatcher unavailable" >&2
+
+    case "${1:-}" in
+        --list|-l)
+            curl $cert_args -sf "https://securetty-dispatcher:8900/triggers" 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "ERROR: dispatcher unavailable" >&2
+            ;;
+        --delete|-d)
+            local trigger_id="${2:-}"
+            [ -z "$trigger_id" ] && { echo "Usage: securetty watch --delete <trigger-id>" >&2; return 1; }
+            curl $cert_args -sf -X DELETE "https://securetty-dispatcher:8900/triggers/${trigger_id}" 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "ERROR: dispatcher unavailable" >&2
+            ;;
+        --help|-h|"")
+            echo "Usage: securetty watch <repo> [--source github|gitlab|jira] [--event <type>] [--interval <seconds>]" >&2
+            echo "       securetty watch --list" >&2
+            echo "       securetty watch --delete <trigger-id>" >&2
+            return 1
+            ;;
+        *)
+            local repo="$1"; shift
+            local source="github" event="push" interval="300"
+            while [ $# -gt 0 ]; do
+                case "$1" in
+                    --source) source="$2"; shift 2 ;;
+                    --event) event="$2"; shift 2 ;;
+                    --interval) interval="$2"; shift 2 ;;
+                    *) shift ;;
+                esac
+            done
+            curl $cert_args -sf -X POST "https://securetty-dispatcher:8900/triggers?source=$source&repo=$repo&event_type=$event&poll_interval=$interval" \
+                -H "Content-Type: application/json" 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "ERROR: dispatcher unavailable" >&2
+            ;;
+    esac
 }
 
 cmd_dashboard() {
@@ -888,15 +1017,799 @@ cmd_review_manager() {
 }
 
 cmd_version() {
+    local _git_version
+    _git_version=$(cd "$SECURETTY_DIR" && git describe --tags --always 2>/dev/null || echo "unknown")
     echo "securetty CLI"
+    echo "  Version: ${_git_version}"
     echo "  Dir: $SECURETTY_DIR"
     echo "  Agents: {{ securetty_agents | length }} configured"
     local build_date
-    build_date=$({{ securetty_podman_cmd }} run --rm --entrypoint cat securetty_dev /etc/securetty-manifest.json 2>/dev/null | jq -r '.build_date // "unknown"' 2>/dev/null || echo "unknown")
-    echo "  Image built: $build_date"
+    build_date=$({{ securetty_podman_cmd }} image inspect securetty_dev --format '{% raw %}{{index .Labels "build_date"}}{% endraw %}' 2>/dev/null || echo "")
+    [ -z "$build_date" ] && build_date=$({{ securetty_podman_cmd }} image inspect securetty_dev --format '{% raw %}{{.Created}}{% endraw %}' 2>/dev/null | cut -dT -f1 || echo "unknown")
+    echo "  Image built: ${build_date:-unknown}"
     local img_count
     img_count=$({{ securetty_podman_cmd }} images --format '{% raw %}{{.Repository}}{% endraw %}' 2>/dev/null | grep -c securetty || echo 0)
     echo "  Images: $img_count"
+}
+
+# =============================================================================
+# Carbonite-compat commands
+# =============================================================================
+
+# --- #127: securetty list ---
+cmd_list() {
+    local show_all=0 json_out=0
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --all|-a) show_all=1; shift ;;
+            --json) json_out=1; shift ;;
+            *) shift ;;
+        esac
+    done
+
+    local filter=""
+    [ "$show_all" -eq 0 ] && filter="--filter status=running"
+
+    if [ "$json_out" -eq 1 ]; then
+        {{ securetty_podman_cmd }} ps $filter -a --format json 2>/dev/null | \
+            python3 -c "
+import json, sys
+containers = json.load(sys.stdin)
+filtered = [c for c in containers if any(n.startswith('securetty') for n in (c.get('Names') or []))]
+json.dump(filtered, sys.stdout, indent=2)
+" 2>/dev/null
+    else
+        printf "%-30s %-12s %-20s %s\n" "NAME" "STATUS" "CREATED" "IMAGE"
+        {{ securetty_podman_cmd }} ps $filter -a --format '{% raw %}{{.Names}}\t{{.Status}}\t{{.Created}}\t{{.Image}}{% endraw %}' 2>/dev/null | \
+            grep securetty | while IFS=$'\t' read -r name status created image; do
+            printf "%-30s %-12s %-20s %s\n" "$name" "$status" "$created" "$(basename "$image")"
+        done
+    fi
+}
+
+# --- #125: securetty connect ---
+cmd_connect() {
+    local target="${1:-}"
+
+    if [ -z "$target" ]; then
+        echo "Running agent containers:"
+        local agents
+        local _agent_pattern='securetty-({{ securetty_agents | map(attribute="name") | join("|") }})-'
+        agents=$({{ securetty_podman_cmd }} ps --format '{% raw %}{{.Names}}{% endraw %}' 2>/dev/null | grep -E "$_agent_pattern" || true)
+        if [ -z "$agents" ]; then
+            echo "  (none running)"
+            local stopped
+            stopped=$({{ securetty_podman_cmd }} ps -a --filter status=exited --format '{% raw %}{{.Names}}{% endraw %}' 2>/dev/null | grep -E "$_agent_pattern" || true)
+            if [ -n "$stopped" ]; then
+                echo ""
+                echo "Stopped containers (restart with: securetty connect <name>):"
+                echo "$stopped" | sed 's/^/  /'
+            fi
+            return 1
+        fi
+        echo "$agents" | sed 's/^/  /'
+        echo ""
+        echo "Usage: securetty connect <container-name>"
+        return 0
+    fi
+
+    # Add securetty- prefix if missing
+    [[ "$target" != securetty-* ]] && target="securetty-${target}"
+
+    local state
+    state=$({{ securetty_podman_cmd }} inspect "$target" --format '{% raw %}{{.State.Status}}{% endraw %}' 2>/dev/null || echo "missing")
+
+    case "$state" in
+        running)
+            {{ securetty_podman_cmd }} attach "$target"
+            ;;
+        paused)
+            echo "Unpausing container ${target}..."
+            {{ securetty_podman_cmd }} unpause "$target"
+            {{ securetty_podman_cmd }} attach "$target"
+            ;;
+        exited|stopped|created)
+            echo "Starting container ${target}..."
+            {{ securetty_podman_cmd }} start "$target"
+            {{ securetty_podman_cmd }} attach "$target"
+            ;;
+        missing)
+            echo "ERROR: container ${target} not found" >&2
+            return 1
+            ;;
+        *)
+            echo "ERROR: container ${target} is in state: ${state}" >&2
+            return 1
+            ;;
+    esac
+}
+
+# --- #126: securetty config ---
+_CONFIG_LOCAL="{{ securetty_home }}/.securetty/config.local.yml"
+_CONFIG_PROFILES="{{ securetty_home }}/.securetty/profiles"
+
+cmd_config() {
+    local subcmd="${1:-list}"
+    shift 2>/dev/null || true
+
+    case "$subcmd" in
+        list)
+            echo "=== Active configuration ==="
+            if [ -f "$_CONFIG_LOCAL" ]; then
+                echo "  (source: $_CONFIG_LOCAL)"
+                cat "$_CONFIG_LOCAL"
+            else
+                echo "  (no local overrides — using defaults from group_vars/all.yml)"
+            fi
+            ;;
+        get)
+            local key="${1:-}"
+            [ -z "$key" ] && { echo "Usage: securetty config get <key>" >&2; return 1; }
+            if [ -f "$_CONFIG_LOCAL" ]; then
+                python3 -c "
+import yaml, sys
+with open('$_CONFIG_LOCAL') as f:
+    cfg = yaml.safe_load(f) or {}
+val = cfg.get('$key')
+if val is not None:
+    print(val)
+else:
+    print('(not set)')
+" 2>/dev/null || grep -oP "(?<=^${key}: ).+" "$_CONFIG_LOCAL" 2>/dev/null || echo "(not set)"
+            else
+                echo "(not set)"
+            fi
+            ;;
+        set)
+            local key="${1:-}" val="${2:-}"
+            [ -z "$key" ] || [ -z "$val" ] && { echo "Usage: securetty config set <key> <value>" >&2; return 1; }
+            mkdir -p "$(dirname "$_CONFIG_LOCAL")"
+            python3 -c "
+import yaml, sys, os
+path = '$_CONFIG_LOCAL'
+cfg = {}
+if os.path.exists(path):
+    with open(path) as f:
+        cfg = yaml.safe_load(f) or {}
+cfg['$key'] = '$val'
+with open(path, 'w') as f:
+    yaml.dump(cfg, f, default_flow_style=False)
+print('Set $key = $val')
+" 2>/dev/null || {
+                mkdir -p "$(dirname "$_CONFIG_LOCAL")"
+                echo "${key}: ${val}" >> "$_CONFIG_LOCAL"
+                echo "Set ${key} = ${val}"
+            }
+            ;;
+        unset)
+            local key="${1:-}"
+            [ -z "$key" ] && { echo "Usage: securetty config unset <key>" >&2; return 1; }
+            if [ -f "$_CONFIG_LOCAL" ]; then
+                python3 -c "
+import yaml, os
+path = '$_CONFIG_LOCAL'
+with open(path) as f:
+    cfg = yaml.safe_load(f) or {}
+if '$key' in cfg:
+    del cfg['$key']
+    with open(path, 'w') as f:
+        yaml.dump(cfg, f, default_flow_style=False)
+    print('Unset $key')
+else:
+    print('$key not set')
+" 2>/dev/null || sed -i "/^${key}:/d" "$_CONFIG_LOCAL"
+            else
+                echo "${key} not set"
+            fi
+            ;;
+        profile)
+            local profile="${1:-}"
+            if [ -z "$profile" ]; then
+                echo "Available profiles:"
+                ls "$_CONFIG_PROFILES"/*.yml 2>/dev/null | while read -r f; do
+                    echo "  $(basename "$f" .yml)"
+                done || echo "  (none)"
+                return 0
+            fi
+            local pfile="${_CONFIG_PROFILES}/${profile}.yml"
+            if [ ! -f "$pfile" ]; then
+                echo "Profile '${profile}' not found. Create: securetty config set --profile ${profile} <key> <value>"
+                return 1
+            fi
+            echo "Active profile: ${profile}"
+            cat "$pfile"
+            ;;
+        *)
+            echo "Usage: securetty config list|get|set|unset|profile [args]" >&2
+            ;;
+    esac
+}
+
+# --- #130: securetty check ---
+cmd_check() {
+    local do_fix=0 do_report=0 do_ai=0
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --fix) do_fix=1; shift ;;
+            --report) do_report=1; shift ;;
+            --ai) do_ai=1; shift ;;
+            *) shift ;;
+        esac
+    done
+
+    local issues=0 fixed=0
+    local results=()
+
+    _check_item() {
+        local name="$1" check_cmd="$2" fix_cmd="${3:-}"
+        local status="ok"
+        if ! eval "$check_cmd" &>/dev/null; then
+            status="fail"
+            issues=$((issues + 1))
+            if [ "$do_fix" -eq 1 ] && [ -n "$fix_cmd" ]; then
+                eval "$fix_cmd" &>/dev/null
+                if eval "$check_cmd" &>/dev/null; then
+                    status="fixed"
+                    fixed=$((fixed + 1))
+                else
+                    status="fix-failed"
+                fi
+            fi
+        fi
+        results+=("{\"check\":\"$name\",\"status\":\"$status\"}")
+        local icon="✓"
+        [ "$status" = "fail" ] && icon="✗"
+        [ "$status" = "fixed" ] && icon="⟳"
+        [ "$status" = "fix-failed" ] && icon="✗"
+        printf "  %s %-35s %s\n" "$icon" "$name" "$status"
+    }
+
+    echo "=== securetty health check ==="
+    echo ""
+
+    _check_item "podman installed" \
+        "command -v {{ securetty_podman_cmd }}"
+    _check_item "podman socket" \
+        "[ -S /run/user/$(id -u)/podman/podman.sock ]" \
+        "systemctl --user start podman.socket"
+    _check_item "securetty_dev image" \
+        "{{ securetty_podman_cmd }} image exists securetty_dev" \
+        "cd $SECURETTY_DIR && ansible-playbook site.yml --tags prereqs,build"
+    _check_item "securetty network" \
+        "{{ securetty_podman_cmd }} network exists {{ securetty_network_name }}" \
+        "{{ securetty_podman_cmd }} network create {{ securetty_network_name }} --subnet {{ securetty_subnet }} --gateway {{ securetty_gateway }}"
+    _check_item "omniroute running" \
+        "{{ securetty_podman_cmd }} inspect securetty-omniroute --format '{% raw %}{{.State.Running}}{% endraw %}' 2>/dev/null | grep -q true" \
+        "cd $SECURETTY_DIR && {{ securetty_compose_cmd }} up -d omniroute"
+    _check_item "headroom running" \
+        "{{ securetty_podman_cmd }} inspect securetty-headroom --format '{% raw %}{{.State.Running}}{% endraw %}' 2>/dev/null | grep -q true" \
+        "cd $SECURETTY_DIR && {{ securetty_compose_cmd }} up -d headroom"
+    _check_item "creds running" \
+        "{{ securetty_podman_cmd }} inspect securetty-creds --format '{% raw %}{{.State.Running}}{% endraw %}' 2>/dev/null | grep -q true" \
+        "cd $SECURETTY_DIR && {{ securetty_compose_cmd }} up -d creds"
+    _check_item ".env file" \
+        "[ -f $SECURETTY_DIR/.env ]" \
+        "bash $SECURETTY_DIR/scripts/generate-env.sh $SECURETTY_DIR/.env"
+    _check_item "TLS certificates" \
+        "[ -f $SECURETTY_DIR/certs/ca.crt ]" \
+        "cd $SECURETTY_DIR && ansible-playbook site.yml --tags certs"
+    _check_item "SSH agent" \
+        "[ -S /run/user/$(id -u)/securetty-ssh-agent.sock ]" \
+        "bash $SECURETTY_DIR/scripts/ssh-agent-restricted.sh start"
+    _check_item "egress rules" \
+        "{{ securetty_podman_cmd }} unshare nsenter --net=/run/user/$(id -u)/containers/networks/rootless-netns/rootless-netns nft list table inet securetty_egress &>/dev/null" \
+        "bash $SECURETTY_DIR/scripts/securetty-egress.sh"
+    _check_item "disk space (>5GB)" \
+        "[ \$(df -BG --output=avail {{ securetty_home }} 2>/dev/null | tail -1 | tr -d ' G') -ge 5 ]"
+
+    echo ""
+    if [ "$issues" -eq 0 ]; then
+        echo "All checks passed."
+    else
+        echo "${issues} issue(s) found, ${fixed} fixed."
+        [ "$do_fix" -eq 0 ] && [ "$issues" -gt "$fixed" ] && echo "Run 'securetty check --fix' to attempt auto-repair."
+    fi
+
+    if [ "$do_report" -eq 1 ]; then
+        echo ""
+        echo "[$(IFS=,; echo "${results[*]}")]"
+    fi
+
+    if [ "$do_ai" -eq 1 ] && [ "$issues" -gt 0 ]; then
+        echo ""
+        echo "Launching diagnostic agent..."
+        local diag_context
+        diag_context=$("$0" status 2>&1 | head -40)
+        _run_personal claude --prompt "Diagnose these securetty health check failures and suggest fixes: ${diag_context}"
+    fi
+
+    [ "$issues" -eq 0 ] && return 0
+    [ "$issues" -eq "$fixed" ] && return 0
+    return 1
+}
+
+# --- #133: securetty code-review ---
+cmd_code_review() {
+    local url="${1:-}"
+    if [ -z "$url" ]; then
+        echo "Usage: securetty code-review <PR-or-MR-URL>" >&2
+        echo "  e.g. securetty code-review https://github.com/org/repo/pull/123" >&2
+        echo "       securetty code-review https://gitlab.cee.redhat.com/org/repo/-/merge_requests/45" >&2
+        return 1
+    fi
+    shift
+
+    local diff_text="" _diff_err=""
+    if echo "$url" | grep -qE 'github\.com.*/pull/'; then
+        if ! command -v gh &>/dev/null; then
+            echo "ERROR: gh CLI not installed" >&2; return 1
+        fi
+        _diff_err=$(gh pr diff "$url" 2>&1) && diff_text="$_diff_err" || {
+            echo "ERROR: failed to fetch PR diff" >&2
+            echo "$_diff_err" | grep -qi 'auth\|login\|401\|403' && echo "Try: gh auth login" >&2
+            return 1
+        }
+    elif echo "$url" | grep -qE 'merge_requests/'; then
+        if ! command -v glab &>/dev/null; then
+            echo "ERROR: glab CLI not installed" >&2; return 1
+        fi
+        local project_path mr_iid
+        project_path=$(echo "$url" | sed -E 's|https?://[^/]+/(.+)/-/merge_requests/([0-9]+).*|\1|')
+        mr_iid=$(echo "$url" | sed -E 's|.*/merge_requests/([0-9]+).*|\1|')
+        _diff_err=$(glab mr diff "$mr_iid" -R "$project_path" 2>&1) && diff_text="$_diff_err" || {
+            echo "ERROR: failed to fetch MR diff" >&2
+            echo "$_diff_err" | grep -qi 'auth\|login\|401\|403' && echo "Try: glab auth login" >&2
+            return 1
+        }
+    else
+        echo "ERROR: unrecognized URL format. Expected GitHub PR or GitLab MR URL." >&2
+        return 1
+    fi
+
+    local _diff_file
+    _diff_file=$(mktemp /tmp/securetty-review.XXXXXX)
+    printf '%s' "$diff_text" > "$_diff_file"
+    trap "rm -f '$_diff_file'" EXIT INT TERM
+
+    _SECURETTY_PROMPT="Review this code change. URL: ${url}. Diff is at /tmp/$(basename "$_diff_file")"
+    _SECURETTY_EXTRA_VOLUMES+=("-v" "$_diff_file:/tmp/$(basename "$_diff_file"):ro")
+    _run_personal claude "$@"
+}
+
+# --- #131: securetty group ---
+_GROUP_DIR="{{ securetty_home }}/.securetty/groups"
+
+cmd_group() {
+    local repo_dir="${1:-$(pwd)}"
+    local subcmd="${2:-status}"
+    shift 2 2>/dev/null || true
+
+    if [ ! -d "$repo_dir/.git" ]; then
+        echo "ERROR: ${repo_dir} is not a git repository" >&2
+        return 1
+    fi
+
+    local repo_slug
+    repo_slug=$(basename "$repo_dir")
+    local group_dir="${_GROUP_DIR}/${repo_slug}"
+    mkdir -p "$group_dir"
+
+    case "$subcmd" in
+        ls)
+            echo "Worktrees for ${repo_slug}:"
+            git -C "$repo_dir" worktree list 2>/dev/null || echo "  (none)"
+            ;;
+        status)
+            echo "=== ${repo_slug} ==="
+            echo "Main: $(git -C "$repo_dir" branch --show-current 2>/dev/null || echo 'detached')"
+            echo ""
+            echo "Worktrees:"
+            git -C "$repo_dir" worktree list --porcelain 2>/dev/null | grep '^worktree' | sed 's/worktree /  /'
+            echo ""
+            echo "Dirty files:"
+            local dirty
+            dirty=$(git -C "$repo_dir" status --porcelain 2>/dev/null)
+            if [ -n "$dirty" ]; then
+                echo "$dirty" | sed 's/^/  /'
+            else
+                echo "  (clean)"
+            fi
+            ;;
+        context)
+            local branch="${1:-}"
+            if [ -z "$branch" ]; then
+                if [ -f "$group_dir/context" ]; then
+                    local _ctx
+                    _ctx=$(cat "$group_dir/context")
+                    echo "Active context: ${_ctx}"
+                    local _wt_dir="${group_dir}/worktrees/${_ctx}"
+                    [ -d "$_wt_dir" ] && echo "Worktree: ${_wt_dir}" || echo "Worktree: (not created — use 'securetty group $repo_dir add ${_ctx}')"
+                else
+                    echo "(no context set)"
+                fi
+            else
+                echo "$branch" > "$group_dir/context"
+                echo "Context set to: ${branch}"
+                local _wt_dir="${group_dir}/worktrees/${branch}"
+                [ -d "$_wt_dir" ] && echo "Worktree exists: ${_wt_dir}"
+            fi
+            ;;
+        add)
+            local branch="${1:-}"
+            [ -z "$branch" ] && { echo "Usage: securetty group <repo> add <branch>" >&2; return 1; }
+            local wt_dir="${group_dir}/worktrees/${branch}"
+            mkdir -p "$(dirname "$wt_dir")"
+            git -C "$repo_dir" fetch origin 2>/dev/null
+            git -C "$repo_dir" worktree add "$wt_dir" -b "$branch" "origin/$(git -C "$repo_dir" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')" 2>/dev/null || \
+                git -C "$repo_dir" worktree add "$wt_dir" "$branch" 2>/dev/null || \
+                { echo "ERROR: failed to create worktree for ${branch}" >&2; return 1; }
+            echo "Worktree created: ${wt_dir}"
+            ;;
+        clean)
+            echo "Pruning git worktree refs..."
+            git -C "$repo_dir" worktree prune 2>/dev/null
+            local _wt_base="${group_dir}/worktrees"
+            if [ -d "$_wt_base" ]; then
+                local _stale
+                _stale=$(find "$_wt_base" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | while read -r d; do
+                    local _branch
+                    _branch=$(basename "$d")
+                    git -C "$repo_dir" worktree list --porcelain 2>/dev/null | grep -q "$d" || echo "$d"
+                done)
+                if [ -n "$_stale" ]; then
+                    echo "Removing stale worktree directories:"
+                    echo "$_stale" | while read -r d; do
+                        echo "  $(basename "$d")"
+                        rm -rf "$d"
+                    done
+                fi
+            fi
+            echo "Done."
+            ;;
+        *)
+            echo "Usage: securetty group <repo-dir> [ls|status|context|add|clean]" >&2
+            ;;
+    esac
+}
+
+# --- #132: securetty update / rollback ---
+cmd_update() {
+    local channel="${1:-latest}"
+    echo "Updating securetty (channel: ${channel})..."
+
+    cd "$SECURETTY_DIR"
+
+    if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+        echo "ERROR: working tree has uncommitted changes. Commit or stash first." >&2
+        git status --short >&2
+        return 1
+    fi
+
+    local _prev_version
+    _prev_version=$(git describe --tags --always 2>/dev/null || echo "unknown")
+
+    git fetch origin --tags 2>/dev/null || { echo "ERROR: git fetch failed" >&2; return 1; }
+
+    case "$channel" in
+        release)
+            local latest_tag
+            latest_tag=$(git tag -l 'v*' --sort=-v:refname | head -1)
+            if [ -z "$latest_tag" ]; then
+                echo "No release tags found."
+                return 1
+            fi
+            echo "Latest release: ${latest_tag}"
+            git checkout "$latest_tag" 2>/dev/null || { echo "ERROR: checkout failed" >&2; return 1; }
+            ;;
+        rc)
+            local latest_rc
+            latest_rc=$(git tag -l '*-rc*' --sort=-v:refname | head -1)
+            if [ -z "$latest_rc" ]; then
+                echo "No RC tags found, using latest release."
+                cmd_update release
+                return
+            fi
+            echo "Latest RC: ${latest_rc}"
+            git checkout "$latest_rc" 2>/dev/null || { echo "ERROR: checkout failed" >&2; return 1; }
+            ;;
+        latest|*)
+            if ! git pull origin main 2>/dev/null && ! git pull origin master 2>/dev/null; then
+                echo "ERROR: git pull failed (merge conflict or network error)" >&2
+                return 1
+            fi
+            ;;
+    esac
+
+    # Store current version
+    mkdir -p "{{ securetty_home }}/.securetty"
+    git describe --tags --always > "{{ securetty_home }}/.securetty/version"
+
+    # Log version transition
+    echo "$(date -u +%FT%TZ) ${_prev_version} -> $(cat {{ securetty_home }}/.securetty/version)" >> "{{ securetty_home }}/.securetty/version-history"
+
+    # Detect what changed and rebuild only if needed
+    local changed_files
+    changed_files=$(git diff --name-only HEAD@{1}..HEAD 2>/dev/null || echo "__force_rebuild__")
+    if echo "$changed_files" | grep -qE 'Containerfile|install-delayed|group_vars|roles/containers|__force_rebuild__'; then
+        echo "Container changes detected — rebuilding..."
+        make setup
+    elif echo "$changed_files" | grep -qE 'roles/|scripts/|Makefile'; then
+        echo "Config changes detected — re-running setup..."
+        make setup
+    else
+        echo "Only docs/config changed — skipping rebuild."
+        make aliases
+    fi
+
+    echo "Update complete: ${_prev_version} -> $(cat {{ securetty_home }}/.securetty/version 2>/dev/null || echo 'unknown')"
+}
+
+cmd_rollback() {
+    local action="${1:-}"
+
+    case "$action" in
+        --list)
+            echo "Available versions:"
+            cd "$SECURETTY_DIR"
+            git tag -l 'v*' --sort=-v:refname | head -20 | while read -r tag; do
+                local date
+                date=$(git log -1 --format='%ai' "$tag" 2>/dev/null | cut -d' ' -f1)
+                local current=""
+                [ "$(git describe --tags --always 2>/dev/null)" = "$tag" ] && current=" (current)"
+                printf "  %-20s %s%s\n" "$tag" "$date" "$current"
+            done
+            ;;
+        --set)
+            local tag="${2:-}"
+            [ -z "$tag" ] && { echo "Usage: securetty rollback --set <tag>" >&2; return 1; }
+            cd "$SECURETTY_DIR"
+            if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+                echo "ERROR: working tree has uncommitted changes. Commit or stash first." >&2
+                return 1
+            fi
+            local _prev
+            _prev=$(git describe --tags --always 2>/dev/null || echo "unknown")
+            echo "Rolling back: ${_prev} -> ${tag}"
+            git checkout "$tag" 2>/dev/null || { echo "ERROR: tag ${tag} not found" >&2; return 1; }
+            mkdir -p "{{ securetty_home }}/.securetty"
+            echo "$tag" > "{{ securetty_home }}/.securetty/version"
+            echo "$(date -u +%FT%TZ) rollback ${_prev} -> ${tag}" >> "{{ securetty_home }}/.securetty/version-history"
+            echo "Rebuilding..."
+            make setup
+            echo "Rollback complete: ${tag}"
+            ;;
+        *)
+            echo "Usage: securetty rollback --list | --set <tag>" >&2
+            echo ""
+            echo "Current version: $(cd "$SECURETTY_DIR" && git describe --tags --always 2>/dev/null || echo 'unknown')"
+            ;;
+    esac
+}
+
+# --- #134: securetty setup --ide / cursor ---
+cmd_setup_ide() {
+    local ide="${1:-cursor}"
+    local target_dir="${2:-$(pwd)}"
+
+    local devcontainer_dir="${target_dir}/.devcontainer"
+    mkdir -p "$devcontainer_dir"
+
+    cat > "${devcontainer_dir}/devcontainer.json" <<DEVEOF
+{
+  "name": "securetty-${ide}",
+  "image": "localhost/securetty_dev:latest",
+  "runArgs": [
+    "--network={{ securetty_network_name }}",
+    "--cap-drop=ALL",
+    "--security-opt=no-new-privileges:true",
+    "--security-opt=label=disable",
+    "--userns=keep-id"
+  ],
+  "mounts": [
+    "source={{ securetty_home }}/.gitconfig,target={{ securetty_home }}/.gitconfig,type=bind,readonly",
+    "source={{ securetty_home }}/.ssh/config,target={{ securetty_home }}/.ssh/config,type=bind,readonly",
+    "source={{ securetty_home }}/.ssh/known_hosts,target={{ securetty_home }}/.ssh/known_hosts,type=bind,readonly",
+    "source={{ securetty_home }}/.claude,target={{ securetty_home }}/.claude,type=bind",
+    "source={{ securetty_home }}/.claude.json,target={{ securetty_home }}/.claude.json,type=bind",
+    "source=${localWorkspaceFolder}/../,target={{ securetty_home }}/src,type=bind",
+    "source=/run/user/{{ securetty_uid }}/securetty-ssh-agent.sock,target=/run/ssh-agent.sock,type=bind,readonly",
+    "source={{ securetty_home }}/.gnupg/pubring.kbx,target={{ securetty_home }}/.gnupg/pubring.kbx,type=bind,readonly",
+    "source={{ securetty_home }}/.gnupg/trustdb.gpg,target={{ securetty_home }}/.gnupg/trustdb.gpg,type=bind,readonly"
+  ],
+  "containerEnv": {
+    "HOME": "{{ securetty_home }}",
+    "SSH_AUTH_SOCK": "/run/ssh-agent.sock",
+    "OMNIROUTE_BASE_URL": "http://securetty-omniroute:4000",
+    "HEADROOM_URL": "http://securetty-headroom:8787",
+    "OLLAMA_HOST": "http://securetty-ollama:11434",
+    "SECURETTY_MCP_SKILLS_DIR": "{{ securetty_mcp_skills_dir }}"
+  },
+  "remoteUser": "{{ securetty_user }}",
+  "initializeCommand": "echo 'securetty devcontainer ready'",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "saoudrizwan.claude-dev",
+        "continue.continue"
+      ]
+    }
+  }
+}
+DEVEOF
+
+    echo "Generated ${devcontainer_dir}/devcontainer.json for ${ide}"
+    echo "Open in ${ide}: cd ${target_dir} && ${ide} ."
+}
+
+cmd_cursor() {
+    local target_dir="${1:-$(pwd)}"
+
+    if [ ! -f "${target_dir}/.devcontainer/devcontainer.json" ]; then
+        echo "No devcontainer config found. Generating..."
+        cmd_setup_ide cursor "$target_dir"
+    fi
+
+    if command -v cursor &>/dev/null; then
+        cursor "$target_dir"
+    else
+        echo "Cursor not found in PATH. Open manually: cursor ${target_dir}"
+    fi
+}
+
+# --- #137: securetty skill <name> <URL> ---
+cmd_skill_run() {
+    local skill_name="${1:-}"
+    local target="${2:-}"
+    shift 2 2>/dev/null || true
+
+    if [ -z "$skill_name" ] || [ -z "$target" ]; then
+        echo "Usage: securetty skill run <skill-name> <URL-or-path> [args]" >&2
+        return 1
+    fi
+
+    local workdir=""
+    local diff_context=""
+    local _tmpdir=""
+
+    if echo "$target" | grep -qE 'github\.com.*/pull/'; then
+        diff_context=$(gh pr diff "$target" 2>/dev/null) || { echo "ERROR: failed to fetch PR diff" >&2; return 1; }
+        _tmpdir=$(mktemp -d)
+        workdir="$_tmpdir"
+        echo "$diff_context" > "$workdir/diff.patch"
+    elif echo "$target" | grep -qE 'merge_requests/'; then
+        local project_path mr_iid
+        project_path=$(echo "$target" | sed -E 's|https?://[^/]+/(.+)/-/merge_requests/([0-9]+).*|\1|')
+        mr_iid=$(echo "$target" | sed -E 's|.*/merge_requests/([0-9]+).*|\1|')
+        diff_context=$(glab mr diff "$mr_iid" -R "$project_path" 2>/dev/null) || { echo "ERROR: failed to fetch MR diff" >&2; return 1; }
+        _tmpdir=$(mktemp -d)
+        workdir="$_tmpdir"
+        echo "$diff_context" > "$workdir/diff.patch"
+    elif echo "$target" | grep -qE '\.git$|github\.com|gitlab'; then
+        _tmpdir=$(mktemp -d)
+        git clone "$target" "$_tmpdir/repo" 2>/dev/null || { rm -rf "$_tmpdir"; echo "ERROR: failed to clone ${target}" >&2; return 1; }
+        workdir="$_tmpdir/repo"
+    elif [ -d "$target" ]; then
+        workdir="$target"
+    else
+        echo "ERROR: unrecognized target: ${target}" >&2
+        return 1
+    fi
+
+    [ -n "$_tmpdir" ] && trap "rm -rf '$_tmpdir'" EXIT INT TERM
+
+    _SECURETTY_PROMPT="/${skill_name} ${target} $*"
+    _SECURETTY_WORKDIR="$workdir"
+    _run_personal claude
+}
+
+# --- #135: securetty run --remote ---
+cmd_run_remote() {
+    local agent="${1:-claude}"
+    shift 2>/dev/null || true
+
+    if ! command -v kubectl &>/dev/null && ! command -v oc &>/dev/null; then
+        echo "ERROR: kubectl or oc required for remote execution" >&2
+        return 1
+    fi
+
+    local kube_cmd="kubectl"
+    command -v oc &>/dev/null && kube_cmd="oc"
+
+    local namespace="${SECURETTY_REMOTE_NAMESPACE:-securetty}"
+    local pod_name="securetty-remote-${agent}-$$"
+
+    echo "Launching remote agent: ${agent} in ${namespace}/${pod_name}"
+
+    $kube_cmd run "$pod_name" \
+        --namespace="$namespace" \
+        --image="securetty_dev:latest" \
+        --restart=Never \
+        --rm \
+        -it \
+        --overrides="{
+            \"spec\": {
+                \"containers\": [{
+                    \"name\": \"agent\",
+                    \"image\": \"securetty_dev:latest\",
+                    \"command\": [\"$agent\"],
+                    \"args\": $(printf '%s\n' "$@" | python3 -c "import json,sys; print(json.dumps(sys.stdin.read().strip().split('\n')))"),
+                    \"stdin\": true,
+                    \"tty\": true,
+                    \"resources\": {
+                        \"limits\": {\"cpu\": \"2\", \"memory\": \"2Gi\"},
+                        \"requests\": {\"cpu\": \"500m\", \"memory\": \"512Mi\"}
+                    }
+                }]
+            }
+        }" \
+        -- "$@" 2>/dev/null || echo "Remote execution failed. Check cluster access and namespace." >&2
+}
+
+# --- #138: securetty plugin ---
+_PLUGIN_DIR="{{ securetty_home }}/.securetty/plugins"
+
+cmd_plugin() {
+    local subcmd="${1:-list}"
+    shift 2>/dev/null || true
+
+    case "$subcmd" in
+        list)
+            echo "Installed plugins:"
+            if [ -d "$_PLUGIN_DIR" ]; then
+                for d in "$_PLUGIN_DIR"/*/; do
+                    [ -d "$d" ] || continue
+                    local name
+                    name=$(basename "$d")
+                    local desc=""
+                    [ -f "$d/PLUGIN.md" ] && desc=$(head -1 "$d/PLUGIN.md" | sed 's/^# //')
+                    printf "  %-25s %s\n" "$name" "$desc"
+                done
+            else
+                echo "  (none)"
+            fi
+            ;;
+        install)
+            local source="${1:-}"
+            [ -z "$source" ] && { echo "Usage: securetty plugin install <name|git-url>" >&2; return 1; }
+            mkdir -p "$_PLUGIN_DIR"
+            if echo "$source" | grep -qE '\.git$|github\.com|gitlab'; then
+                local name
+                name=$(basename "$source" .git)
+                echo "Installing plugin from ${source}..."
+                git clone "$source" "$_PLUGIN_DIR/$name" 2>/dev/null || { echo "ERROR: clone failed" >&2; return 1; }
+                echo "Installed: ${name}"
+                [ -f "$_PLUGIN_DIR/$name/PLUGIN.md" ] && head -5 "$_PLUGIN_DIR/$name/PLUGIN.md"
+            else
+                echo "ERROR: only git URLs supported for now" >&2
+                return 1
+            fi
+            ;;
+        remove)
+            local name="${1:-}"
+            [ -z "$name" ] && { echo "Usage: securetty plugin remove <name>" >&2; return 1; }
+            if [ -d "$_PLUGIN_DIR/$name" ]; then
+                rm -rf "$_PLUGIN_DIR/$name"
+                echo "Removed: ${name}"
+            else
+                echo "Plugin '${name}' not found" >&2
+                return 1
+            fi
+            ;;
+        update)
+            echo "Updating plugins..."
+            for d in "$_PLUGIN_DIR"/*/; do
+                [ -d "$d/.git" ] || continue
+                local name
+                name=$(basename "$d")
+                echo "  ${name}..."
+                git -C "$d" pull 2>/dev/null || echo "    (failed)"
+            done
+            echo "Done."
+            ;;
+        *)
+            echo "Usage: securetty plugin list|install|remove|update" >&2
+            ;;
+    esac
 }
 
 cmd_help() {
@@ -914,32 +1827,45 @@ Usage: securetty <command> [options]
 
 Agent commands:
   run <agent> [options] [args]      Launch agent in personal mode
-  run-work <agent> [options] [args] Launch agent in work mode
+  run-work <agent> [options] [args] Launch agent in work mode (Vertex AI)
   shell [dir]                       Interactive shell in container
+  connect [<container>]             Reattach to running agent container
+  code-review <PR-URL>              Review a PR/MR via agent
 
 Agent options:
   --read                            Read-only mode (blocks writes)
-  --max-turns N                     Limit agent to N turns (passed as env var)
+  --max-turns N                     Limit agent to N turns
   --timeout T                       Kill session after T (e.g. 30m, 1h, 90s)
+  -p, --prompt <text>               Non-interactive prompt (no TTY)
+  --cleanup keep|remove             Container lifecycle (default: remove)
+  --image <ref>                     Override container image
+  -v <host:container>               Extra volume mount (repeatable)
+  --remote                          Run in k8s/OpenShift pod
 
 Lifecycle:
-  setup                     Full setup (build + configure + start)
+  setup [--ide cursor|vscode]  Full setup or generate IDE devcontainer
   rebuild                   Full rebuild (all image layers)
   rebuild-agents            Rebuild dev image only (fast)
   up                        Start services
   down                      Stop services
   restart                   Restart all services
+  update [release|rc|latest] Update securetty (channel-based)
+  rollback --list|--set <tag> Version management
 
 Configuration:
+  config list|get|set|unset Runtime configuration management
+  config profile <name>     Switch named profile
+  check [--fix] [--ai]     Health check with auto-repair
   egress                    Reload nftables egress rules + DNS patch
   env                       Regenerate .env files
   status                    Dashboard — containers, network, egress, scanners
+  list [--all] [--json]     List securetty containers
   top [--live]              Container resource usage (CPU, mem, net, PIDs)
   scan [alerts|logs]        Package scanner results (GuardDog + OSV)
   volumes                   Show volume sizes (packages, caches, scanners)
   preflight                 Check prerequisites (podman, images, services)
   cost [today|week|all]     Session cost and usage tracking
-  clean                     Remove orphaned containers + stale env files
+  clean [--yes]             Remove orphaned containers + stale env files
   logs <service> [--follow] Show container logs
   exec <container> <cmd>    Run command in container
   version                   Show CLI and image version info
@@ -947,7 +1873,7 @@ Configuration:
 Orchestration:
   dispatch <work-item>      Route work item to agent via dispatcher
   jobs [status]             List dispatched jobs (pending/running/completed/failed)
-  watch <repo>              Add polling trigger for repo events
+  watch <repo>|--list|--delete  Manage polling triggers for repo events
   daemon start|stop|status  Background agent daemon
   dashboard [--once|--json] Real-time TUI dashboard
   alerts --check|--notify   SLI alerting (container health, error rate, cost)
@@ -959,18 +1885,27 @@ Analysis:
   confidence --score|--report  Agent confidence scoring
   eval run|list|report      Run promptfoo evaluation suite
   skill list|search|install Skill marketplace management
+  skill run <name> <URL>    Run skill against PR/MR/repo URL
   init <project-dir>        Bootstrap securetty in a new project
 
+Project management:
+  group <repo> [ls|status|add|clean]  Git worktree management
+  cursor [<path>]           Launch Cursor with devcontainer
+  plugin list|install|remove|update  Plugin management
+
 Examples:
-  securetty run claude --dangerously-skip-permissions
-  securetty run claude --max-turns 50 ~/src/myproject
-  securetty run claude --timeout 30m --max-turns 100
-  securetty run-work gemini ~/src/myproject
-  securetty shell
-  securetty status
-  securetty scan alerts
-  securetty volumes
-  securetty clean
+  securetty run claude -p "fix the auth bug"
+  securetty run claude --max-turns 50 ~/src/work/myproject
+  securetty run claude --cleanup keep --timeout 1h
+  securetty run-work gemini ~/src/work/myproject
+  securetty connect securetty-claude-12345
+  securetty code-review https://github.com/org/repo/pull/42
+  securetty config set cleanup keep
+  securetty check --fix
+  securetty update release
+  securetty list --all
+  securetty group ~/src/work/awx add feature/new-api
+  securetty skill run code-review https://github.com/org/repo/pull/1
 HELP
 }
 
@@ -981,14 +1916,29 @@ HELP
 case "${1:-help}" in
     run)              shift; cmd_run "$@" ;;
     run-work)         shift; cmd_run_work "$@" ;;
+    run-remote)       shift; cmd_run_remote "$@" ;;
     shell)            shift; cmd_shell "$@" ;;
-    setup)            shift; cmd_setup "$@" ;;
+    connect)          shift; cmd_connect "$@" ;;
+    list)             shift; cmd_list "$@" ;;
+    setup)
+        shift
+        if [ "${1:-}" = "--ide" ]; then
+            shift; cmd_setup_ide "$@"
+        else
+            cmd_setup "$@"
+        fi
+        ;;
+    setup-cursor)     shift; cmd_setup_ide cursor "$@" ;;
+    setup-vscode)     shift; cmd_setup_ide vscode "$@" ;;
+    cursor)           shift; cmd_cursor "$@" ;;
     rebuild)          shift; cmd_rebuild "$@" ;;
     rebuild-agents)   shift; cmd_rebuild_agents "$@" ;;
     up)               shift; cmd_up "$@" ;;
     down)             shift; cmd_down "$@" ;;
     egress)           shift; cmd_egress "$@" ;;
     env)              shift; cmd_env "$@" ;;
+    config)           shift; cmd_config "$@" ;;
+    check)            shift; cmd_check "$@" ;;
     status)           shift; cmd_status "$@" ;;
     top)              shift; cmd_top "$@" ;;
     scan)             shift; cmd_scan "$@" ;;
@@ -1008,10 +1958,22 @@ case "${1:-help}" in
     eval)             shift; cmd_eval "$@" ;;
     daemon)           shift; cmd_daemon "$@" ;;
     init)             shift; cmd_init "$@" ;;
-    skill)            shift; cmd_skill "$@" ;;
+    skill)
+        shift
+        if [ "${1:-}" = "run" ]; then
+            shift; cmd_skill_run "$@"
+        else
+            bash "$SECURETTY_DIR/roles/containers/files/securetty-skill-manager.sh" "$@"
+        fi
+        ;;
+    code-review)      shift; cmd_code_review "$@" ;;
     confidence)       shift; cmd_confidence "$@" ;;
     jira-triage)      shift; cmd_jira_triage "$@" ;;
     review-manager)   shift; cmd_review_manager "$@" ;;
+    update)           shift; cmd_update "$@" ;;
+    rollback)         shift; cmd_rollback "$@" ;;
+    group)            shift; cmd_group "$@" ;;
+    plugin)           shift; cmd_plugin "$@" ;;
     version)          shift; cmd_version "$@" ;;
     help|--help|-h)   cmd_help ;;
     *)                echo "Unknown command: $1. Run 'securetty help' for usage." >&2; exit 1 ;;

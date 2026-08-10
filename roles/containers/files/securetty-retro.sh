@@ -7,6 +7,7 @@
 set -euo pipefail
 
 OUTCOMES_DIR="$HOME/.securetty/outcomes"
+mkdir -p "$OUTCOMES_DIR" 2>/dev/null || true
 JSON_OUTPUT=0
 SINCE_SECONDS=0
 

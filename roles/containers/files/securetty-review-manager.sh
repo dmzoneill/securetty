@@ -17,7 +17,11 @@
 #   SECURETTY_AUTO_MERGE          — set to "true" to auto-merge approved PRs
 set -euo pipefail
 
-DAEMON_DIR="$HOME/.securetty"
+if [ -d "/tmp/securetty-state" ]; then
+    DAEMON_DIR="/tmp/securetty-state"
+else
+    DAEMON_DIR="$HOME/.securetty"
+fi
 LOG_FILE="$DAEMON_DIR/review-manager.log"
 PID_FILE="$DAEMON_DIR/review-manager.pid"
 
@@ -341,10 +345,45 @@ _handle_changes_requested() {
     _remove_label "$key" "agent:in-review"
     _add_label "$key" "agent:in-progress"
 
-    # Dispatch agent to address review feedback
+    # Dispatch agent to address review feedback, preserving original work_dir
     if [ -n "$DISPATCHER_URL" ]; then
         local feedback_text
         feedback_text=$(echo "$review_comments" | tr '|' '\n' | head -c 2000)
+
+        # Retrieve work_dir from triage history
+        local orig_work_dir=""
+        local orig_branch=""
+        local triage_json
+        triage_json=$(curl -sf "${DISPATCHER_URL}/triage/${key}" 2>/dev/null || echo "")
+        if [ -n "$triage_json" ] && [ "$triage_json" != "[]" ]; then
+            orig_work_dir=$(echo "$triage_json" | python3 -c "
+import json, sys
+entries = json.load(sys.stdin)
+for e in entries:
+    meta = json.loads(e.get('metadata', '{}') or '{}')
+    wd = meta.get('work_dir', '')
+    if wd:
+        print(wd)
+        sys.exit(0)
+print('')
+" 2>/dev/null)
+            orig_branch=$(echo "$triage_json" | python3 -c "
+import json, sys
+entries = json.load(sys.stdin)
+for e in entries:
+    meta = json.loads(e.get('metadata', '{}') or '{}')
+    br = meta.get('branch', '')
+    if br:
+        print(br)
+        sys.exit(0)
+print('')
+" 2>/dev/null)
+        fi
+
+        local work_dir_env="${SECURETTY_WORK_DIR:-$HOME/src/work}"
+        local repo_dir=""
+        [ -n "$orig_work_dir" ] && repo_dir="${work_dir_env}/${orig_work_dir}"
+
         local body
         body=$(python3 -c "
 import json
@@ -354,7 +393,10 @@ print(json.dumps({
     'metadata': {
         'jira_key': '$key',
         'pr_url': '$pr_url',
-        'action': 'address_review_feedback'
+        'action': 'address_review_feedback',
+        'work_dir': '$orig_work_dir',
+        'repo_dir': '$repo_dir',
+        'branch': '$orig_branch'
     }
 }))
 " 2>/dev/null)
@@ -700,14 +742,25 @@ cmd_start() {
         rm -f "$PID_FILE"
     fi
 
-    echo "Starting review-manager daemon..."
-    _run_daemon &
-    local pid=$!
-    echo "$pid" > "$PID_FILE"
-    echo "review-manager started (PID ${pid})"
-    echo "  Log: ${LOG_FILE}"
-    echo "  PID file: ${PID_FILE}"
-    echo "  Poll interval: ${POLL_INTERVAL}s"
+    local foreground=0
+    for arg in "$@"; do
+        [ "$arg" = "--foreground" ] && foreground=1
+    done
+
+    if [ "$foreground" -eq 1 ]; then
+        echo $$ > "$PID_FILE" 2>/dev/null || true
+        _run_daemon
+    else
+        echo "Starting review-manager daemon..."
+        _run_daemon &
+        local pid=$!
+        echo "$pid" > "$PID_FILE"
+        echo "review-manager started (PID ${pid})"
+        echo "  Log: ${LOG_FILE}"
+        echo "  PID file: ${PID_FILE}"
+        echo "  Poll interval: ${POLL_INTERVAL}s"
+        disown "$pid"
+    fi
 }
 
 cmd_stop() {
@@ -801,7 +854,7 @@ main() {
 
     case "$subcmd" in
         start)
-            cmd_start
+            shift; cmd_start "$@"
             ;;
         stop)
             cmd_stop

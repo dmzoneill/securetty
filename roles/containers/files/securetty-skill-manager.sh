@@ -1,7 +1,7 @@
 #!/bin/bash
 # Manage securetty MCP skills: search, list, install, remove, update.
 # Reads skills from two locations:
-#   Built-in:       ~/src/agent-mcp-skills/<name>/SKILL.md
+#   Built-in:       $SECURETTY_MCP_SKILLS_DIR/<name>/SKILL.md
 #   User-installed: ~/.securetty/skills/<name>/SKILL.md
 #
 # Usage: securetty-skill-manager.sh <command> [args]
@@ -13,7 +13,7 @@
 #   skill update                Git pull all user-installed skills
 set -euo pipefail
 
-BUILTIN_DIR="$HOME/src/agent-mcp-skills"
+BUILTIN_DIR="${SECURETTY_MCP_SKILLS_DIR:-$HOME/src/usr/agent-mcp-skills}"
 USER_DIR="$HOME/.securetty/skills"
 
 # =============================================================================

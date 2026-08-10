@@ -16,7 +16,7 @@ set -euo pipefail
 
 REPO="${SECURETTY_REPO:-dmzoneill/securetty}"
 JSON_OUTPUT=0
-BUILTIN_DIR="$HOME/src/agent-mcp-skills"
+BUILTIN_DIR="${SECURETTY_MCP_SKILLS_DIR:-$HOME/src/usr/agent-mcp-skills}"
 USER_DIR="$HOME/.securetty/skills"
 OWNER="dmzoneill"
 

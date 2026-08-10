@@ -5,7 +5,11 @@
 set -euo pipefail
 
 SECURETTY_DIR="$(cd "$(dirname "$0")" && pwd)"
-DAEMON_DIR="$HOME/.securetty"
+if [ -d "/tmp/securetty-state" ]; then
+    DAEMON_DIR="/tmp/securetty-state"
+else
+    DAEMON_DIR="$HOME/.securetty"
+fi
 PID_FILE="$DAEMON_DIR/jira-poller.pid"
 LOG_FILE="$DAEMON_DIR/jira-triage.log"
 

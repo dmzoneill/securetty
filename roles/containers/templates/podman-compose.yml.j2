@@ -42,9 +42,8 @@ services:
       # Downloads
       - {{ securetty_home }}/Downloads:{{ securetty_home }}/Downloads
 
-      # Audio (PipeWire/PulseAudio for notification sounds)
-      - /run/user/{{ securetty_uid }}/pipewire-0:/run/user/{{ securetty_uid }}/pipewire-0
-      - /run/user/{{ securetty_uid }}/pulse:/run/user/{{ securetty_uid }}/pulse
+      # XDG_RUNTIME_DIR — audio (PipeWire/PulseAudio), D-Bus, etc.
+      - /run/user/{{ securetty_uid }}:/run/user/{{ securetty_uid }}
 
       # Pipenv virtualenvs
       - {{ securetty_home }}/.local/share/virtualenvs:{{ securetty_home }}/.local/share/virtualenvs
@@ -91,7 +90,7 @@ services:
         tmpfs:
           size: 128M
 
-    working_dir: {{ securetty_home }}/src
+    working_dir: {{ securetty_work_dir }}
     stdin_open: true
     tty: true
 
@@ -131,6 +130,10 @@ services:
           memory: {{ securetty_resources.dev.memory }}
 
     # CMD set in Containerfile (/bin/bash), ENTRYPOINT shows age banner
+    # Dev container is interactive-only — exclude from `podman-compose up -d`
+    # Launch via: securetty run / securetty shell
+    profiles:
+      - interactive
     depends_on:
       - omniroute
       - headroom
@@ -462,7 +465,7 @@ services:
     read_only: true
     env_file: .env.mcp-jira
     volumes:
-      - {{ securetty_home }}/src/agent-mcp-skills/jira:/mcp:ro
+      - {{ securetty_mcp_skills_dir }}/jira:/mcp:ro
       - {{ securetty_dir }}/certs:/certs:ro
       - type: tmpfs
         target: /tmp
@@ -496,7 +499,7 @@ services:
     read_only: true
     env_file: .env.mcp-gitlab
     volumes:
-      - {{ securetty_home }}/src/agent-mcp-skills/gitlab:/mcp:ro
+      - {{ securetty_mcp_skills_dir }}/gitlab:/mcp:ro
       - {{ securetty_dir }}/certs:/certs:ro
       - type: tmpfs
         target: /tmp
@@ -530,7 +533,7 @@ services:
     read_only: true
     env_file: .env.mcp-github
     volumes:
-      - {{ securetty_home }}/src/agent-mcp-skills/github:/mcp:ro
+      - {{ securetty_mcp_skills_dir }}/github:/mcp:ro
       - {{ securetty_dir }}/certs:/certs:ro
       - type: tmpfs
         target: /tmp
@@ -564,7 +567,7 @@ services:
     read_only: true
     env_file: .env.mcp-slack
     volumes:
-      - {{ securetty_home }}/src/agent-mcp-skills/slack:/mcp:ro
+      - {{ securetty_mcp_skills_dir }}/slack:/mcp:ro
       - {{ securetty_dir }}/certs:/certs:ro
       - type: tmpfs
         target: /tmp
@@ -598,7 +601,7 @@ services:
     read_only: true
     env_file: .env.mcp-wordpress
     volumes:
-      - {{ securetty_home }}/src/agent-mcp-skills/wordpress:/mcp:ro
+      - {{ securetty_mcp_skills_dir }}/wordpress:/mcp:ro
       - {{ securetty_dir }}/certs:/certs:ro
       - type: tmpfs
         target: /tmp
@@ -620,6 +623,157 @@ services:
       start_period: 15s
 
   # =================================================================
+  # Jira poller — discovers untriaged issues, feeds to triage agent
+  # =================================================================
+  jira-poller:
+    image: localhost/securetty_devbase:latest
+    container_name: securetty-jira-poller
+    hostname: jira-poller
+    user: "{{ securetty_uid }}:{{ securetty_gid }}"
+    userns_mode: keep-id
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true, label=disable]
+    read_only: true
+    env_file:
+      - .env.mcp-jira
+    environment:
+      - HOME={{ securetty_home }}
+      - SECURETTY_JIRA_URL=${JIRA_URL}
+      - SECURETTY_JIRA_USER=${JIRA_EMAIL}
+      - JIRA_API_TOKEN=${JIRA_JPAT}
+      - SECURETTY_JIRA_PROJECTS={{ securetty_jira_triage.projects }}
+      - SECURETTY_JIRA_POLL_INTERVAL={{ securetty_jira_triage.poll_interval }}
+      - SECURETTY_DISPATCHER_URL=https://dispatcher:8900
+      - SECURETTY_WORK_DIR={{ securetty_work_dir }}
+      - 'SECURETTY_PROJECT_REGISTRY={{ securetty_project_registry | to_json }}'
+    volumes:
+      - {{ securetty_dir }}/roles/containers/files/securetty-jira-poller.sh:/app/securetty-jira-poller.sh:ro
+      - {{ securetty_dir }}/roles/containers/files/securetty-jira-triage.sh:/app/securetty-jira-triage.sh:ro
+      - {{ securetty_dir }}/certs:/certs:ro
+      - {{ securetty_work_dir }}:{{ securetty_work_dir }}
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 32M
+      - type: tmpfs
+        target: /tmp/securetty-state
+        tmpfs:
+          size: 16M
+    working_dir: /app
+    networks: [securetty_net]
+    depends_on:
+      - dispatcher
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+    pids_limit: 64
+    restart: unless-stopped
+    command: ["bash", "/app/securetty-jira-poller.sh", "start", "--foreground"]
+    healthcheck:
+      test: ["CMD", "bash", "-c", "[ -f /tmp/securetty-state/jira-poller.pid ] && kill -0 $(cat /tmp/securetty-state/jira-poller.pid 2>/dev/null) 2>/dev/null"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # =================================================================
+  # Review manager — tracks MR/PR lifecycle for triaged issues
+  # =================================================================
+  review-manager:
+    image: localhost/securetty_devbase:latest
+    container_name: securetty-review-manager
+    hostname: review-manager
+    user: "{{ securetty_uid }}:{{ securetty_gid }}"
+    userns_mode: keep-id
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true, label=disable]
+    read_only: true
+    env_file:
+      - .env.mcp-jira
+      - .env.mcp-github
+      - .env.mcp-gitlab
+    environment:
+      - HOME={{ securetty_home }}
+      - SECURETTY_JIRA_URL=${JIRA_URL}
+      - SECURETTY_JIRA_USER=${JIRA_EMAIL}
+      - JIRA_API_TOKEN=${JIRA_JPAT}
+      - GH_TOKEN=${GITHUB_TOKEN}
+      - GITLAB_TOKEN=${GITLAB_TOKEN}
+      - SECURETTY_DISPATCHER_URL=https://dispatcher:8900
+      - SECURETTY_REVIEW_POLL_INTERVAL={{ securetty_jira_triage.review_poll_interval }}
+      - SECURETTY_REVIEW_STALE_HOURS={{ securetty_jira_triage.stale_review_hours }}
+      - SECURETTY_AUTO_MERGE={{ securetty_jira_triage.auto_merge | string | lower }}
+      - SECURETTY_WORK_DIR={{ securetty_work_dir }}
+    volumes:
+      - {{ securetty_dir }}/roles/containers/files/securetty-review-manager.sh:/app/securetty-review-manager.sh:ro
+      - {{ securetty_dir }}/certs:/certs:ro
+      - {{ securetty_home }}/.gitconfig:{{ securetty_home }}/.gitconfig:ro
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 32M
+      - type: tmpfs
+        target: /tmp/securetty-state
+        tmpfs:
+          size: 16M
+    working_dir: /app
+    networks: [securetty_net]
+    depends_on:
+      - dispatcher
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+    pids_limit: 64
+    restart: unless-stopped
+    command: ["bash", "/app/securetty-review-manager.sh", "start", "--foreground"]
+    healthcheck:
+      test: ["CMD", "bash", "-c", "[ -f /tmp/securetty-state/review-manager.pid ]"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # =================================================================
+  # Podman proxy — restricted API access for dispatcher job launching
+  # =================================================================
+  podman-proxy:
+    image: localhost/securetty_dispatcher:latest
+    container_name: securetty-podman-proxy
+    hostname: podman-proxy
+    user: "{{ securetty_uid }}:{{ securetty_gid }}"
+    userns_mode: keep-id
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true, label=disable]
+    read_only: true
+    volumes:
+      - {{ securetty_dir }}/certs:/certs:ro
+      - {{ securetty_dir }}/dispatcher/podman-proxy.py:/app/podman-proxy.py:ro
+      - /run/user/{{ securetty_uid }}/podman/podman.sock:/run/podman/podman.sock:ro
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 32M
+    networks: [securetty_net]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 64M
+    pids_limit: 64
+    restart: unless-stopped
+    command: ["python3.12", "/app/podman-proxy.py"]
+    healthcheck:
+      test: ["CMD", "python3.12", "-c", "import socket; s=socket.socket(); s.connect(('localhost',9402)); s.close()"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # =================================================================
   # Dispatcher — workflow routing, job queue, event triggers
   # =================================================================
   dispatcher:
@@ -633,17 +787,20 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true, label=disable]
     read_only: true
+    environment:
+      - PODMAN_SOCKET=tcp://podman-proxy:9402
     volumes:
       - {{ securetty_dir }}/certs:/certs:ro
       - {{ securetty_dir }}/roles/containers/files/workflows.toon:/config/workflows.toon:ro
       - {{ securetty_dir }}/workflows:/workflows:ro
       - dispatcher_data:/data
-      - /run/user/{{ securetty_uid }}/podman/podman.sock:/run/podman/podman.sock:ro
       - type: tmpfs
         target: /tmp
         tmpfs:
           size: 64M
     networks: [securetty_net]
+    depends_on:
+      - podman-proxy
     deploy:
       resources:
         limits:

@@ -5,7 +5,9 @@
 
 securetty_user: daoneill
 securetty_home: "/home/{{ securetty_user }}"
-securetty_dir: "{{ securetty_home }}/src/securetty"
+securetty_dir: "{{ securetty_home }}/src/usr/securetty"
+securetty_mcp_skills_dir: "{{ securetty_home }}/src/usr/agent-mcp-skills"
+securetty_work_dir: "{{ securetty_home }}/src/work"
 securetty_fedora_version: 45
 securetty_quarantine_days: 7
 securetty_ssh_key: dmzoneill-2024
@@ -420,6 +422,21 @@ securetty_services_disable:
 
 securetty_rpms_remove:
   - cursor
+
+# Project registry — fuzzy hints for resolving Jira issues to work directories
+securetty_project_registry:
+  - jira_project: AAP
+    hints:
+      - { match: "analytics.backend|automation-analytics-backend", work_dir: "automation-analytics-backend" }
+      - { match: "analytics.frontend|tower-analytics", work_dir: "tower-analytics-frontend" }
+      - { match: "awx", work_dir: "awx" }
+      - { match: "metrics.utility|metering", work_dir: "metrics-utility" }
+      - { match: "billing|subscription", work_dir: "billing" }
+      - { match: "gabi|cost.management", work_dir: "gabi-cli" }
+      - { match: "dataverse|pipeline.validation", work_dir: "dataverse-pipeline-validation" }
+      - { match: "carbonite", work_dir: "carbonite" }
+      - { match: "app.interface|qontract", work_dir: "app-interface" }
+    default_work_dir: "automation-analytics-backend"
 
 # Jira auto-triage configuration
 securetty_jira_triage:

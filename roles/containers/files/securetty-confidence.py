@@ -59,14 +59,19 @@ DURATION_PENALTY_THRESHOLD = int(
 
 
 def get_db() -> sqlite3.Connection:
-    """Open the failure database (read-only)."""
+    """Open the failure database (read-only), creating if needed."""
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     if not os.path.isfile(DB_PATH):
-        print(f"error: failure database not found at {DB_PATH}", file=sys.stderr)
-        print(
-            "Run securetty-failure-db.py --ingest to populate it first.",
-            file=sys.stderr,
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS sessions ("
+            "id INTEGER PRIMARY KEY, agent TEXT, repo TEXT, "
+            "exit_code INTEGER, duration INTEGER, timestamp TEXT, "
+            "workdir TEXT, mode TEXT)"
         )
-        sys.exit(1)
+        conn.commit()
+        conn.close()
+        print(f"Initialized empty failure database at {DB_PATH}", file=sys.stderr)
 
     conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row

@@ -656,41 +656,61 @@ def _execute_job(job_id: str):
 
         container_name = f"securetty-dispatch-{job_id}"
 
+        meta = json.loads(row["metadata"] or "{}")
+        env_vars = [f"DISPATCH_JOB_ID={job_id}"]
+        host_config = {
+            "NetworkMode": SECURETTY_NETWORK,
+            "AutoRemove": True,
+        }
+
+        repo_dir = meta.get("repo_dir", "")
+        if repo_dir:
+            env_vars.append(f"DISPATCH_WORK_DIR={repo_dir}")
+            env_vars.append(f"DISPATCH_BRANCH={meta.get('branch', '')}")
+            env_vars.append(f"DISPATCH_JIRA_KEY={meta.get('jira_key', '')}")
+
         create_body = {
             "Image": SECURETTY_IMAGE,
             "Cmd": cmd,
-            "Env": [f"DISPATCH_JOB_ID={job_id}"],
-            "HostConfig": {
-                "NetworkMode": SECURETTY_NETWORK,
-                "AutoRemove": True,
-            },
+            "Env": env_vars,
+            "WorkingDir": repo_dir or "",
+            "HostConfig": host_config,
             "Name": container_name,
         }
+        if not repo_dir:
+            del create_body["WorkingDir"]
 
-        import socket as socketmod
+        def _podman_conn():
+            """Connect to podman via Unix socket or TCP proxy."""
+            if PODMAN_SOCKET.startswith("tcp://"):
+                host_port = PODMAN_SOCKET[6:]
+                return http.client.HTTPConnection(host_port, timeout=1800)
+            else:
+                import socket as socketmod
+                s = socketmod.socket(socketmod.AF_UNIX, socketmod.SOCK_STREAM)
+                s.connect(PODMAN_SOCKET)
+                c = http.client.HTTPConnection("localhost")
+                c.sock = s
+                return c
 
-        s = socketmod.socket(socketmod.AF_UNIX, socketmod.SOCK_STREAM)
-        s.connect(PODMAN_SOCKET)
+        podman = _podman_conn()
         try:
-            sock = http.client.HTTPConnection("localhost")
-            sock.sock = s
-
             body_json = json.dumps(create_body)
-            sock.request(
+            podman.request(
                 "POST", "/v4.0.0/libpod/containers/create",
                 body=body_json, headers={"Content-Type": "application/json"},
             )
-            resp = sock.getresponse()
+            resp = podman.getresponse()
             result = json.loads(resp.read())
 
             if resp.status in (200, 201):
                 container_id = result.get("Id", "")
-                sock.request("POST", f"/v4.0.0/libpod/containers/{container_id}/start")
-                start_resp = sock.getresponse()
+                podman.request("POST", f"/v4.0.0/libpod/containers/{container_id}/start")
+                start_resp = podman.getresponse()
                 start_resp.read()
 
-                sock.request("POST", f"/v4.0.0/libpod/containers/{container_id}/wait")
-                wait_resp = sock.getresponse()
+                podman.request("POST", f"/v4.0.0/libpod/containers/{container_id}/wait")
+                wait_resp = podman.getresponse()
                 wait_result = json.loads(wait_resp.read())
                 exit_code = wait_result.get("StatusCode", -1)
 
@@ -707,7 +727,7 @@ def _execute_job(job_id: str):
                     (json.dumps(result), job_id),
                 )
         finally:
-            s.close()
+            podman.close()
 
     except Exception as e:
         print(f"Job {job_id} failed: {e}", file=sys.stderr)
