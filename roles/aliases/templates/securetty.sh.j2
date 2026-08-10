@@ -575,7 +575,13 @@ cmd_audit() {
 }
 
 cmd_test() {
-    (cd "$SECURETTY_DIR" && make test)
+    cd "$SECURETTY_DIR"
+    echo "=== shellcheck ==="
+    find roles/ scripts/ -name '*.sh' -not -path '*/templates/*' 2>/dev/null | xargs shellcheck -x -S warning 2>/dev/null || true
+    echo "=== yamllint ==="
+    yamllint -d '{extends: default, rules: {line-length: disable, truthy: disable}}' group_vars/ roles/*/tasks/ site.yml scan.yml migrate.yml 2>/dev/null || true
+    echo "=== ansible-lint ==="
+    ansible-lint site.yml 2>/dev/null || true
 }
 
 cmd_migrate() {

@@ -24,6 +24,17 @@ __pycache__/
 /scripts/ssh-agent-restricted.sh
 /scripts/securetty-egress.sh
 /scripts/resolve-egress.sh
+/scripts/ai-guardian-setup.sh
+/scripts/claude-post-commit-hook.sh
+/scripts/entrypoint.sh
+/scripts/headroom-entrypoint.sh
+/scripts/install.sh
+/scripts/open-relay-host.sh
+/scripts/securetty-governance-hook.sh
+/scripts/securetty-provenance.sh
+/scripts/securetty-risk-classifier.sh
+/scripts/verify-signatures.sh
+/scripts/securetty-statusline.sh
 /credentials.json
 /certs/
 /scripts/securetty-egress.nft

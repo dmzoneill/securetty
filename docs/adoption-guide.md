@@ -110,7 +110,7 @@ With `--with-hooks`:
 
 | File | Purpose |
 |------|---------|
-| `scripts/governance-hook.sh` | Pre-tool-use governance gate script |
+| `roles/containers/files/securetty-governance-hook.sh` | Pre-tool-use governance gate script |
 
 ### Customizing after init
 
