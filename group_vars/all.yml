@@ -117,6 +117,7 @@ securetty_providers:
   - { id: groq, name: Groq, key_var: GROQ_API_KEY, priority: 50, model: "llama-3.3-70b-versatile" }
   - { id: cerebras, name: Cerebras, key_var: CEREBRAS_API_KEY, priority: 50, model: "" }
   - { id: sambanova, name: SambaNova, key_var: SAMBANOVA_API_KEY, priority: 50, model: "" }
+  - { id: ollama, name: "Ollama (local)", key_var: "", priority: 1, model: "qwen3:8b", base_url: "http://securetty-ollama:11434" }
 
 # =============================================================================
 # AI agents installed in container

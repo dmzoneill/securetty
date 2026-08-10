@@ -258,6 +258,9 @@ services:
       - HOST=0.0.0.0
       - SERVER_PORT=3001
       - HOME=/data
+      - OMNIROUTE_BASE_URL=http://securetty-omniroute:4000
+      - HEADROOM_URL=http://securetty-headroom:8787
+      - OLLAMA_HOST=http://securetty-ollama:11434
     deploy:
       resources:
         limits:

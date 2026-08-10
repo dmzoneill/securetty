@@ -35,6 +35,43 @@
     access_time: preserve
   tags: [prereqs]
 
+- name: Ensure MCP servers registered in ~/.claude.json
+  ansible.builtin.script:
+    cmd: |
+      python3 -c "
+      import json, os, sys
+      path = os.path.expanduser('{{ securetty_home }}/.claude.json')
+      try:
+          with open(path) as f:
+              d = json.load(f)
+      except (json.JSONDecodeError, FileNotFoundError):
+          d = {}
+      if 'mcpServers' not in d:
+          d['mcpServers'] = {}
+      servers = {
+          'jira': {'type': 'http', 'url': 'https://securetty-mcp-jira:8801/mcp'},
+          'gitlab': {'type': 'http', 'url': 'https://securetty-mcp-gitlab:8802/mcp'},
+          'github': {'type': 'http', 'url': 'https://securetty-mcp-github:8803/mcp'},
+          'slack': {'type': 'http', 'url': 'https://securetty-mcp-slack:8804/mcp'},
+          'wordpress': {'type': 'http', 'url': 'https://securetty-mcp-wordpress:8805/mcp'},
+          'headroom': {'type': 'http', 'url': 'http://securetty-headroom:8788/mcp'},
+      }
+      changed = False
+      for name, cfg in servers.items():
+          if name not in d['mcpServers'] or d['mcpServers'][name].get('url') != cfg['url']:
+              d['mcpServers'][name] = cfg
+              changed = True
+      if changed:
+          with open(path, 'w') as f:
+              json.dump(d, f, indent=2)
+          print('CHANGED')
+      else:
+          print('OK')
+      "
+  register: prereqs_mcp_result
+  changed_when: "'CHANGED' in prereqs_mcp_result.stdout"
+  tags: [prereqs]
+
 - name: Validate SSH key exists
   ansible.builtin.stat:
     path: "{{ securetty_home }}/.ssh/{{ securetty_ssh_key }}"
