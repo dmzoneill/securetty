@@ -1,6 +1,0 @@
-{
-  "threshold": 5,
-  "ignore": [
-    "grafana/**"
-  ]
-}

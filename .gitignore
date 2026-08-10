@@ -39,3 +39,4 @@ __pycache__/
 /certs/
 /scripts/securetty-egress.nft
 *.tar.gz
+/.jscpd.json
