@@ -70,7 +70,10 @@
     status_code:
       - 200
       - 201
+      - 400
+  register: local_provider_result
   loop: "{{ securetty_providers | selectattr('key_var', 'eq', '') | list }}"
   when: item.name not in (omniroute_existing_providers.json.connections | default([]) | map(attribute='name') | list)
+  changed_when: local_provider_result.status in [200, 201]
   tags:
     - omniroute
