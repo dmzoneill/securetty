@@ -1,7 +1,5 @@
 ---
-# =============================================================================
 # securetty configuration
-# =============================================================================
 
 securetty_user: daoneill
 securetty_home: "/home/{{ securetty_user }}"
@@ -23,8 +21,7 @@ securetty_subnet: "172.30.100.0/24"
 securetty_gateway: "172.30.100.1"
 securetty_bridge_interface: "securetty0"
 
-# CIDR ranges for cloud providers with wildcard domains
-# Google Cloud / googleapis (Vertex AI, OAuth, storage, aiplatform)
+# Cloud provider CIDRs (Google, GitHub, AWS — for wildcard domains)
 securetty_allowed_cidrs:
   - "142.250.0.0/15"
   - "172.217.0.0/16"
@@ -48,9 +45,7 @@ securetty_allowed_cidrs:
   - "54.0.0.0/8"
   - "18.0.0.0/8"
 
-# =============================================================================
 # API keys (pass paths)
-# =============================================================================
 
 securetty_pass_keys:
   - { var: AI_API_KEY, path: "openai.com/key" }
@@ -105,9 +100,7 @@ securetty_vertex_vars:
   - GOOGLE_CLOUD_LOCATION
   - CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC
 
-# =============================================================================
 # OmniRoute providers
-# =============================================================================
 
 securetty_providers:
   - { id: openai, name: OpenAI, key_var: OPENAI_API_KEY, priority: 100, model: "gpt-4o" }
@@ -119,9 +112,7 @@ securetty_providers:
   - { id: sambanova, name: SambaNova, key_var: SAMBANOVA_API_KEY, priority: 50, model: "" }
   - { id: ollama, name: "Ollama (local)", key_var: "", priority: 1, model: "qwen3:8b", base_url: "http://securetty-ollama:11434" }
 
-# =============================================================================
 # AI agents installed in container
-# =============================================================================
 
 # Agent packages (used by install-delayed.sh.j2 template)
 securetty_npm_agents:
@@ -167,18 +158,14 @@ securetty_agents:
   - { name: kimi, skip: "", short: km, work: true }
   - { name: jcode, skip: "", short: jc, work: true }
 
-# =============================================================================
 # Ollama models
-# =============================================================================
 
 securetty_ollama_models:
   - qwen3:8b
   - qwen3:32b
   - deepseek-coder-v2:16b
 
-# =============================================================================
 # Egress allowed domains
-# =============================================================================
 
 securetty_allowed_domains:
   # AI provider APIs
@@ -251,9 +238,7 @@ securetty_allowed_domains:
   # Stripe (Kiro billing)
   - "*.stripe.com"
 
-# =============================================================================
 # Host config dirs mounted into containers
-# =============================================================================
 
 securetty_agent_config_dirs:
   - .claude
@@ -274,9 +259,7 @@ securetty_agent_config_dirs:
   - .kimi
   - .config/gcloud
 
-# =============================================================================
 # Container resource limits
-# =============================================================================
 
 securetty_resources:
   dev: { cpus: "4", memory: "8G" }
@@ -285,9 +268,7 @@ securetty_resources:
   cloudcli: { cpus: "2", memory: "1G" }
   ollama: { cpus: "4", memory: "16G" }
 
-# =============================================================================
 # System packages for dev container
-# =============================================================================
 
 securetty_dnf_packages:
   - nodejs
@@ -379,9 +360,7 @@ securetty_pip_tools:
   - ai-guardian
   - pip-audit
 
-# =============================================================================
 # Migration targets
-# =============================================================================
 
 securetty_npm_remove:
   - "@anthropic-ai/claude-code"

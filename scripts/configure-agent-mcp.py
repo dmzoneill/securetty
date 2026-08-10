@@ -16,11 +16,11 @@ from pathlib import Path
 HOME = os.path.expanduser("~")
 
 MCP_SERVERS = {
-    "jira": {"type": "http", "url": "https://securetty-mcp-jira:8801/mcp"},
-    "gitlab": {"type": "http", "url": "https://securetty-mcp-gitlab:8802/mcp"},
-    "github": {"type": "http", "url": "https://securetty-mcp-github:8803/mcp"},
-    "slack": {"type": "http", "url": "https://securetty-mcp-slack:8804/mcp"},
-    "wordpress": {"type": "http", "url": "https://securetty-mcp-wordpress:8805/mcp"},
+    "jira": {"type": "http", "url": "https://securetty-mcp-gateway:8801/mcp"},
+    "gitlab": {"type": "http", "url": "https://securetty-mcp-gateway:8802/mcp"},
+    "github": {"type": "http", "url": "https://securetty-mcp-gateway:8803/mcp"},
+    "slack": {"type": "http", "url": "https://securetty-mcp-gateway:8804/mcp"},
+    "wordpress": {"type": "http", "url": "https://securetty-mcp-gateway:8805/mcp"},
     "headroom": {"type": "http", "url": "http://securetty-headroom:8788/mcp"},
 }
 
