@@ -13,13 +13,9 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import Response
-from pydantic import BaseModel, Field
-
 from metrics import record_job_complete, render_metrics
-from workflows import (
-    WorkflowRunner,
-    load_all_workflows,
-)
+from pydantic import BaseModel, Field
+from workflows import WorkflowRunner, load_all_workflows
 
 app = FastAPI(title="securetty-dispatcher", version="1.0.0")
 
@@ -30,7 +26,9 @@ SECURETTY_IMAGE = os.environ.get("SECURETTY_IMAGE", "securetty_dev")
 SECURETTY_NETWORK = os.environ.get("SECURETTY_NETWORK", "securetty")
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", "300"))
 MAX_CONCURRENT_JOBS = int(os.environ.get("MAX_CONCURRENT_JOBS", "3"))
-WORKFLOWS_DIR = os.environ.get("WORKFLOWS_DIR", str(Path(__file__).resolve().parent.parent / "workflows"))
+WORKFLOWS_DIR = os.environ.get(
+    "WORKFLOWS_DIR", str(Path(__file__).resolve().parent.parent / "workflows")
+)
 
 _scheduler_lock = threading.Lock()
 
@@ -44,7 +42,8 @@ def get_db():
 
 def init_db():
     conn = get_db()
-    conn.execute("""
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS jobs (
             id TEXT PRIMARY KEY,
             work_item TEXT NOT NULL,
@@ -60,13 +59,15 @@ def init_db():
             error TEXT,
             metadata TEXT DEFAULT '{}'
         )
-    """)
+    """
+    )
     # Migration: add priority column to existing databases
     try:
         conn.execute("ALTER TABLE jobs ADD COLUMN priority INTEGER DEFAULT 5")
     except sqlite3.OperationalError:
         pass  # Column already exists
-    conn.execute("""
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS triggers (
             id TEXT PRIMARY KEY,
             source TEXT NOT NULL,
@@ -77,8 +78,10 @@ def init_db():
             enabled INTEGER DEFAULT 1,
             config TEXT DEFAULT '{}'
         )
-    """)
-    conn.execute("""
+    """
+    )
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS triage_history (
             id TEXT PRIMARY KEY,
             issue_key TEXT NOT NULL,
@@ -95,7 +98,8 @@ def init_db():
             outcome TEXT,
             metadata TEXT DEFAULT '{}'
         )
-    """)
+    """
+    )
     conn.commit()
     conn.close()
 
@@ -224,8 +228,12 @@ def dispatch(req: DispatchRequest):
 
     conn = get_db()
     conn.execute(
-        "INSERT INTO jobs (id, work_item, skill, agent, status, source, priority, created_at, metadata) VALUES (?,?,?,?,?,?,?,?,?)",
-        (job_id, req.work_item, skill, req.agent, "pending", req.source, req.priority, now, json.dumps(req.metadata)),
+        "INSERT INTO jobs (id, work_item, skill, agent, status, source,"
+        " priority, created_at, metadata) VALUES (?,?,?,?,?,?,?,?,?)",
+        (
+            job_id, req.work_item, skill, req.agent, "pending",
+            req.source, req.priority, now, json.dumps(req.metadata),
+        ),
     )
     conn.commit()
     conn.close()
@@ -668,7 +676,10 @@ def _execute_job(job_id: str):
             sock.sock = s
 
             body_json = json.dumps(create_body)
-            sock.request("POST", "/v4.0.0/libpod/containers/create", body=body_json, headers={"Content-Type": "application/json"})
+            sock.request(
+                "POST", "/v4.0.0/libpod/containers/create",
+                body=body_json, headers={"Content-Type": "application/json"},
+            )
             resp = sock.getresponse()
             result = json.loads(resp.read())
 
@@ -792,7 +803,11 @@ def _poll_gitlab(repo: str, event_type: str, config: dict) -> list:
         return []
     try:
         events = json.loads(result.stdout)
-        return [f"gitlab:{e.get('action_name', 'unknown')}:{repo}" for e in events if e.get("action_name") == event_type]
+        return [
+            f"gitlab:{e.get('action_name', 'unknown')}:{repo}"
+            for e in events
+            if e.get("action_name") == event_type
+        ]
     except (json.JSONDecodeError, TypeError):
         return []
 

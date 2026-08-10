@@ -53,7 +53,7 @@ Makefile targets (`make setup`, `make rebuild`, etc.) are thin wrappers around t
 - [docs/security-levels.md](docs/security-levels.md) — what's enforced vs not
 - [docs/security-tiers.md](docs/security-tiers.md) — graduated 3-tier isolation model
 - [docs/trust-model.md](docs/trust-model.md) — trusted/untrusted inputs
-- [docs/repo-access.md](docs/repo-access.md) — platform/CLI/auth per repo
+- [docs/repo-access.md](docs/repo-access.md) — platform/CLI/auth per repository
 - [docs/escalation-gates.md](docs/escalation-gates.md) — confidence gates and risk classification
 - [docs/confidence-scoring.md](docs/confidence-scoring.md) — learned escalation model
 - [docs/observability.md](docs/observability.md) — Prometheus metrics and OTEL tracing

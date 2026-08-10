@@ -11,7 +11,7 @@ The system has two components:
 
 ### Processing flow
 
-```
+```text
 Jira issue assigned to operator
         |
         v
@@ -34,7 +34,7 @@ Jira issue assigned to operator
 
 Labels on the Jira issue track where the issue is in the triage pipeline. The poller only picks up issues that have none of these labels, so each issue is processed exactly once.
 
-```
+```text
                     +------------------+
                     |   (no agent:*    |
                     |    label)        |
@@ -145,7 +145,7 @@ securetty jira-triage start
 
 The poller's JQL query explicitly excludes issues that carry any `agent:*` label:
 
-```
+```text
 project IN (AAP) AND assignee = currentUser()
   AND labels NOT IN (agent:triaged, agent:in-progress, agent:completed,
                      agent:skipped, agent:blocked, agent:needs-info)
@@ -211,7 +211,7 @@ The issue is not something the agent should work on. The triage agent adds `agen
 
 The triage agent integrates with the existing securetty dispatch chain:
 
-```
+```text
 jira-poller
     |
     v
@@ -310,7 +310,7 @@ The review manager polls GitLab MRs and GitHub PRs associated with in-review iss
 
 The full feedback cycle operates as follows:
 
-```
+```text
 agent:in-progress (agent working)
         |
         v
@@ -346,7 +346,7 @@ If an MR/PR has been in `agent:in-review` for longer than the configured thresho
 
 With review management, the full label state machine becomes:
 
-```
+```text
                     +------------------+
                     |   (no agent:*    |
                     |    label)        |
@@ -411,7 +411,7 @@ securetty review-manager stop
 
 The review manager writes its PID to `~/.securetty/review-manager.pid` and logs to `~/.securetty/review-manager.log`.
 
-### Configuration
+### Review Configuration
 
 The following settings in `group_vars/all.yml` control review management behavior:
 

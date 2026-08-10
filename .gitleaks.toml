@@ -1,0 +1,2 @@
+[allowlist]
+paths = ["group_vars/all.yml"]
