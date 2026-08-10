@@ -297,7 +297,14 @@
 
 - name: Check if service images need rebuilding
   ansible.builtin.shell: |
-    {{ securetty_podman_cmd }} image exists securetty_dev 2>/dev/null && echo "exists" || echo "missing"
+    missing=0
+    for img in securetty_dev securetty_base; do
+      {{ securetty_podman_cmd }} image exists "$img" 2>/dev/null || missing=1
+    done
+    # Check compose services have containers (detects new services like mcp-gateway)
+    cd {{ securetty_dir }}
+    {{ securetty_compose_cmd }} ps -q 2>/dev/null | wc -l | grep -q '^0$' && missing=1
+    [ "$missing" -eq 0 ] && echo "exists" || echo "missing"
   register: images_exist
   changed_when: false
   tags:
