@@ -4,58 +4,54 @@
 
 show_banner() {
     local manifest="/etc/securetty-manifest.json"
-    [ -f "$manifest" ] || return 0
+    local splash_script
+    splash_script="$(dirname "$0")/securetty-splash.sh"
+    [ -f "$splash_script" ] || splash_script="/usr/local/bin/securetty-splash.sh"
+    [ -f "$splash_script" ] || return 0
+    source "$splash_script"
 
-    local build_date quarantine_days agent_count now_epoch build_epoch age_seconds age_days
+    [ -f "$manifest" ] || { show_splash > /dev/tty; return 0; }
+
+    local build_date quarantine_days agent_count now_epoch build_epoch age_days
     build_date=$(jq -r '.build_date' "$manifest" 2>/dev/null || echo "")
-    [ -z "$build_date" ] && return 0
+    [ -z "$build_date" ] && { show_splash > /dev/tty; return 0; }
 
     quarantine_days=$(jq -r '.quarantine_days' "$manifest" 2>/dev/null || echo "7")
     agent_count=$(jq '.agents | length' "$manifest" 2>/dev/null || echo "0")
-
     now_epoch=$(date -u +%s)
     build_epoch=$(date -u -d "$build_date" +%s 2>/dev/null || echo "$now_epoch")
-    age_seconds=$((now_epoch - build_epoch))
-    age_days=$((age_seconds / 86400))
+    age_days=$(( (now_epoch - build_epoch) / 86400 ))
 
-    # Find oldest and newest agent by published date
-    local oldest newest
-    oldest=$(jq -r '
-        .agents
-        | map(select(.published != "unknown" and .published != "none" and (.published | startswith("skipped") | not)))
-        | sort_by(.published)
-        | .[0]
-        | "\(.name) \(.version)"
-    ' "$manifest" 2>/dev/null || echo "")
-    newest=$(jq -r '
-        .agents
-        | map(select(.published != "unknown" and .published != "none" and (.published | startswith("skipped") | not)))
-        | sort_by(.published)
-        | reverse
-        | .[0]
-        | "\(.name) \(.version)"
-    ' "$manifest" 2>/dev/null || echo "")
+    local agent_name="${1:-unknown}"
+    local agent_version
+    agent_version=$(jq -r --arg name "$agent_name" '
+        .agents[] | select(.name | ascii_downcase | contains($name | ascii_downcase)) | .version
+    ' "$manifest" 2>/dev/null | head -1)
+    [ -z "$agent_version" ] && agent_version="installed"
 
-    # Banner
-    local stale_warn=""
-    if [ "$age_days" -ge 14 ]; then
-        stale_warn=" | \033[1;31mSTALE (${age_days}d) -- rebuild recommended\033[0m"
-    fi
+    local mode="personal (OmniRoute)"
+    [ "${CLAUDE_CODE_USE_VERTEX:-}" = "1" ] && mode="work (Vertex AI)"
+    [ "${SECURETTY_MODE:-}" = "read" ] && mode="${mode} [read-only]"
 
-    local C="\033[0;36m"
-    local G="\033[0;32m"
-    local D="\033[2m"
-    local R="\033[0m"
+    local image_status="healthy"
+    [ "$age_days" -ge 14 ] && image_status="STALE — rebuild recommended"
 
-    echo -e "" > /dev/tty
-    echo -e "${C}  ___  ___  ___ _   _ _ __ ___| |_| |_ _   _ ${R}" > /dev/tty
-    echo -e "${C} / __|/ _ \\/ __| | | | '__/ _ \\ __| __| | | |${R}" > /dev/tty
-    echo -e "${C} \\__ \\  __/ (__| |_| | | |  __/ |_| |_| |_| |${R}" > /dev/tty
-    echo -e "${C} |___/\\___|\\___|\\___|_|  \\___|\\__|\\__|\\__, |${R}" > /dev/tty
-    echo -e "${C}                                      |___/ ${R}" > /dev/tty
-    echo -e "${D} built ${age_days}d ago | ${agent_count} agents | quarantine: ${quarantine_days}d${stale_warn}${R}" > /dev/tty
-    [ -n "$oldest" ] && echo -e "${D} oldest: ${oldest} | newest: ${newest}${R}" > /dev/tty
-    echo -e "" > /dev/tty
+    local svc_up=0 svc_total=3
+    timeout 1 bash -c "echo >/dev/tcp/securetty-omniroute/4000" 2>/dev/null && svc_up=$((svc_up + 1))
+    timeout 1 bash -c "echo >/dev/tcp/securetty-headroom/8787" 2>/dev/null && svc_up=$((svc_up + 1))
+    timeout 1 bash -c "echo >/dev/tcp/securetty-ollama/11434" 2>/dev/null && svc_up=$((svc_up + 1))
+
+    show_splash \
+        "Agent|${agent_name} ${agent_version}" \
+        "Mode|${mode}" \
+        "Image|built ${age_days}d ago (${image_status})" \
+        "Agents|${agent_count} installed, quarantine ${quarantine_days}d" \
+        "---|" \
+        "Services|${svc_up}/${svc_total} reachable" \
+        "Caps|ALL dropped" \
+        "Rootfs|read-only" \
+        "PID limit|4096" \
+        > /dev/tty
 }
 
 # Sync /usr/local volume from image on version mismatch

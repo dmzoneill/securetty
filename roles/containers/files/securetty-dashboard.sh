@@ -392,16 +392,17 @@ _hr() {
 _header() {
     local ts
     ts=$(date -u +%FT%TZ)
-    echo -e "${BOLD}${CYAN}"
-    echo -e "  ______                            _______ _______ _     _"
-    echo -e " / _____)                          (_______|_______) |   | |"
-    echo -e "( (____  _____  ____ _   _  ____ _____ _       _   | |___| |"
-    echo -e " \\____ \\| ___ |/ ___) | | |/ ___) ___ | |     | |  |_____  |"
-    echo -e " _____) ) ____( (___| |_| | |   | ____| |     | |   _____| |"
-    echo -e "(______/|_____)\\____)____/|_|   |_____)_|     |_|  (_______|"
-    echo -e "${RESET}"
-    echo -e "  ${WHITE}Observability Dashboard${RESET}                       ${DIM}${ts}${RESET}"
-    echo ""
+    local _splash_script
+    _splash_script="$(dirname "$0")/../../scripts/securetty-splash.sh"
+    [ -f "$_splash_script" ] || _splash_script="$(cd "$(dirname "$0")" && pwd)/../../scripts/securetty-splash.sh"
+    if [ -f "$_splash_script" ]; then
+        source "$_splash_script"
+        show_splash "--tagline|Observability Dashboard  ${ts}"
+    else
+        echo -e "${BOLD}${CYAN}"
+        echo -e "  securetty — Observability Dashboard"
+        echo -e "${RESET}"
+    fi
 }
 
 render_containers() {

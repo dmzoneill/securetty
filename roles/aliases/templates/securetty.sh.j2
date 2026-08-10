@@ -789,7 +789,9 @@ cmd_preflight() {
 }
 
 cmd_status() {
-    local C='\033[0;36m' G='\033[0;32m' Y='\033[0;33m' R='\033[0;31m' W='\033[1;37m' N='\033[0m'
+    local G='\033[0;32m' Y='\033[0;33m' R='\033[0;31m' W='\033[1;37m' N='\033[0m'
+
+    source "$SECURETTY_DIR/scripts/securetty-splash.sh"
 
     # Gather data
     local running healthy total_containers
@@ -797,55 +799,47 @@ cmd_status() {
     healthy=$({{ securetty_podman_cmd }} ps --format '{% raw %}{{.Status}}{% endraw %}' --filter name=securetty 2>/dev/null | grep -c healthy || echo 0)
     total_containers=$({{ securetty_podman_cmd }} ps -a --format '{% raw %}{{.Names}}{% endraw %}' 2>/dev/null | grep -c securetty || echo 0)
 
-    local subnet iface
+    local subnet
     subnet=$({{ securetty_podman_cmd }} network inspect {{ securetty_network_name }} --format '{% raw %}{{range .Subnets}}{{.Subnet}}{{end}}{% endraw %}' 2>/dev/null || echo "none")
-    iface=$({{ securetty_podman_cmd }} network inspect {{ securetty_network_name }} --format '{% raw %}{{.NetworkInterface}}{% endraw %}' 2>/dev/null || echo "none")
 
     local egress_ips
     egress_ips=$({{ securetty_podman_cmd }} unshare nsenter --net="/run/user/$(id -u)/containers/networks/rootless-netns/rootless-netns" \
         nft list set inet securetty_egress allowed_ipv4 2>/dev/null | grep -c ',' || echo "0")
 
-    local dns_status="${G}patched (169.254.1.1)${N}"
-    grep -q '8.8.8.8' "/run/user/$(id -u)/containers/networks/aardvark-dns/{{ securetty_network_name }}" 2>/dev/null && dns_status="${R}UNPATCHED (8.8.8.8)${N}"
+    local dns_status="patched (169.254.1.1)"
+    grep -q '8.8.8.8' "/run/user/$(id -u)/containers/networks/aardvark-dns/{{ securetty_network_name }}" 2>/dev/null && dns_status="UNPATCHED (8.8.8.8)"
 
-    local gd_status osv_status gd_alerts osv_alerts
+    local gd_status osv_status
     gd_status=$({{ securetty_podman_cmd }} inspect securetty-guarddog --format '{% raw %}{{.State.Status}}{% endraw %}' 2>/dev/null || echo "off")
     osv_status=$({{ securetty_podman_cmd }} inspect securetty-osv-scanner --format '{% raw %}{{.State.Status}}{% endraw %}' 2>/dev/null || echo "off")
-    gd_alerts=$({{ securetty_podman_cmd }} exec securetty-guarddog wc -l /results/alerts.log 2>/dev/null | awk '{print $1}' || echo "0")
-    osv_alerts=$({{ securetty_podman_cmd }} exec securetty-osv-scanner wc -l /results/alerts.log 2>/dev/null | awk '{print $1}' || echo "0")
 
-    local vol_count img_count total_img_size
+    local vol_count img_count
     vol_count=$({{ securetty_podman_cmd }} volume ls --format '{% raw %}{{.Name}}{% endraw %}' 2>/dev/null | grep -c securetty || echo 0)
     img_count=$({{ securetty_podman_cmd }} images --format '{% raw %}{{.Repository}}{% endraw %}' 2>/dev/null | grep -c securetty || echo 0)
-    total_img_size=$({{ securetty_podman_cmd }} images --format '{% raw %}{{.Size}}{% endraw %}' 2>/dev/null | grep -v SIZE | paste -sd+ | bc 2>/dev/null || echo "?")
 
     local agent_count={{ securetty_agents | length }}
     local build_date
-    build_date=$({{ securetty_podman_cmd }} run --rm securetty_dev cat /etc/securetty-manifest.json 2>/dev/null | jq -r '.build_date // "unknown"' 2>/dev/null || echo "unknown")
+    build_date=$({{ securetty_podman_cmd }} image inspect securetty_dev --format '{% raw %}{{.Created}}{% endraw %}' 2>/dev/null | cut -dT -f1 || echo "unknown")
 
-    # Display
-    echo ""
-    echo -e "  ${C}  ______                            _______ _______ _     _${N}"
-    echo -e "  ${C} / _____)                          (_______|_______) |   | |${N}    ${W}securetty${N}"
-    echo -e "  ${C}( (____  _____  ____ _   _  ____ _____ _       _   | |___| |${N}    --------------------------------"
-    echo -e "  ${C} \\____ \\| ___ |/ ___) | | |/ ___) ___ | |     | |  |_____  |${N}    ${C}Containers${N}  ${running} running, ${healthy} healthy, ${total_containers} total"
-    echo -e "  ${C} _____) ) ____( (___| |_| | |   | ____| |     | |   _____| |${N}    ${C}Agents${N}  ${agent_count} configured"
-    echo -e "  ${C}(______/|_____)\\____)____/|_|   |_____)_|     |_|  (_______|${N}    ${C}Built${N}  ${build_date}"
-    echo -e "                                                                   ${C}Images${N}  ${img_count} images"
-    echo -e "                                                                   --------------------------------"
+    local _gd_icon="✓" _osv_icon="✓"
+    [ "$gd_status" != "running" ] && _gd_icon="✗"
+    [ "$osv_status" != "running" ] && _osv_icon="✗"
 
-    # Container list
-    echo -e "                                                                   ${C}Network${N}  ${subnet} (${iface})"
-    echo -e "                                                                   ${C}Egress${N}  nftables ${egress_ips} IPs whitelisted"
-    echo -e "                                                                   ${C}DNS${N}  ${dns_status}"
-    echo -e "                                                                   --------------------------------"
-    echo -e "                                                                   ${C}GuardDog${N}  ${gd_status} (${gd_alerts:-0} alerts)"
-    echo -e "                                                                   ${C}OSV-Scanner${N}  ${osv_status} (${osv_alerts:-0} alerts)"
-    echo -e "                                                                   ${C}Volumes${N}  ${vol_count} named volumes"
-    echo -e "                                                                   --------------------------------"
+    show_splash \
+        "Containers|${running} running, ${healthy} healthy, ${total_containers} total" \
+        "Agents|${agent_count} configured" \
+        "Built|${build_date}" \
+        "Images|${img_count}" \
+        "---|" \
+        "Network|${subnet}" \
+        "Egress|${egress_ips} IPs whitelisted" \
+        "DNS|${dns_status}" \
+        "---|" \
+        "GuardDog|${gd_status} ${_gd_icon}" \
+        "OSV|${osv_status} ${_osv_icon}" \
+        "Volumes|${vol_count} named"
 
     # Services table
-    echo ""
     echo -e "  ${W}Services${N}"
     {{ securetty_podman_cmd }} ps -a --format "{% raw %}{{.Names}}\t{{.Status}}{% endraw %}" 2>/dev/null | grep securetty | while IFS=$'\t' read -r name status; do
         local icon="${G}●${N}"
@@ -1845,16 +1839,9 @@ cmd_plugin() {
 }
 
 cmd_help() {
+    source "$SECURETTY_DIR/scripts/securetty-splash.sh"
+    show_splash
     cat <<'HELP'
-  ______                            _______ _______ _     _
- / _____)                          (_______|_______) |   | |
-( (____  _____  ____ _   _  ____ _____ _       _   | |___| |
- \____ \| ___ |/ ___) | | |/ ___) ___ | |     | |  |_____  |
- _____) ) ____( (___| |_| | |   | ____| |     | |   _____| |
-(______/|_____)\____)____/|_|   |_____)_|     |_|  (_______|
-
-  Sandboxed AI development environment
-
 Usage: securetty <command> [options]
 
 Agent commands:
