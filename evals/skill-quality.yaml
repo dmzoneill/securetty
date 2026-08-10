@@ -139,7 +139,7 @@ tests:
       - type: llm-rubric
         value: >
           The response should identify references to THREAT_MODEL.md,
-          security-levels.md, trust-model.md, and repo-access.md. Award
+          security-tiers.md, trust-model.md, and repo-access.md. Award
           full marks if at least 3 design documents are referenced with
           file paths.
       - type: contains
