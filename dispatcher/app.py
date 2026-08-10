@@ -299,6 +299,55 @@ def retry_job(job_id: str):
     return {"job_id": job_id, "status": "pending"}
 
 
+class ProgressUpdate(BaseModel):
+    stage: str
+    progress: int | None = None
+    message: str | None = None
+
+
+@app.post("/jobs/{job_id}/progress")
+def update_progress(job_id: str, update: ProgressUpdate):
+    """Accept progress updates from running agents."""
+    conn = get_db()
+    row = conn.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Job not found")
+    meta = json.loads(row["metadata"] or "{}")
+    if "progress_history" not in meta:
+        meta["progress_history"] = []
+    meta["progress_history"].append({
+        "stage": update.stage,
+        "progress": update.progress,
+        "message": update.message,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
+    meta["current_stage"] = update.stage
+    meta["current_progress"] = update.progress
+    conn.execute("UPDATE jobs SET metadata=? WHERE id=?", (json.dumps(meta), job_id))
+    conn.commit()
+    conn.close()
+    return {"job_id": job_id, "stage": update.stage, "progress": update.progress}
+
+
+@app.get("/jobs/{job_id}/progress")
+def get_progress(job_id: str):
+    """Get progress history for a job."""
+    conn = get_db()
+    row = conn.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Job not found")
+    meta = json.loads(row["metadata"] or "{}")
+    return {
+        "job_id": job_id,
+        "status": row["status"],
+        "current_stage": meta.get("current_stage"),
+        "current_progress": meta.get("current_progress"),
+        "history": meta.get("progress_history", []),
+    }
+
+
 @app.post("/webhook/github")
 async def webhook_github(request: Request):
     body = await request.json()
@@ -657,7 +706,10 @@ def _execute_job(job_id: str):
         container_name = f"securetty-dispatch-{job_id}"
 
         meta = json.loads(row["metadata"] or "{}")
-        env_vars = [f"DISPATCH_JOB_ID={job_id}"]
+        env_vars = [
+            f"DISPATCH_JOB_ID={job_id}",
+            f"DISPATCH_CALLBACK_URL=http://securetty-dispatcher:8900/jobs/{job_id}/progress",
+        ]
         host_config = {
             "NetworkMode": SECURETTY_NETWORK,
             "AutoRemove": True,

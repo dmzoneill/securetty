@@ -690,61 +690,93 @@ cmd_clean() {
 cmd_cost() {
     command -v jq &>/dev/null || { echo "jq required for cost reports. Install: dnf install jq"; return 1; }
     local cost_dir="{{ securetty_home }}/.securetty/cost"
+    local stats_cache="{{ securetty_home }}/.claude/stats-cache.json"
     local period="${1:-today}"
 
-    if [ ! -d "$cost_dir" ]; then
-        echo "No cost data yet. Run an agent session first."
-        return 0
-    fi
+    _cost_summary() {
+        local files=("$@")
+        local total_sessions=0 total_duration=0
+        local _tmpfile
+        _tmpfile=$(mktemp)
+        for file in "${files[@]}"; do
+            [ -f "$file" ] || continue
+            cat "$file" >> "$_tmpfile"
+            local c
+            c=$(wc -l < "$file")
+            total_sessions=$((total_sessions + c))
+        done
+
+        echo "Sessions: $total_sessions"
+
+        if [ "$total_sessions" -gt 0 ]; then
+            total_duration=$(jq -s '[.[].duration // 0] | add' "$_tmpfile" 2>/dev/null || echo 0)
+            local hours=$((total_duration / 3600))
+            local mins=$(( (total_duration % 3600) / 60 ))
+            echo "Total duration: ${hours}h ${mins}m"
+            echo ""
+            echo "By agent:"
+            jq -r '.agent' "$_tmpfile" 2>/dev/null | sort | uniq -c | sort -rn
+            echo ""
+            echo "By mode:"
+            jq -r '.mode' "$_tmpfile" 2>/dev/null | sort | uniq -c | sort -rn
+            echo ""
+            echo "Duration by agent:"
+            jq -r '[.agent, (.duration // 0 | tostring)] | join("\t")' "$_tmpfile" 2>/dev/null | \
+                awk -F'\t' '{dur[$1]+=$2} END {for (a in dur) printf "  %-20s %dh %dm\n", a, dur[a]/3600, (dur[a]%3600)/60}' | sort -k2 -rn
+        fi
+
+        rm -f "$_tmpfile"
+    }
+
+    _claude_stats() {
+        [ -f "$stats_cache" ] || return
+        echo ""
+        echo "=== Claude Code Activity ==="
+        local _dates="$1"
+        jq -r --arg dates "$_dates" '
+            .dailyActivity[]
+            | select(.date as $d | $dates | split(",") | index($d))
+            | "\(.date)\t\(.messageCount) msgs, \(.sessionCount) sessions, \(.toolCallCount) tool calls"
+        ' "$stats_cache" 2>/dev/null | while IFS=$'\t' read -r d info; do
+            printf "  %s: %s\n" "$d" "$info"
+        done
+    }
 
     case "$period" in
         today)
+            echo "=== Today ($(date +%Y-%m-%d)) ==="
             local file="$cost_dir/$(date +%Y-%m-%d).jsonl"
             if [ -f "$file" ]; then
-                local count
-                count=$(wc -l < "$file")
-                echo "=== Today ($(date +%Y-%m-%d)) ==="
-                echo "Sessions: $count"
-                echo ""
-                echo "By agent:"
-                jq -r '.agent' "$file" 2>/dev/null | sort | uniq -c | sort -rn
-                echo ""
-                echo "By mode:"
-                jq -r '.mode' "$file" 2>/dev/null | sort | uniq -c | sort -rn
+                _cost_summary "$file"
             else
                 echo "No sessions today."
             fi
+            _claude_stats "$(date +%Y-%m-%d)"
             ;;
         week)
             echo "=== Last 7 days ==="
-            local total=0
+            local _files=() _dates=""
             for i in $(seq 0 6); do
                 local d
                 d=$(date -d "$i days ago" +%Y-%m-%d)
-                local file="$cost_dir/${d}.jsonl"
-                if [ -f "$file" ]; then
-                    local c
-                    c=$(wc -l < "$file")
-                    total=$((total + c))
-                    printf "  %s: %d sessions\n" "$d" "$c"
-                fi
+                _files+=("$cost_dir/${d}.jsonl")
+                [ -n "$_dates" ] && _dates="${_dates},"
+                _dates="${_dates}${d}"
             done
-            echo ""
-            echo "Total: $total sessions"
+            _cost_summary "${_files[@]}"
+            _claude_stats "$_dates"
             ;;
         all)
             echo "=== All time ==="
-            local total=0
+            local _files=()
             for file in "$cost_dir"/*.jsonl; do
-                [ -f "$file" ] || continue
-                local d c
-                d=$(basename "$file" .jsonl)
-                c=$(wc -l < "$file")
-                total=$((total + c))
-                printf "  %s: %d sessions\n" "$d" "$c"
+                [ -f "$file" ] && _files+=("$file")
             done
-            echo ""
-            echo "Total: $total sessions"
+            if [ ${#_files[@]} -gt 0 ]; then
+                _cost_summary "${_files[@]}"
+            else
+                echo "No cost data yet."
+            fi
             ;;
         *)
             echo "Usage: securetty cost [today|week|all]"

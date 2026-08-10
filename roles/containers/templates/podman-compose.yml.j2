@@ -244,6 +244,12 @@ services:
     read_only: true
     volumes:
       - cloudcli_data:/data
+      - {{ securetty_home }}/.claude:{{ securetty_home }}/.claude
+      - {{ securetty_home }}/.claude.json:{{ securetty_home }}/.claude.json
+      - {{ securetty_home }}/src:{{ securetty_home }}/src
+      - {{ securetty_home }}/.gitconfig:{{ securetty_home }}/.gitconfig:ro
+      - {{ securetty_home }}/.ssh/config:{{ securetty_home }}/.ssh/config:ro
+      - {{ securetty_home }}/.ssh/known_hosts:{{ securetty_home }}/.ssh/known_hosts:ro
       - type: tmpfs
         target: /tmp
         tmpfs:
@@ -257,7 +263,7 @@ services:
     environment:
       - HOST=0.0.0.0
       - SERVER_PORT=3001
-      - HOME=/data
+      - HOME={{ securetty_home }}
       - OMNIROUTE_BASE_URL=http://securetty-omniroute:4000
       - HEADROOM_URL=http://securetty-headroom:8787
       - OLLAMA_HOST=http://securetty-ollama:11434
