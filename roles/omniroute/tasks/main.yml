@@ -1,7 +1,7 @@
 ---
 - name: Wait for omniroute to be healthy
   ansible.builtin.uri:
-    url: http://localhost:4000/
+    url: http://localhost:4000/api/auth/status
     method: GET
     status_code: 200
   register: omniroute_health
