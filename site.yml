@@ -4,11 +4,11 @@
   gather_facts: true
 
   roles:
-    - { role: prereqs, tags: [prereqs, ssh, setup] }
-    - { role: env, tags: [env, setup] }
-    - { role: certs, tags: [certs, setup] }
-    - { role: containers, tags: [containers, build, up, setup] }
-    - { role: egress, tags: [egress, up, setup] }
-    - { role: omniroute, tags: [omniroute, setup] }
-    - { role: ollama, tags: [ollama, setup] }
-    - { role: aliases, tags: [aliases, setup] }
+    - {role: prereqs, tags: [prereqs, ssh, setup]}
+    - {role: env, tags: [env, setup]}
+    - {role: certs, tags: [certs, setup]}
+    - {role: containers, tags: [containers, build, up, setup]}
+    - {role: egress, tags: [egress, up, setup]}
+    - {role: omniroute, tags: [omniroute, setup]}
+    - {role: ollama, tags: [ollama, setup]}
+    - {role: aliases, tags: [aliases, setup]}

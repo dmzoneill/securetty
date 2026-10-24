@@ -8,7 +8,7 @@ securetty_mcp_skills_dir: "{{ securetty_home }}/src/usr/agent-mcp-skills"
 securetty_work_dir: "{{ securetty_home }}/src/work"
 securetty_fedora_version: 45
 securetty_quarantine_days: 7
-securetty_ssh_key: dmzoneill-2024
+securetty_ssh_key: dmzoneill-2024  # gitleaks:allow
 securetty_ssh_keys:
   - dmzoneill-2024
   - id_ecdsa
@@ -48,34 +48,34 @@ securetty_allowed_cidrs:
 # API keys (pass paths)
 
 securetty_pass_keys:
-  - { var: AI_API_KEY, path: "openai.com/key" }
-  - { var: GEMINI_API_KEY, path: "google.com/ai-studio" }
-  - { var: MISTRAL_API_KEY, path: "mistral.ai/key" }
-  - { var: OPENROUTER_API_KEY, path: "openrouter.ai/key" }
-  - { var: GROQ_API_KEY, path: "groq.com/key" }
-  - { var: CEREBRAS_API_KEY, path: "cerebras.ai/key" }
-  - { var: SAMBANOVA_API_KEY, path: "sambanova.ai/key" }
-  - { var: GITHUB_TOKEN, path: "github.com/profile-readme" }
-  - { var: OMNIROUTE_API_KEY, path: "omniroute.ai/key" }
-  - { var: OMNIROUTE_INITIAL_PASSWORD, path: "omniroute.ai/dashboard-password" }
-  - { var: CLOUDFLARE_AI_TOKEN, path: "cloudflare.com/key-claude" }
-  - { var: GITLAB_TOKEN, path: "redhat.com/gitlab-notifier" }
-  - { var: JIRA_JPAT, path: "redhat.com/jira-ticket-closer" }
-  - { var: JIRA_URL, path: "bashrc.d/jira-url" }
-  - { var: JIRA_PROJECT_KEY, path: "bashrc.d/jira-project-key" }
-  - { var: JIRA_BOARD_ID, path: "bashrc.d/jira-board-id" }
-  - { var: JIRA_EMAIL, path: "bashrc.d/jira-email" }
-  - { var: JIRA_COMPONENT_NAME, path: "bashrc.d/jira-component" }
-  - { var: SLACK_HOST, path: "bashrc.d/slack-host" }
-  - { var: WORDPRESS_URL, path: "bashrc.d/wordpress-url" }
-  - { var: WORDPRESS_USERNAME, path: "bashrc.d/wordpress-username" }
-  - { var: WORDPRESS_PASSWORD, path: "feeditout.com/dave" }
-  - { var: WORDPRESS_APPLICATION, path: "feeditout.com/wp-application" }
+  - {var: AI_API_KEY, path: "openai.com/key"}
+  - {var: GEMINI_API_KEY, path: "google.com/ai-studio"}
+  - {var: MISTRAL_API_KEY, path: "mistral.ai/key"}
+  - {var: OPENROUTER_API_KEY, path: "openrouter.ai/key"}
+  - {var: GROQ_API_KEY, path: "groq.com/key"}
+  - {var: CEREBRAS_API_KEY, path: "cerebras.ai/key"}
+  - {var: SAMBANOVA_API_KEY, path: "sambanova.ai/key"}
+  - {var: GITHUB_TOKEN, path: "github.com/profile-readme"}
+  - {var: OMNIROUTE_API_KEY, path: "omniroute.ai/key"}
+  - {var: OMNIROUTE_INITIAL_PASSWORD, path: "omniroute.ai/dashboard-password"}
+  - {var: CLOUDFLARE_AI_TOKEN, path: "cloudflare.com/key-claude"}
+  - {var: GITLAB_TOKEN, path: "redhat.com/gitlab-notifier"}
+  - {var: JIRA_JPAT, path: "redhat.com/jira-ticket-closer"}
+  - {var: JIRA_URL, path: "bashrc.d/jira-url"}
+  - {var: JIRA_PROJECT_KEY, path: "bashrc.d/jira-project-key"}
+  - {var: JIRA_BOARD_ID, path: "bashrc.d/jira-board-id"}
+  - {var: JIRA_EMAIL, path: "bashrc.d/jira-email"}
+  - {var: JIRA_COMPONENT_NAME, path: "bashrc.d/jira-component"}
+  - {var: SLACK_HOST, path: "bashrc.d/slack-host"}
+  - {var: WORDPRESS_URL, path: "bashrc.d/wordpress-url"}
+  - {var: WORDPRESS_USERNAME, path: "bashrc.d/wordpress-username"}
+  - {var: WORDPRESS_PASSWORD, path: "feeditout.com/dave"}
+  - {var: WORDPRESS_APPLICATION, path: "feeditout.com/wp-application"}
 
 securetty_key_aliases:
-  - { var: OPENAI_API_KEY, source: AI_API_KEY }
-  - { var: GITLAB_API_TOKEN, source: GITLAB_TOKEN }
-  - { var: JIRA_AI_API_KEY, source: AI_API_KEY }
+  - {var: OPENAI_API_KEY, source: AI_API_KEY}
+  - {var: GITLAB_API_TOKEN, source: GITLAB_TOKEN}
+  - {var: JIRA_AI_API_KEY, source: AI_API_KEY}
 
 # Static env vars (not secrets — hardcoded config values)
 securetty_static_env:
@@ -103,14 +103,14 @@ securetty_vertex_vars:
 # OmniRoute providers
 
 securetty_providers:
-  - { id: openai, name: OpenAI, key_var: OPENAI_API_KEY, priority: 100, model: "gpt-4o" }
-  - { id: gemini, name: "Google AI Studio", key_var: GEMINI_API_KEY, priority: 100, model: "gemini-2.5-flash" }
-  - { id: mistral, name: Mistral, key_var: MISTRAL_API_KEY, priority: 100, model: "mistral-large-latest" }
-  - { id: openrouter, name: OpenRouter, key_var: OPENROUTER_API_KEY, priority: 50, model: "" }
-  - { id: groq, name: Groq, key_var: GROQ_API_KEY, priority: 50, model: "llama-3.3-70b-versatile" }
-  - { id: cerebras, name: Cerebras, key_var: CEREBRAS_API_KEY, priority: 50, model: "" }
-  - { id: sambanova, name: SambaNova, key_var: SAMBANOVA_API_KEY, priority: 50, model: "" }
-  - { id: ollama, name: "Ollama (local)", key_var: "", priority: 1, model: "qwen3:8b", base_url: "http://securetty-ollama:11434" }
+  - {id: openai, name: OpenAI, key_var: OPENAI_API_KEY, priority: 100, model: "gpt-4o"}
+  - {id: gemini, name: "Google AI Studio", key_var: GEMINI_API_KEY, priority: 100, model: "gemini-2.5-flash"}
+  - {id: mistral, name: Mistral, key_var: MISTRAL_API_KEY, priority: 100, model: "mistral-large-latest"}
+  - {id: openrouter, name: OpenRouter, key_var: OPENROUTER_API_KEY, priority: 50, model: ""}
+  - {id: groq, name: Groq, key_var: GROQ_API_KEY, priority: 50, model: "llama-3.3-70b-versatile"}
+  - {id: cerebras, name: Cerebras, key_var: CEREBRAS_API_KEY, priority: 50, model: ""}
+  - {id: sambanova, name: SambaNova, key_var: SAMBANOVA_API_KEY, priority: 50, model: ""}
+  - {id: ollama, name: "Ollama (local)", key_var: "", priority: 1, model: "qwen3:8b", base_url: "http://securetty-ollama:11434"}
 
 # AI agents installed in container
 
@@ -131,32 +131,32 @@ securetty_pip_agents:
   - kimi-cli
 
 securetty_binary_agents:
-  - { name: goose, repo: "block/goose", url: "https://github.com/block/goose/releases/download/stable/download_cli.sh" }
-  - { name: grok, repo: "xai-org/grok-build", url: "https://x.ai/cli/install.sh" }
-  - { name: forge, repo: "anthropics/claude-code", url: "https://forgecode.dev/cli" }
-  - { name: kiro-cli, repo: "aws/amazon-q-developer-cli", url: "https://cli.kiro.dev/install" }
-  - { name: cursor, repo: "getcursor/cursor", url: "https://cursor.com/install" }
-  - { name: jcode, repo: "1jehuang/jcode", url: "https://raw.githubusercontent.com/1jehuang/jcode/master/scripts/install.sh" }
+  - {name: goose, repo: "block/goose", url: "https://github.com/block/goose/releases/download/stable/download_cli.sh"}
+  - {name: grok, repo: "xai-org/grok-build", url: "https://x.ai/cli/install.sh"}
+  - {name: forge, repo: "anthropics/claude-code", url: "https://forgecode.dev/cli"}
+  - {name: kiro-cli, repo: "aws/amazon-q-developer-cli", url: "https://cli.kiro.dev/install"}
+  - {name: cursor, repo: "getcursor/cursor", url: "https://cursor.com/install"}
+  - {name: jcode, repo: "1jehuang/jcode", url: "https://raw.githubusercontent.com/1jehuang/jcode/master/scripts/install.sh"}
 
 # Agent aliases (personal + work modes)
 securetty_agents:
-  - { name: claude, skip: "--dangerously-skip-permissions", short: c, work: true }
-  - { name: codex, skip: "--dangerously-bypass-approvals-and-sandbox", short: cx, work: true }
-  - { name: gemini, skip: "", short: gm, work: true }
-  - { name: cursor, skip: "--yolo", short: cr, work: true }
-  - { name: cline, skip: "--yolo", short: cl, work: true }
-  - { name: opencode, skip: "", short: ocd, work: true }
-  - { name: amp, skip: "", short: "", work: true }
-  - { name: kilo, skip: "", short: "", work: true }
-  - { name: aider, skip: "--yes", short: ai, work: true }
-  - { name: openhands, skip: "", short: oh, work: true }
-  - { name: goose, skip: "", short: gs, work: true }
-  - { name: grok, skip: "", short: gr, work: true }
-  - { name: forge, skip: "", short: fg, work: true }
-  - { name: kiro-cli, skip: "", short: ki, work: true }
-  - { name: pi-ai, skip: "", short: pi, work: true }
-  - { name: kimi, skip: "", short: km, work: true }
-  - { name: jcode, skip: "", short: jc, work: true }
+  - {name: claude, skip: "--dangerously-skip-permissions", short: c, work: true}
+  - {name: codex, skip: "--dangerously-bypass-approvals-and-sandbox", short: cx, work: true}
+  - {name: gemini, skip: "", short: gm, work: true}
+  - {name: cursor, skip: "--yolo", short: cr, work: true}
+  - {name: cline, skip: "--yolo", short: cl, work: true}
+  - {name: opencode, skip: "", short: ocd, work: true}
+  - {name: amp, skip: "", short: "", work: true}
+  - {name: kilo, skip: "", short: "", work: true}
+  - {name: aider, skip: "--yes", short: ai, work: true}
+  - {name: openhands, skip: "", short: oh, work: true}
+  - {name: goose, skip: "", short: gs, work: true}
+  - {name: grok, skip: "", short: gr, work: true}
+  - {name: forge, skip: "", short: fg, work: true}
+  - {name: kiro-cli, skip: "", short: ki, work: true}
+  - {name: pi-ai, skip: "", short: pi, work: true}
+  - {name: kimi, skip: "", short: km, work: true}
+  - {name: jcode, skip: "", short: jc, work: true}
 
 # Ollama models
 
@@ -262,11 +262,11 @@ securetty_agent_config_dirs:
 # Container resource limits
 
 securetty_resources:
-  dev: { cpus: "4", memory: "8G" }
-  omniroute: { cpus: "2", memory: "1G" }
-  headroom: { cpus: "1", memory: "512M" }
-  cloudcli: { cpus: "2", memory: "1G" }
-  ollama: { cpus: "4", memory: "16G" }
+  dev: {cpus: "4", memory: "8G"}
+  omniroute: {cpus: "2", memory: "1G"}
+  headroom: {cpus: "1", memory: "512M"}
+  cloudcli: {cpus: "2", memory: "1G"}
+  ollama: {cpus: "4", memory: "16G"}
 
 # System packages for dev container
 
@@ -397,8 +397,8 @@ securetty_binaries_remove:
   - "{{ securetty_home }}/.local/bin/headroom"
 
 securetty_services_disable:
-  - { name: cloudcli, scope: user }
-  - { name: ollama, scope: system }
+  - {name: cloudcli, scope: user}
+  - {name: ollama, scope: system}
 
 securetty_rpms_remove:
   - cursor
@@ -407,15 +407,15 @@ securetty_rpms_remove:
 securetty_project_registry:
   - jira_project: AAP
     hints:
-      - { match: "analytics.backend|automation-analytics-backend", work_dir: "automation-analytics-backend" }
-      - { match: "analytics.frontend|tower-analytics", work_dir: "tower-analytics-frontend" }
-      - { match: "awx", work_dir: "awx" }
-      - { match: "metrics.utility|metering", work_dir: "metrics-utility" }
-      - { match: "billing|subscription", work_dir: "billing" }
-      - { match: "gabi|cost.management", work_dir: "gabi-cli" }
-      - { match: "dataverse|pipeline.validation", work_dir: "dataverse-pipeline-validation" }
-      - { match: "carbonite", work_dir: "carbonite" }
-      - { match: "app.interface|qontract", work_dir: "app-interface" }
+      - {match: "analytics.backend|automation-analytics-backend", work_dir: "automation-analytics-backend"}
+      - {match: "analytics.frontend|tower-analytics", work_dir: "tower-analytics-frontend"}
+      - {match: "awx", work_dir: "awx"}
+      - {match: "metrics.utility|metering", work_dir: "metrics-utility"}
+      - {match: "billing|subscription", work_dir: "billing"}
+      - {match: "gabi|cost.management", work_dir: "gabi-cli"}
+      - {match: "dataverse|pipeline.validation", work_dir: "dataverse-pipeline-validation"}
+      - {match: "carbonite", work_dir: "carbonite"}
+      - {match: "app.interface|qontract", work_dir: "app-interface"}
     default_work_dir: "automation-analytics-backend"
 
 # Jira auto-triage configuration

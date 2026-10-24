@@ -19,10 +19,11 @@ jobs:
           pip install ansible-lint
 
       - name: ShellCheck
-        run: find roles/ scripts/ -name '*.sh' -not -path '*/templates/*' | xargs shellcheck -x -S warning || true
+        run: find roles/ scripts/ -name '*.sh' -not -path '*/templates/*' -exec shellcheck -x -S warning {} + || true
 
       - name: YAMLlint
-        run: yamllint -d '{extends: default, rules: {line-length: disable, truthy: disable}}' group_vars/ roles/*/tasks/ site.yml scan.yml migrate.yml
+        run: |
+          yamllint -d '{extends: default, rules: {line-length: disable, truthy: disable}}' group_vars/ roles/*/tasks/ site.yml scan.yml migrate.yml
 
       - name: Ansible Lint
         run: ansible-lint site.yml || true
