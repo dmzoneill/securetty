@@ -160,13 +160,13 @@
     dest: "{{ securetty_dir }}/{{ item.dest }}"
     mode: "0755"
   loop:
-    - { src: guarddog-watch.sh, dest: guarddog/scripts/guarddog-watch.sh }
-    - { src: osv-watch.sh, dest: osv-scanner/scripts/osv-watch.sh }
-    - { src: securetty-provenance.sh, dest: scripts/securetty-provenance.sh }
-    - { src: securetty-risk-classifier.sh, dest: scripts/securetty-risk-classifier.sh }
-    - { src: verify-signatures.sh, dest: scripts/verify-signatures.sh }
-    - { src: securetty-governance-hook.sh, dest: scripts/securetty-governance-hook.sh }
-    - { src: workflows.toon, dest: scripts/workflows.toon }
+    - {src: guarddog-watch.sh, dest: guarddog/scripts/guarddog-watch.sh}
+    - {src: osv-watch.sh, dest: osv-scanner/scripts/osv-watch.sh}
+    - {src: securetty-provenance.sh, dest: scripts/securetty-provenance.sh}
+    - {src: securetty-risk-classifier.sh, dest: scripts/securetty-risk-classifier.sh}
+    - {src: verify-signatures.sh, dest: scripts/verify-signatures.sh}
+    - {src: securetty-governance-hook.sh, dest: scripts/securetty-governance-hook.sh}
+    - {src: workflows.toon, dest: scripts/workflows.toon}
   tags:
     - build
 
