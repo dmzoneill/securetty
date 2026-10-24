@@ -15,7 +15,7 @@ graph TD
         Egress["nftables egress whitelist"]
     end
 
-    subgraph network["Container Network (172.30.100.0.31)"]
+    subgraph network["Container Network (172.30.100.0.32)"]
         OmniRoute["omniroute :4000\nAI provider router"]
         Headroom["headroom :8787\nToken compression MCP"]
         CloudCLI["cloudcli :3001\nClaude Code Web UI"]
