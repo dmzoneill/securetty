@@ -120,7 +120,7 @@ claude-work ~/src/myproject
 
 ## CLI Reference
 
-```
+```text
 Usage: securetty <command> [options]
 
 Agent commands:
