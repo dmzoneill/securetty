@@ -1,5 +1,9 @@
 # securetty
 
+<p align="center">
+  <img src=".github/logo.png" alt="securetty logo" width="128" />
+</p>
+
 Sandboxed AI development environment. All AI CLI agents run inside ephemeral rootless podman containers with credential isolation, egress filtering, delayed package ingestion, and nftables-enforced network policy. Fully declarative via Ansible.
 
 ## Architecture
@@ -71,11 +75,12 @@ Secrets live in GNU pass on the host. `generate-env.sh` resolves them at contain
 
 ### Egress Filtering
 
-Default-drop nftables policy in the rootless network namespace. Only resolved IPs from approved domains pass. Domain whitelist is in `group_vars/all.yml` (`securetty_allowed_domains`). Covers AI providers, git hosts, package registries, and configured services.
+Default-drop nftables policy in the rootless network namespace. Only resolved IPs from approved domains pass. Domain whitelist is in `group_vars/all.yml` (`securetty_allowed_domains`). Covers AI providers, Git hosts, package registries, and configured services.
 
 ### Container Hardening
 
 Every agent container runs with:
+
 - `--cap-drop ALL` — no Linux capabilities
 - `--security-opt no-new-privileges:true` — no privilege escalation
 - `--read-only` — immutable root filesystem
@@ -115,7 +120,7 @@ claude-work ~/src/myproject
 
 ## CLI Reference
 
-```
+```text
 Usage: securetty <command> [options]
 
 Agent commands:
@@ -198,70 +203,70 @@ Security:
 
 ## Two Modes
 
-| Mode | CLI | Alias | Provider | Use case |
-|------|-----|-------|----------|----------|
-| Personal | `securetty run <agent>` | `claude`, `c` | OmniRoute (auto-routes) | Personal projects |
-| Work | `securetty run-work <agent>` | `claude-work`, `cw` | Google Vertex AI | Work projects |
+| Mode     | CLI                          | Alias               | Provider                | Use case          |
+| -------- | ---------------------------- | ------------------- | ----------------------- | ----------------- |
+| Personal | `securetty run <agent>`      | `claude`, `c`       | OmniRoute (auto-routes) | Personal projects |
+| Work     | `securetty run-work <agent>` | `claude-work`, `cw` | Google Vertex AI        | Work projects     |
 
 ## Agents
 
-| Agent | Package | Alias | Short | Type |
-|-------|---------|-------|-------|------|
-| claude | `@anthropic-ai/claude-code` | `claude` / `claude-work` | `c` / `cw` | npm |
-| codex | `@openai/codex` | `codex` / `codex-work` | `cx` / `cxw` | npm |
-| gemini | `@anthropic-ai/claude-code` | `gemini` / `gemini-work` | `gm` / `gmw` | npm |
-| cline | `cline` | `cline` / `cline-work` | `cl` / `clw` | npm |
-| opencode | `opencode` | `opencode` / `opencode-work` | `ocd` / `ocdw` | npm |
-| aider | `aider-chat` | `aider` / `aider-work` | `ai` / `aiw` | pip |
-| goose | `goose-ai` | `goose` / `goose-work` | `gs` / `gsw` | pip |
-| grok | `grok-build` | `grok` / `grok-work` | `gr` / `grw` | npm |
-| forge | `@anthropic-ai/claude-code` | `forge` / `forge-work` | `fg` / `fgw` | npm |
-| kiro-cli | `kiro` | `kiro-cli` / `kiro-work` | `ki` / `kiw` | npm |
-| pi-ai | `pi-ai` | `pi-ai` / `pi-ai-work` | `pi` / `piw` | npm |
-| kimi | `kimi-cli` | `kimi` / `kimi-work` | `km` / `kmw` | npm |
-| jcode | `jcode` | `jcode` / `jcode-work` | `jc` / `jcw` | npm |
-| ampcode | `ampcode` | `amp` / `amp-work` | — | npm |
-| cursor | — | `cursor` / `cursor-work` | `cr` / `crw` | binary |
+| Agent    | Package                     | Alias                        | Short          | Type   |
+| -------- | --------------------------- | ---------------------------- | -------------- | ------ |
+| claude   | `@anthropic-ai/claude-code` | `claude` / `claude-work`     | `c` / `cw`     | npm    |
+| codex    | `@openai/codex`             | `codex` / `codex-work`       | `cx` / `cxw`   | npm    |
+| gemini   | `@anthropic-ai/claude-code` | `gemini` / `gemini-work`     | `gm` / `gmw`   | npm    |
+| cline    | `cline`                     | `cline` / `cline-work`       | `cl` / `clw`   | npm    |
+| opencode | `opencode`                  | `opencode` / `opencode-work` | `ocd` / `ocdw` | npm    |
+| aider    | `aider-chat`                | `aider` / `aider-work`       | `ai` / `aiw`   | pip    |
+| goose    | `goose-ai`                  | `goose` / `goose-work`       | `gs` / `gsw`   | pip    |
+| grok     | `grok-build`                | `grok` / `grok-work`         | `gr` / `grw`   | npm    |
+| forge    | `@anthropic-ai/claude-code` | `forge` / `forge-work`       | `fg` / `fgw`   | npm    |
+| kiro-cli | `kiro`                      | `kiro-cli` / `kiro-work`     | `ki` / `kiw`   | npm    |
+| pi-ai    | `pi-ai`                     | `pi-ai` / `pi-ai-work`       | `pi` / `piw`   | npm    |
+| kimi     | `kimi-cli`                  | `kimi` / `kimi-work`         | `km` / `kmw`   | npm    |
+| jcode    | `jcode`                     | `jcode` / `jcode-work`       | `jc` / `jcw`   | npm    |
+| ampcode  | `ampcode`                   | `amp` / `amp-work`           | —              | npm    |
+| cursor   | —                           | `cursor` / `cursor-work`     | `cr` / `crw`   | binary |
 
 All agents run with skip-permissions flags. The container is the sandbox.
 
 ## Services
 
-| Container | Purpose | Port |
-|-----------|---------|------|
-| `securetty-omniroute` | AI provider router + dashboard | 4000 |
-| `securetty-headroom` | Token compression MCP server | 8787 |
-| `securetty-cloudcli` | Claude Code Web UI | 3001 |
-| `securetty-ollama` | Local LLM server (GPU passthrough) | 11434 |
-| `securetty-creds` | Credential proxy | 8800 |
-| `securetty-dispatcher` | mTLS work item router (DAG workflows) | 8900 |
-| `securetty-mcp-jira` | Jira MCP server | 8801 |
-| `securetty-mcp-gitlab` | GitLab MCP server | 8802 |
-| `securetty-mcp-github` | GitHub MCP server | 8803 |
-| `securetty-mcp-slack` | Slack MCP server | 8804 |
-| `securetty-mcp-wordpress` | WordPress MCP server | 8805 |
-| `securetty-guarddog` | Behavioral + YARA package scanner | — |
-| `securetty-osv-scanner` | OSV vulnerability scanner | — |
-| `securetty-jira-poller` | Jira auto-triage daemon | — |
-| `securetty-review-manager` | MR/PR review feedback daemon | — |
-| `securetty-podman-proxy` | Container metrics exporter | 9402 |
+| Container                  | Purpose                               | Port  |
+| -------------------------- | ------------------------------------- | ----- |
+| `securetty-omniroute`      | AI provider router + dashboard        | 4000  |
+| `securetty-headroom`       | Token compression MCP server          | 8787  |
+| `securetty-cloudcli`       | Claude Code Web UI                    | 3001  |
+| `securetty-ollama`         | Local LLM server (GPU passthrough)    | 11434 |
+| `securetty-creds`          | Credential proxy                      | 8800  |
+| `securetty-dispatcher`     | mTLS work item router (DAG workflows) | 8900  |
+| `securetty-mcp-jira`       | Jira MCP server                       | 8801  |
+| `securetty-mcp-gitlab`     | GitLab MCP server                     | 8802  |
+| `securetty-mcp-github`     | GitHub MCP server                     | 8803  |
+| `securetty-mcp-slack`      | Slack MCP server                      | 8804  |
+| `securetty-mcp-wordpress`  | WordPress MCP server                  | 8805  |
+| `securetty-guarddog`       | Behavioral + YARA package scanner     | —     |
+| `securetty-osv-scanner`    | OSV vulnerability scanner             | —     |
+| `securetty-jira-poller`    | Jira auto-triage daemon               | —     |
+| `securetty-review-manager` | MR/PR review feedback daemon          | —     |
+| `securetty-podman-proxy`   | Container metrics exporter            | 9402  |
 
 ## OmniRoute Providers
 
 Configured via `securetty_providers` in `group_vars/all.yml`:
 
-| Provider | Model | Priority |
-|----------|-------|----------|
-| OpenAI | gpt-4o | 100 |
-| Google AI Studio | gemini-2.5-flash | 100 |
-| Mistral | mistral-large-latest | 100 |
-| OpenRouter | (routing) | 50 |
-| Groq | llama-3.3-70b-versatile | 50 |
-| Cerebras | — | 50 |
-| SambaNova | — | 50 |
-| Ollama (local) | (configurable) | 1 (fallback) |
+| Provider         | Model                   | Priority     |
+| ---------------- | ----------------------- | ------------ |
+| OpenAI           | gpt-4o                  | 100          |
+| Google AI Studio | gemini-2.5-flash        | 100          |
+| Mistral          | mistral-large-latest    | 100          |
+| OpenRouter       | (routing)               | 50           |
+| Groq             | llama-3.3-70b-versatile | 50           |
+| Cerebras         | —                       | 50           |
+| SambaNova        | —                       | 50           |
+| Ollama (local)   | (configurable)          | 1 (fallback) |
 
-Dashboard: http://localhost:4000
+Dashboard: <http://localhost:4000>
 
 ## Image Layers
 
@@ -273,27 +278,27 @@ Three container image layers, each building on the previous:
 
 ## Makefile Targets
 
-| Target | Description |
-|--------|-------------|
-| `make setup` | Full setup (all roles) |
-| `make build` | Build container images (skips if exist) |
-| `make rebuild` | Force rebuild all images |
-| `make rebuild-agents` | Rebuild dev layer only (fast iteration) |
-| `make up` | Start services |
-| `make down` | Stop all containers |
-| `make env` | Regenerate .env files from pass store |
-| `make aliases` | Install shell aliases + CLI |
-| `make egress` | Resolve domains and load nftables whitelist |
-| `make omniroute` | Configure AI providers via REST API |
-| `make ollama` | Pull local LLM models |
-| `make certs` | Generate TLS certificates for mTLS |
-| `make scan` | Scan history for leaked secrets |
-| `make migrate` | Remove AI agents from host (destructive) |
-| `make nuke` | Remove containers + volumes |
-| `make status` | Show container status |
-| `make eval` | Run promptfoo evaluation suite |
-| `make lint` | Lint configuration |
-| `make audit` | Security audit |
+| Target                | Description                                 |
+| --------------------- | ------------------------------------------- |
+| `make setup`          | Full setup (all roles)                      |
+| `make build`          | Build container images (skips if exist)     |
+| `make rebuild`        | Force rebuild all images                    |
+| `make rebuild-agents` | Rebuild dev layer only (fast iteration)     |
+| `make up`             | Start services                              |
+| `make down`           | Stop all containers                         |
+| `make env`            | Regenerate .env files from pass store       |
+| `make aliases`        | Install shell aliases + CLI                 |
+| `make egress`         | Resolve domains and load nftables whitelist |
+| `make omniroute`      | Configure AI providers via REST API         |
+| `make ollama`         | Pull local LLM models                       |
+| `make certs`          | Generate TLS certificates for mTLS          |
+| `make scan`           | Scan history for leaked secrets             |
+| `make migrate`        | Remove AI agents from host (destructive)    |
+| `make nuke`           | Remove containers + volumes                 |
+| `make status`         | Show container status                       |
+| `make eval`           | Run promptfoo evaluation suite              |
+| `make lint`           | Lint configuration                          |
+| `make audit`          | Security audit                              |
 
 ## Ansible Roles
 
@@ -312,35 +317,35 @@ flowchart TD
     style Setup fill:#533483,stroke:#e94560,color:#fff
 ```
 
-| Role | Purpose | Tag |
-|------|---------|-----|
-| `prereqs` | Install podman, create dirs, auto-detect UID/GID, validate SSH key + pass entries | `prereqs` |
-| `certs` | Generate CA and service TLS certificates for mTLS | `certs` |
-| `env` | Generate per-service `.env` files from GNU pass | `env` |
-| `ssh` | Restricted SSH agent (single key) | `ssh` |
-| `containers` | Template Containerfiles + compose, build images, start services | `containers`, `build`, `up` |
-| `egress` | Resolve allowed domains and load nftables whitelist | `egress` |
-| `omniroute` | Configure AI providers via REST API | `omniroute` |
-| `ollama` | Pull local LLM models | `ollama` |
-| `aliases` | Template and install securetty CLI + shell aliases | `aliases` |
-| `scan` | Scan AI conversation history for leaked secrets | `scan` |
-| `migrate` | Remove AI agents from host (destructive, `never` tag) | `migrate` |
+| Role         | Purpose                                                                           | Tag                         |
+| ------------ | --------------------------------------------------------------------------------- | --------------------------- |
+| `prereqs`    | Install podman, create dirs, auto-detect UID/GID, validate SSH key + pass entries | `prereqs`                   |
+| `certs`      | Generate CA and service TLS certificates for mTLS                                 | `certs`                     |
+| `env`        | Generate per-service `.env` files from GNU pass                                   | `env`                       |
+| `ssh`        | Restricted SSH agent (single key)                                                 | `ssh`                       |
+| `containers` | Template Containerfiles + compose, build images, start services                   | `containers`, `build`, `up` |
+| `egress`     | Resolve allowed domains and load nftables whitelist                               | `egress`                    |
+| `omniroute`  | Configure AI providers via REST API                                               | `omniroute`                 |
+| `ollama`     | Pull local LLM models                                                             | `ollama`                    |
+| `aliases`    | Template and install securetty CLI + shell aliases                                | `aliases`                   |
+| `scan`       | Scan AI conversation history for leaked secrets                                   | `scan`                      |
+| `migrate`    | Remove AI agents from host (destructive, `never` tag)                             | `migrate`                   |
 
 ## Configuration
 
 All configuration lives in `group_vars/all.yml`:
 
-| Section | What it controls |
-|---------|-----------------|
-| User/paths | Username, home dir, SSH key name (UID/GID auto-detected) |
-| Providers | OmniRoute provider list + priorities |
-| API keys | GNU pass paths for each key (`securetty_pass_keys`) |
-| Agents | npm/pip/binary packages, alias config, skip-flags |
-| Allowed domains | Egress whitelist for nftables |
-| Ollama | Models to pull |
-| Resources | CPU/memory limits per container |
-| Packages | dnf + pip packages for dev container |
-| MCP servers | Jira, GitLab, GitHub, Slack, WordPress config |
+| Section         | What it controls                                         |
+| --------------- | -------------------------------------------------------- |
+| User/paths      | Username, home dir, SSH key name (UID/GID auto-detected) |
+| Providers       | OmniRoute provider list + priorities                     |
+| API keys        | GNU pass paths for each key (`securetty_pass_keys`)      |
+| Agents          | npm/pip/binary packages, alias config, skip-flags        |
+| Allowed domains | Egress whitelist for nftables                            |
+| Ollama          | Models to pull                                           |
+| Resources       | CPU/memory limits per container                          |
+| Packages        | dnf + pip packages for dev container                     |
+| MCP servers     | Jira, GitLab, GitHub, Slack, WordPress config            |
 
 ## Common Changes
 
@@ -351,22 +356,22 @@ All configuration lives in `group_vars/all.yml`:
 
 ## Design Documents
 
-| Document | Description |
-|----------|-------------|
-| [THREAT_MODEL.md](THREAT_MODEL.md) | 8-section threat assessment |
-| [docs/security-tiers.md](docs/security-tiers.md) | Graduated 3-tier isolation model + enforcement status |
-| [docs/trust-model.md](docs/trust-model.md) | Trusted/untrusted input boundaries |
-| [docs/escalation-gates.md](docs/escalation-gates.md) | Confidence gates and risk classification |
-| [docs/confidence-scoring.md](docs/confidence-scoring.md) | Learned escalation model |
-| [docs/observability.md](docs/observability.md) | Prometheus metrics and OTEL tracing |
-| [docs/sli-dashboard.md](docs/sli-dashboard.md) | Real-time dashboard and SLI alerting |
-| [docs/evaluation-framework.md](docs/evaluation-framework.md) | promptfoo eval harness |
-| [docs/jira-auto-triage.md](docs/jira-auto-triage.md) | Jira auto-triage agent |
-| [docs/closed-loop-remediation.md](docs/closed-loop-remediation.md) | Automated SKILL.md fixes |
-| [docs/skill-marketplace.md](docs/skill-marketplace.md) | Skill management and sharing |
-| [docs/daemon-mode.md](docs/daemon-mode.md) | Background agent daemon |
-| [docs/provenance.md](docs/provenance.md) | Agent action provenance |
-| [docs/sigstore-verification.md](docs/sigstore-verification.md) | Supply chain verification |
+| Document                                                           | Description                                           |
+| ------------------------------------------------------------------ | ----------------------------------------------------- |
+| [THREAT_MODEL.md](THREAT_MODEL.md)                                 | 8-section threat assessment                           |
+| [docs/security-tiers.md](docs/security-tiers.md)                   | Graduated 3-tier isolation model + enforcement status |
+| [docs/trust-model.md](docs/trust-model.md)                         | Trusted/untrusted input boundaries                    |
+| [docs/escalation-gates.md](docs/escalation-gates.md)               | Confidence gates and risk classification              |
+| [docs/confidence-scoring.md](docs/confidence-scoring.md)           | Learned escalation model                              |
+| [docs/observability.md](docs/observability.md)                     | Prometheus metrics and OTEL tracing                   |
+| [docs/sli-dashboard.md](docs/sli-dashboard.md)                     | Real-time dashboard and SLI alerting                  |
+| [docs/evaluation-framework.md](docs/evaluation-framework.md)       | promptfoo eval harness                                |
+| [docs/jira-auto-triage.md](docs/jira-auto-triage.md)               | Jira auto-triage agent                                |
+| [docs/closed-loop-remediation.md](docs/closed-loop-remediation.md) | Automated SKILL.md fixes                              |
+| [docs/skill-marketplace.md](docs/skill-marketplace.md)             | Skill management and sharing                          |
+| [docs/daemon-mode.md](docs/daemon-mode.md)                         | Background agent daemon                               |
+| [docs/provenance.md](docs/provenance.md)                           | Agent action provenance                               |
+| [docs/sigstore-verification.md](docs/sigstore-verification.md)     | Supply chain verification                             |
 
 ## License
 
