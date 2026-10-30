@@ -30,44 +30,47 @@ OUTCOMES_DIR="$HOME/.securetty/outcomes"
 COST_DIR="$HOME/.securetty/cost"
 SECURETTY_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-MODE="live"  # live | once | json
+MODE="live" # live | once | json
 
 # ANSI escape codes
 BOLD='\033[1m'
 DIM='\033[2m'
 RESET='\033[0m'
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
 CYAN='\033[0;36m'
 WHITE='\033[1;37m'
-BG_RED='\033[41m'
-BG_GREEN='\033[42m'
-BG_YELLOW='\033[43m'
 
 # =============================================================================
 # Argument parsing
 # =============================================================================
 
 while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --once) MODE="once"; shift ;;
-        --json) MODE="json"; shift ;;
-        --help|-h)
-            echo "Usage: securetty-dashboard.sh [--once] [--json] [--help]"
-            echo ""
-            echo "Options:"
-            echo "  --once   Render once and exit (for piping/logging)"
-            echo "  --json   Output all dashboard data as JSON"
-            echo "  --help   Show this help"
-            echo ""
-            echo "Environment:"
-            echo "  SECURETTY_DISPATCHER_URL        Dispatcher URL (default: https://securetty-dispatcher:8900)"
-            echo "  SECURETTY_DASHBOARD_INTERVAL    Refresh interval in seconds (default: 5)"
-            exit 0
-            ;;
-        *) echo "Unknown option: $1" >&2; exit 1 ;;
-    esac
+	case "$1" in
+	--once)
+		MODE="once"
+		shift
+		;;
+	--json)
+		MODE="json"
+		shift
+		;;
+	--help | -h)
+		echo "Usage: securetty-dashboard.sh [--once] [--json] [--help]"
+		echo ""
+		echo "Options:"
+		echo "  --once   Render once and exit (for piping/logging)"
+		echo "  --json   Output all dashboard data as JSON"
+		echo "  --help   Show this help"
+		echo ""
+		echo "Environment:"
+		echo "  SECURETTY_DISPATCHER_URL        Dispatcher URL (default: https://securetty-dispatcher:8900)"
+		echo "  SECURETTY_DASHBOARD_INTERVAL    Refresh interval in seconds (default: 5)"
+		exit 0
+		;;
+	*)
+		echo "Unknown option: $1" >&2
+		exit 1
+		;;
+	esac
 done
 
 # =============================================================================
@@ -75,10 +78,10 @@ done
 # =============================================================================
 
 _cert_args() {
-    local args=""
-    [ -f "$SECURETTY_DIR/certs/client.crt" ] && \
-        args="--cert $SECURETTY_DIR/certs/client.crt --key $SECURETTY_DIR/certs/client.key --cacert $SECURETTY_DIR/certs/ca.crt"
-    echo "$args"
+	local args=""
+	[ -f "$SECURETTY_DIR/certs/client.crt" ] &&
+		args="--cert $SECURETTY_DIR/certs/client.crt --key $SECURETTY_DIR/certs/client.key --cacert $SECURETTY_DIR/certs/ca.crt"
+	echo "$args"
 }
 
 # =============================================================================
@@ -86,8 +89,8 @@ _cert_args() {
 # =============================================================================
 
 collect_containers() {
-    # Returns JSON array of container objects
-    python3 -c "
+	# Returns JSON array of container objects
+	python3 -c "
 import json
 import subprocess
 import sys
@@ -125,16 +128,16 @@ except Exception as e:
 }
 
 collect_dispatcher_status() {
-    # Returns JSON object from dispatcher /status endpoint
-    local cert_args
-    cert_args=$(_cert_args)
-    # shellcheck disable=SC2086
-    curl $cert_args -sf "${DISPATCHER_URL}/status" 2>/dev/null || echo '{}'
+	# Returns JSON object from dispatcher /status endpoint
+	local cert_args
+	cert_args=$(_cert_args)
+	# shellcheck disable=SC2086
+	curl $cert_args -sf "${DISPATCHER_URL}/status" 2>/dev/null || echo '{}'
 }
 
 collect_agent_metrics() {
-    # Returns JSON object with per-agent stats from today's outcomes
-    python3 -c "
+	# Returns JSON object with per-agent stats from today's outcomes
+	python3 -c "
 import json
 import os
 import sys
@@ -201,8 +204,8 @@ print(json.dumps({
 }
 
 collect_cost_summary() {
-    # Returns JSON object with cost/session counts for today and this week
-    python3 -c "
+	# Returns JSON object with cost/session counts for today and this week
+	python3 -c "
 import json
 import os
 from datetime import datetime, timedelta
@@ -263,8 +266,8 @@ print(json.dumps({
 }
 
 collect_alerts() {
-    # Returns JSON array of recent alert conditions
-    python3 -c "
+	# Returns JSON array of recent alert conditions
+	python3 -c "
 import json
 import subprocess
 import os
@@ -356,14 +359,14 @@ print(json.dumps(alerts))
 # =============================================================================
 
 render_json() {
-    local containers dispatcher agents cost alerts_data
-    containers=$(collect_containers)
-    dispatcher=$(collect_dispatcher_status)
-    agents=$(collect_agent_metrics)
-    cost=$(collect_cost_summary)
-    alerts_data=$(collect_alerts)
+	local containers dispatcher agents cost alerts_data
+	containers=$(collect_containers)
+	dispatcher=$(collect_dispatcher_status)
+	agents=$(collect_agent_metrics)
+	cost=$(collect_cost_summary)
+	alerts_data=$(collect_alerts)
 
-    python3 -c "
+	python3 -c "
 import json
 import sys
 from datetime import datetime
@@ -385,33 +388,33 @@ print(json.dumps(data, indent=2))
 # =============================================================================
 
 _hr() {
-    local width=${1:-78}
-    printf '%*s\n' "$width" '' | tr ' ' '-'
+	local width=${1:-78}
+	printf '%*s\n' "$width" '' | tr ' ' '-'
 }
 
 _header() {
-    local ts
-    ts=$(date -u +%FT%TZ)
-    local _splash_script
-    _splash_script="$(dirname "$0")/../../scripts/securetty-splash.sh"
-    [ -f "$_splash_script" ] || _splash_script="$(cd "$(dirname "$0")" && pwd)/../../scripts/securetty-splash.sh"
-    if [ -f "$_splash_script" ]; then
-        source "$_splash_script"
-        show_splash "--tagline|Observability Dashboard  ${ts}"
-    else
-        echo -e "${BOLD}${CYAN}"
-        echo -e "  securetty — Observability Dashboard"
-        echo -e "${RESET}"
-    fi
+	local ts
+	ts=$(date -u +%FT%TZ)
+	local _splash_script
+	_splash_script="$(dirname "$0")/../../scripts/securetty-splash.sh"
+	[ -f "$_splash_script" ] || _splash_script="$(cd "$(dirname "$0")" && pwd)/../../scripts/securetty-splash.sh"
+	if [ -f "$_splash_script" ]; then
+		source "$_splash_script"
+		show_splash "--tagline|Observability Dashboard  ${ts}"
+	else
+		echo -e "${BOLD}${CYAN}"
+		echo -e "  securetty — Observability Dashboard"
+		echo -e "${RESET}"
+	fi
 }
 
 render_containers() {
-    local containers="$1"
+	local containers="$1"
 
-    echo -e "  ${WHITE}${BOLD}Container Health${RESET}"
-    _hr 78 | sed 's/^/  /'
+	echo -e "  ${WHITE}${BOLD}Container Health${RESET}"
+	_hr 78 | sed 's/^/  /'
 
-    python3 -c "
+	python3 -c "
 import json
 
 containers = json.loads('''$containers''')
@@ -432,16 +435,16 @@ else:
             icon = '\033[0;31m●\033[0m'
         print(f'  {icon} {name:<27} {state:<10} {status}')
 " 2>/dev/null
-    echo ""
+	echo ""
 }
 
 render_queue() {
-    local dispatcher="$1"
+	local dispatcher="$1"
 
-    echo -e "  ${WHITE}${BOLD}Job Queue${RESET}"
-    _hr 78 | sed 's/^/  /'
+	echo -e "  ${WHITE}${BOLD}Job Queue${RESET}"
+	_hr 78 | sed 's/^/  /'
 
-    python3 -c "
+	python3 -c "
 import json
 
 data = json.loads('''$dispatcher''') if '''$dispatcher'''.strip() else {}
@@ -467,16 +470,16 @@ else:
     print(f'  Failed:     {failed}')
     print(f'  Skills:     {skills} loaded')
 " 2>/dev/null
-    echo ""
+	echo ""
 }
 
 render_agents() {
-    local agents="$1"
+	local agents="$1"
 
-    echo -e "  ${WHITE}${BOLD}Agent Metrics (today)${RESET}"
-    _hr 78 | sed 's/^/  /'
+	echo -e "  ${WHITE}${BOLD}Agent Metrics (today)${RESET}"
+	_hr 78 | sed 's/^/  /'
 
-    python3 -c "
+	python3 -c "
 import json
 
 data = json.loads('''$agents''')
@@ -499,16 +502,16 @@ else:
             rate_str = f'{rate:.1f}%'
             print(f'  {agent:<18} {stats[\"sessions\"]:>8} {stats[\"failures\"]:>8} {rate_str:>8} {stats[\"avg_duration_seconds\"]:>10.1f}{marker}')
 " 2>/dev/null
-    echo ""
+	echo ""
 }
 
 render_cost() {
-    local cost="$1"
+	local cost="$1"
 
-    echo -e "  ${WHITE}${BOLD}Cost Summary${RESET}"
-    _hr 78 | sed 's/^/  /'
+	echo -e "  ${WHITE}${BOLD}Cost Summary${RESET}"
+	_hr 78 | sed 's/^/  /'
 
-    python3 -c "
+	python3 -c "
 import json
 
 data = json.loads('''$cost''')
@@ -539,16 +542,16 @@ if by_mode:
 if daily_avg > 0 and today_sessions > daily_avg * 2:
     print(f'  \033[0;31mCOST SPIKE: today ({today_sessions}) is >2x daily average ({daily_avg:.1f})\033[0m')
 " 2>/dev/null
-    echo ""
+	echo ""
 }
 
 render_alerts() {
-    local alerts_data="$1"
+	local alerts_data="$1"
 
-    echo -e "  ${WHITE}${BOLD}Recent Alerts${RESET}"
-    _hr 78 | sed 's/^/  /'
+	echo -e "  ${WHITE}${BOLD}Recent Alerts${RESET}"
+	_hr 78 | sed 's/^/  /'
 
-    python3 -c "
+	python3 -c "
 import json
 
 alerts = json.loads('''$alerts_data''')
@@ -573,33 +576,33 @@ else:
 
         print(f'  {icon} {color}[{source}]{color} {message}\033[0m')
 " 2>/dev/null
-    echo ""
+	echo ""
 }
 
 render_tui() {
-    local containers dispatcher agents cost alerts_data
+	local containers dispatcher agents cost alerts_data
 
-    containers=$(collect_containers)
-    dispatcher=$(collect_dispatcher_status)
-    agents=$(collect_agent_metrics)
-    cost=$(collect_cost_summary)
-    alerts_data=$(collect_alerts)
+	containers=$(collect_containers)
+	dispatcher=$(collect_dispatcher_status)
+	agents=$(collect_agent_metrics)
+	cost=$(collect_cost_summary)
+	alerts_data=$(collect_alerts)
 
-    # Clear screen for live mode
-    if [ "$MODE" = "live" ]; then
-        printf '\033[2J\033[H'
-    fi
+	# Clear screen for live mode
+	if [ "$MODE" = "live" ]; then
+		printf '\033[2J\033[H'
+	fi
 
-    _header
-    render_containers "$containers"
-    render_queue "$dispatcher"
-    render_agents "$agents"
-    render_cost "$cost"
-    render_alerts "$alerts_data"
+	_header
+	render_containers "$containers"
+	render_queue "$dispatcher"
+	render_agents "$agents"
+	render_cost "$cost"
+	render_alerts "$alerts_data"
 
-    if [ "$MODE" = "live" ]; then
-        echo -e "  ${DIM}Refreshing every ${REFRESH_INTERVAL}s | Press Ctrl+C to exit${RESET}"
-    fi
+	if [ "$MODE" = "live" ]; then
+		echo -e "  ${DIM}Refreshing every ${REFRESH_INTERVAL}s | Press Ctrl+C to exit${RESET}"
+	fi
 }
 
 # =============================================================================
@@ -607,19 +610,19 @@ render_tui() {
 # =============================================================================
 
 case "$MODE" in
-    json)
-        render_json
-        ;;
-    once)
-        render_tui
-        ;;
-    live)
-        trap 'printf "\033[?25h"; exit 0' INT TERM
-        printf '\033[?25l'  # hide cursor
-        while true; do
-            render_tui
-            sleep "$REFRESH_INTERVAL" &
-            wait $! 2>/dev/null || true
-        done
-        ;;
+json)
+	render_json
+	;;
+once)
+	render_tui
+	;;
+live)
+	trap 'printf "\033[?25h"; exit 0' INT TERM
+	printf '\033[?25l' # hide cursor
+	while true; do
+		render_tui
+		sleep "$REFRESH_INTERVAL" &
+		wait $! 2>/dev/null || true
+	done
+	;;
 esac

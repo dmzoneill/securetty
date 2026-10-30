@@ -5,11 +5,10 @@
 # to track state.  Skips issues that already carry any agent:* label.
 set -euo pipefail
 
-SECURETTY_DIR="$(cd "$(dirname "$0")" && pwd)"
 if [ -d "/tmp/securetty-state" ]; then
-    DAEMON_DIR="/tmp/securetty-state"
+	DAEMON_DIR="/tmp/securetty-state"
 else
-    DAEMON_DIR="$HOME/.securetty"
+	DAEMON_DIR="$HOME/.securetty"
 fi
 LOG_FILE="$DAEMON_DIR/jira-triage.log"
 
@@ -19,7 +18,7 @@ JIRA_TOKEN="${JIRA_API_TOKEN:-}"
 
 # Try creds proxy if no token is set directly
 if [ -z "$JIRA_TOKEN" ]; then
-    JIRA_TOKEN=$(curl -sf http://localhost:9401/creds/jira_api_token 2>/dev/null || true)
+	JIRA_TOKEN=$(curl -sf http://localhost:9401/creds/jira_api_token 2>/dev/null || true)
 fi
 
 # =============================================================================
@@ -27,15 +26,15 @@ fi
 # =============================================================================
 
 _log() {
-    local ts
-    ts=$(date -u +%FT%TZ)
-    echo "$ts $*" >> "$LOG_FILE"
+	local ts
+	ts=$(date -u +%FT%TZ)
+	echo "$ts $*" >>"$LOG_FILE"
 }
 
 _log_stdout() {
-    local ts
-    ts=$(date -u +%FT%TZ)
-    echo "$ts $*" | tee -a "$LOG_FILE"
+	local ts
+	ts=$(date -u +%FT%TZ)
+	echo "$ts $*" | tee -a "$LOG_FILE"
 }
 
 # =============================================================================
@@ -43,42 +42,42 @@ _log_stdout() {
 # =============================================================================
 
 _jira_auth_header() {
-    if [ -n "$JIRA_USER" ] && [ -n "$JIRA_TOKEN" ]; then
-        echo "-u ${JIRA_USER}:${JIRA_TOKEN}"
-    elif [ -n "$JIRA_TOKEN" ]; then
-        echo "-H Authorization: Bearer ${JIRA_TOKEN}"
-    else
-        echo ""
-    fi
+	if [ -n "$JIRA_USER" ] && [ -n "$JIRA_TOKEN" ]; then
+		echo "-u ${JIRA_USER}:${JIRA_TOKEN}"
+	elif [ -n "$JIRA_TOKEN" ]; then
+		echo "-H Authorization: Bearer ${JIRA_TOKEN}"
+	else
+		echo ""
+	fi
 }
 
 _jira_get() {
-    local path="$1"
-    local auth
-    auth=$(_jira_auth_header)
-    # shellcheck disable=SC2086
-    curl $auth -sf -H "Content-Type: application/json" \
-        "${JIRA_URL}${path}" 2>/dev/null || echo ""
+	local path="$1"
+	local auth
+	auth=$(_jira_auth_header)
+	# shellcheck disable=SC2086
+	curl $auth -sf -H "Content-Type: application/json" \
+		"${JIRA_URL}${path}" 2>/dev/null || echo ""
 }
 
 _jira_put() {
-    local path="$1"
-    local body="$2"
-    local auth
-    auth=$(_jira_auth_header)
-    # shellcheck disable=SC2086
-    curl $auth -sf -X PUT -H "Content-Type: application/json" \
-        -d "$body" "${JIRA_URL}${path}" 2>/dev/null || echo ""
+	local path="$1"
+	local body="$2"
+	local auth
+	auth=$(_jira_auth_header)
+	# shellcheck disable=SC2086
+	curl $auth -sf -X PUT -H "Content-Type: application/json" \
+		-d "$body" "${JIRA_URL}${path}" 2>/dev/null || echo ""
 }
 
 _jira_post() {
-    local path="$1"
-    local body="$2"
-    local auth
-    auth=$(_jira_auth_header)
-    # shellcheck disable=SC2086
-    curl $auth -sf -X POST -H "Content-Type: application/json" \
-        -d "$body" "${JIRA_URL}${path}" 2>/dev/null || echo ""
+	local path="$1"
+	local body="$2"
+	local auth
+	auth=$(_jira_auth_header)
+	# shellcheck disable=SC2086
+	curl $auth -sf -X POST -H "Content-Type: application/json" \
+		-d "$body" "${JIRA_URL}${path}" 2>/dev/null || echo ""
 }
 
 # =============================================================================
@@ -86,18 +85,18 @@ _jira_post() {
 # =============================================================================
 
 _add_label() {
-    local key="$1"
-    local label="$2"
-    local body
-    body=$(printf '{"update":{"labels":[{"add":"%s"}]}}' "$label")
-    _jira_put "/rest/api/2/issue/${key}" "$body"
-    _log "label added: ${key} <- ${label}"
+	local key="$1"
+	local label="$2"
+	local body
+	body=$(printf '{"update":{"labels":[{"add":"%s"}]}}' "$label")
+	_jira_put "/rest/api/2/issue/${key}" "$body"
+	_log "label added: ${key} <- ${label}"
 }
 
 _has_agent_label() {
-    local labels_json="$1"
-    # Recognises all agent:* labels including agent:in-review
-    echo "$labels_json" | python3 -c "
+	local labels_json="$1"
+	# Recognises all agent:* labels including agent:in-review
+	echo "$labels_json" | python3 -c "
 import json, sys
 labels = json.load(sys.stdin)
 agent_labels = {'agent:triaged', 'agent:needs-info', 'agent:in-progress',
@@ -110,12 +109,12 @@ sys.exit(1)
 }
 
 _remove_label() {
-    local key="$1"
-    local label="$2"
-    local body
-    body=$(printf '{"update":{"labels":[{"remove":"%s"}]}}' "$label")
-    _jira_put "/rest/api/2/issue/${key}" "$body"
-    _log "label removed: ${key} <- ${label}"
+	local key="$1"
+	local label="$2"
+	local body
+	body=$(printf '{"update":{"labels":[{"remove":"%s"}]}}' "$label")
+	_jira_put "/rest/api/2/issue/${key}" "$body"
+	_log "label removed: ${key} <- ${label}"
 }
 
 # =============================================================================
@@ -123,12 +122,11 @@ _remove_label() {
 # =============================================================================
 
 WORK_DIR="${SECURETTY_WORK_DIR:-$HOME/src/work}"
-PROJECT_REGISTRY="${SECURETTY_PROJECT_REGISTRY:-}"
 
 _resolve_project() {
-    local issue_json="$1"
-    local result
-    result=$(python3 -c "
+	local issue_json="$1"
+	local result
+	result=$(python3 -c "
 import json, os, re, sys, subprocess
 
 issue = json.load(sys.stdin)
@@ -232,8 +230,8 @@ if not ranked and default_work_dir:
         ranked = [{'dir': default_work_dir, 'confidence': 0.3, 'signal': 'default'}]
 
 print(json.dumps(ranked))
-" <<< "$issue_json" 2>/dev/null)
-    echo "$result"
+" <<<"$issue_json" 2>/dev/null)
+	echo "$result"
 }
 
 # =============================================================================
@@ -241,27 +239,27 @@ print(json.dumps(ranked))
 # =============================================================================
 
 _ensure_clean_worktree() {
-    local repo_dir="$1"
-    local key="$2"
+	local repo_dir="$1"
+	local key="$2"
 
-    if [ ! -d "$repo_dir/.git" ]; then
-        _log "ERROR: ${repo_dir} is not a git repository"
-        return 1
-    fi
+	if [ ! -d "$repo_dir/.git" ]; then
+		_log "ERROR: ${repo_dir} is not a git repository"
+		return 1
+	fi
 
-    local status
-    status=$(git -C "$repo_dir" status --porcelain 2>/dev/null)
+	local status
+	status=$(git -C "$repo_dir" status --porcelain 2>/dev/null)
 
-    if [ -n "$status" ]; then
-        local file_count
-        file_count=$(echo "$status" | wc -l)
-        _log "BLOCKED: ${repo_dir} has ${file_count} uncommitted change(s)"
+	if [ -n "$status" ]; then
+		local file_count
+		file_count=$(echo "$status" | wc -l)
+		_log "BLOCKED: ${repo_dir} has ${file_count} uncommitted change(s)"
 
-        _add_label "$key" "agent:blocked"
-        _remove_label "$key" "agent:in-progress"
+		_add_label "$key" "agent:blocked"
+		_remove_label "$key" "agent:in-progress"
 
-        local comment_body
-        comment_body=$(python3 -c "
+		local comment_body
+		comment_body=$(python3 -c "
 import json
 lines = [
     'Cannot proceed — work tree is dirty.',
@@ -274,52 +272,52 @@ lines = [
 ]
 print(json.dumps({'body': chr(10).join(lines)}))
 " 2>/dev/null)
-        _jira_post "/rest/api/2/issue/${key}/comment" "$comment_body"
-        return 1
-    fi
+		_jira_post "/rest/api/2/issue/${key}/comment" "$comment_body"
+		return 1
+	fi
 
-    return 0
+	return 0
 }
 
 _create_agent_branch() {
-    local repo_dir="$1"
-    local key="$2"
+	local repo_dir="$1"
+	local key="$2"
 
-    git -C "$repo_dir" fetch origin 2>/dev/null || {
-        _log "ERROR: git fetch failed in ${repo_dir}"
-        return 1
-    }
+	git -C "$repo_dir" fetch origin 2>/dev/null || {
+		_log "ERROR: git fetch failed in ${repo_dir}"
+		return 1
+	}
 
-    local default_branch
-    default_branch=$(git -C "$repo_dir" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
-    if [ -z "$default_branch" ]; then
-        for candidate in main master; do
-            if git -C "$repo_dir" rev-parse --verify "origin/${candidate}" &>/dev/null; then
-                default_branch="$candidate"
-                break
-            fi
-        done
-    fi
+	local default_branch
+	default_branch=$(git -C "$repo_dir" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
+	if [ -z "$default_branch" ]; then
+		for candidate in main master; do
+			if git -C "$repo_dir" rev-parse --verify "origin/${candidate}" &>/dev/null; then
+				default_branch="$candidate"
+				break
+			fi
+		done
+	fi
 
-    if [ -z "$default_branch" ]; then
-        _log "ERROR: cannot determine default branch in ${repo_dir}"
-        return 1
-    fi
+	if [ -z "$default_branch" ]; then
+		_log "ERROR: cannot determine default branch in ${repo_dir}"
+		return 1
+	fi
 
-    local branch_name="agent/${key}"
+	local branch_name="agent/${key}"
 
-    if git -C "$repo_dir" rev-parse --verify "$branch_name" &>/dev/null; then
-        _log "branch ${branch_name} already exists in ${repo_dir}, checking out"
-        git -C "$repo_dir" checkout "$branch_name" 2>/dev/null
-    else
-        git -C "$repo_dir" checkout -b "$branch_name" "origin/${default_branch}" 2>/dev/null || {
-            _log "ERROR: failed to create branch ${branch_name} in ${repo_dir}"
-            return 1
-        }
-    fi
+	if git -C "$repo_dir" rev-parse --verify "$branch_name" &>/dev/null; then
+		_log "branch ${branch_name} already exists in ${repo_dir}, checking out"
+		git -C "$repo_dir" checkout "$branch_name" 2>/dev/null
+	else
+		git -C "$repo_dir" checkout -b "$branch_name" "origin/${default_branch}" 2>/dev/null || {
+			_log "ERROR: failed to create branch ${branch_name} in ${repo_dir}"
+			return 1
+		}
+	fi
 
-    _log "branch ${branch_name} ready in ${repo_dir} (from origin/${default_branch})"
-    return 0
+	_log "branch ${branch_name} ready in ${repo_dir} (from origin/${default_branch})"
+	return 0
 }
 
 # =============================================================================
@@ -327,13 +325,13 @@ _create_agent_branch() {
 # =============================================================================
 
 _transition_to_in_progress() {
-    local key="$1"
-    local transitions_json
-    transitions_json=$(_jira_get "/rest/api/2/issue/${key}/transitions")
-    [ -z "$transitions_json" ] && return 1
+	local key="$1"
+	local transitions_json
+	transitions_json=$(_jira_get "/rest/api/2/issue/${key}/transitions")
+	[ -z "$transitions_json" ] && return 1
 
-    local target_id
-    target_id=$(echo "$transitions_json" | python3 -c "
+	local target_id
+	target_id=$(echo "$transitions_json" | python3 -c "
 import json, sys
 data = json.load(sys.stdin)
 for t in data.get('transitions', []):
@@ -344,24 +342,24 @@ for t in data.get('transitions', []):
 print('')
 " 2>/dev/null)
 
-    if [ -n "$target_id" ]; then
-        local body
-        body=$(printf '{"transition":{"id":"%s"}}' "$target_id")
-        _jira_post "/rest/api/2/issue/${key}/transitions" "$body"
-        _log "transitioned ${key} to In Progress (id=${target_id})"
-    else
-        _log "WARNING: no In Progress transition found for ${key}"
-    fi
+	if [ -n "$target_id" ]; then
+		local body
+		body=$(printf '{"transition":{"id":"%s"}}' "$target_id")
+		_jira_post "/rest/api/2/issue/${key}/transitions" "$body"
+		_log "transitioned ${key} to In Progress (id=${target_id})"
+	else
+		_log "WARNING: no In Progress transition found for ${key}"
+	fi
 }
 
 _transition_to_in_review() {
-    local key="$1"
-    local transitions_json
-    transitions_json=$(_jira_get "/rest/api/2/issue/${key}/transitions")
-    [ -z "$transitions_json" ] && return 1
+	local key="$1"
+	local transitions_json
+	transitions_json=$(_jira_get "/rest/api/2/issue/${key}/transitions")
+	[ -z "$transitions_json" ] && return 1
 
-    local target_id
-    target_id=$(echo "$transitions_json" | python3 -c "
+	local target_id
+	target_id=$(echo "$transitions_json" | python3 -c "
 import json, sys
 data = json.load(sys.stdin)
 for t in data.get('transitions', []):
@@ -372,14 +370,14 @@ for t in data.get('transitions', []):
 print('')
 " 2>/dev/null)
 
-    if [ -n "$target_id" ]; then
-        local body
-        body=$(printf '{"transition":{"id":"%s"}}' "$target_id")
-        _jira_post "/rest/api/2/issue/${key}/transitions" "$body"
-        _log "transitioned ${key} to In Review (id=${target_id})"
-    else
-        _log "WARNING: no In Review transition found for ${key}"
-    fi
+	if [ -n "$target_id" ]; then
+		local body
+		body=$(printf '{"transition":{"id":"%s"}}' "$target_id")
+		_jira_post "/rest/api/2/issue/${key}/transitions" "$body"
+		_log "transitioned ${key} to In Review (id=${target_id})"
+	else
+		_log "WARNING: no In Review transition found for ${key}"
+	fi
 }
 
 # =============================================================================
@@ -387,9 +385,9 @@ print('')
 # =============================================================================
 
 _classify() {
-    local issue_json="$1"
-    local result
-    result=$(echo "$issue_json" | python3 -c "
+	local issue_json="$1"
+	local result
+	result=$(echo "$issue_json" | python3 -c "
 import json, sys
 
 issue = json.load(sys.stdin)
@@ -451,7 +449,7 @@ if issue_type in ('story', 'user story'):
 # --- codeable: everything else that passed skip and needs-info ---
 print('codeable:issue has clear requirements')
 " 2>/dev/null)
-    echo "$result"
+	echo "$result"
 }
 
 # =============================================================================
@@ -459,15 +457,15 @@ print('codeable:issue has clear requirements')
 # =============================================================================
 
 _action_needs_info() {
-    local key="$1"
-    local reason="$2"
-    local issue_json="$3"
+	local key="$1"
+	local reason="$2"
+	local issue_json="$3"
 
-    _add_label "$key" "agent:needs-info"
+	_add_label "$key" "agent:needs-info"
 
-    # Build a targeted clarification comment
-    local comment_body
-    comment_body=$(echo "$issue_json" | python3 -c "
+	# Build a targeted clarification comment
+	local comment_body
+	comment_body=$(echo "$issue_json" | python3 -c "
 import json, sys
 
 issue = json.load(sys.stdin)
@@ -499,42 +497,42 @@ lines.append('Once updated, remove the {{agent:needs-info}} label to re-trigger 
 print(json.dumps({'body': chr(10).join(lines)}))
 " 2>/dev/null)
 
-    _jira_post "/rest/api/2/issue/${key}/comment" "$comment_body"
-    _log_stdout "needs-info: ${key} -- ${reason}"
+	_jira_post "/rest/api/2/issue/${key}/comment" "$comment_body"
+	_log_stdout "needs-info: ${key} -- ${reason}"
 }
 
 _action_codeable() {
-    local key="$1"
-    local reason="$2"
-    local issue_json="$3"
+	local key="$1"
+	local reason="$2"
+	local issue_json="$3"
 
-    # --- Resolve target project directory ---
-    local resolved_json
-    resolved_json=$(_resolve_project "$issue_json")
+	# --- Resolve target project directory ---
+	local resolved_json
+	resolved_json=$(_resolve_project "$issue_json")
 
-    local top_dir top_confidence top_signal
-    top_dir=$(echo "$resolved_json" | python3 -c "
+	local top_dir top_confidence top_signal
+	top_dir=$(echo "$resolved_json" | python3 -c "
 import json, sys
 r = json.load(sys.stdin)
 print(r[0]['dir'] if r else '')
 " 2>/dev/null)
-    top_confidence=$(echo "$resolved_json" | python3 -c "
+	top_confidence=$(echo "$resolved_json" | python3 -c "
 import json, sys
 r = json.load(sys.stdin)
 print(r[0]['confidence'] if r else '0')
 " 2>/dev/null)
-    top_signal=$(echo "$resolved_json" | python3 -c "
+	top_signal=$(echo "$resolved_json" | python3 -c "
 import json, sys
 r = json.load(sys.stdin)
 print(r[0].get('signal','') if r else '')
 " 2>/dev/null)
 
-    if [ -z "$top_dir" ]; then
-        _log "cannot resolve project directory for ${key}"
-        _add_label "$key" "agent:needs-info"
+	if [ -z "$top_dir" ]; then
+		_log "cannot resolve project directory for ${key}"
+		_add_label "$key" "agent:needs-info"
 
-        local comment_body
-        comment_body=$(python3 -c "
+		local comment_body
+		comment_body=$(python3 -c "
 import json
 lines = [
     'Cannot determine which repository to work in for this issue.',
@@ -546,43 +544,43 @@ lines = [
 ]
 print(json.dumps({'body': chr(10).join(lines)}))
 " 2>/dev/null)
-        _jira_post "/rest/api/2/issue/${key}/comment" "$comment_body"
-        _log_stdout "needs-info: ${key} -- could not resolve project directory"
-        return
-    fi
+		_jira_post "/rest/api/2/issue/${key}/comment" "$comment_body"
+		_log_stdout "needs-info: ${key} -- could not resolve project directory"
+		return
+	fi
 
-    local repo_dir="${WORK_DIR}/${top_dir}"
-    _log "resolved ${key} to ${repo_dir} (confidence=${top_confidence}, signal=${top_signal})"
+	local repo_dir="${WORK_DIR}/${top_dir}"
+	_log "resolved ${key} to ${repo_dir} (confidence=${top_confidence}, signal=${top_signal})"
 
-    # --- Label + Jira transition: In Progress ---
-    _add_label "$key" "agent:in-progress"
-    _transition_to_in_progress "$key"
+	# --- Label + Jira transition: In Progress ---
+	_add_label "$key" "agent:in-progress"
+	_transition_to_in_progress "$key"
 
-    # --- Git safety: check for dirty work tree ---
-    if ! _ensure_clean_worktree "$repo_dir" "$key"; then
-        _log_stdout "blocked: ${key} -- dirty work tree in ${repo_dir}"
-        return
-    fi
+	# --- Git safety: check for dirty work tree ---
+	if ! _ensure_clean_worktree "$repo_dir" "$key"; then
+		_log_stdout "blocked: ${key} -- dirty work tree in ${repo_dir}"
+		return
+	fi
 
-    # --- Create agent branch ---
-    if ! _create_agent_branch "$repo_dir" "$key"; then
-        _log_stdout "blocked: ${key} -- failed to create branch in ${repo_dir}"
-        _add_label "$key" "agent:blocked"
-        _remove_label "$key" "agent:in-progress"
-        return
-    fi
+	# --- Create agent branch ---
+	if ! _create_agent_branch "$repo_dir" "$key"; then
+		_log_stdout "blocked: ${key} -- failed to create branch in ${repo_dir}"
+		_add_label "$key" "agent:blocked"
+		_remove_label "$key" "agent:in-progress"
+		return
+	fi
 
-    # --- Dispatch ---
-    local dispatch_result=""
+	# --- Dispatch ---
+	local dispatch_result=""
 
-    if command -v securetty &>/dev/null; then
-        _log "dispatching ${key} via securetty CLI (work_dir=${repo_dir})"
-        dispatch_result=$(securetty dispatch "Implement Jira issue ${key}" --source "jira-triage" 2>&1 || true)
-        echo "$dispatch_result" >> "$LOG_FILE"
-    elif [ -n "${SECURETTY_DISPATCHER_URL:-}" ]; then
-        _log "dispatching ${key} via dispatcher API (work_dir=${repo_dir})"
-        local body
-        body=$(python3 -c "
+	if command -v securetty &>/dev/null; then
+		_log "dispatching ${key} via securetty CLI (work_dir=${repo_dir})"
+		dispatch_result=$(securetty dispatch "Implement Jira issue ${key}" --source "jira-triage" 2>&1 || true)
+		echo "$dispatch_result" >>"$LOG_FILE"
+	elif [ -n "${SECURETTY_DISPATCHER_URL:-}" ]; then
+		_log "dispatching ${key} via dispatcher API (work_dir=${repo_dir})"
+		local body
+		body=$(python3 -c "
 import json
 print(json.dumps({
     'work_item': 'Implement Jira issue $key',
@@ -597,16 +595,16 @@ print(json.dumps({
     }
 }))
 " 2>/dev/null)
-        dispatch_result=$(curl -sf -X POST "${SECURETTY_DISPATCHER_URL}/dispatch" \
-            -H "Content-Type: application/json" -d "$body" 2>&1 || true)
-        echo "$dispatch_result" >> "$LOG_FILE"
-    else
-        _log "WARNING: no dispatch mechanism available for ${key}"
-    fi
+		dispatch_result=$(curl -sf -X POST "${SECURETTY_DISPATCHER_URL}/dispatch" \
+			-H "Content-Type: application/json" -d "$body" 2>&1 || true)
+		echo "$dispatch_result" >>"$LOG_FILE"
+	else
+		_log "WARNING: no dispatch mechanism available for ${key}"
+	fi
 
-    local job_id=""
-    if [ -n "$dispatch_result" ]; then
-        job_id=$(echo "$dispatch_result" | python3 -c "
+	local job_id=""
+	if [ -n "$dispatch_result" ]; then
+		job_id=$(echo "$dispatch_result" | python3 -c "
 import json, sys
 try:
     data = json.load(sys.stdin)
@@ -614,14 +612,14 @@ try:
 except Exception:
     print('')
 " 2>/dev/null || true)
-    fi
+	fi
 
-    # Record triage history
-    if [ -n "${SECURETTY_DISPATCHER_URL:-}" ]; then
-        local project
-        project=$(echo "$key" | cut -d- -f1)
-        local triage_body
-        triage_body=$(python3 -c "
+	# Record triage history
+	if [ -n "${SECURETTY_DISPATCHER_URL:-}" ]; then
+		local project
+		project=$(echo "$key" | cut -d- -f1)
+		local triage_body
+		triage_body=$(python3 -c "
 import json
 print(json.dumps({
     'issue_key': '$key',
@@ -633,17 +631,17 @@ print(json.dumps({
     'metadata': {'reason': '''$reason''', 'work_dir': '$top_dir', 'branch': 'agent/$key', 'signal': '$top_signal'}
 }))
 " 2>/dev/null)
-        curl -sf -X POST "${SECURETTY_DISPATCHER_URL}/triage" \
-            -H "Content-Type: application/json" -d "$triage_body" >> "$LOG_FILE" 2>&1 || true
-    fi
+		curl -sf -X POST "${SECURETTY_DISPATCHER_URL}/triage" \
+			-H "Content-Type: application/json" -d "$triage_body" >>"$LOG_FILE" 2>&1 || true
+	fi
 
-    # --- Transition to in-review ---
-    _remove_label "$key" "agent:in-progress"
-    _add_label "$key" "agent:in-review"
-    _transition_to_in_review "$key"
+	# --- Transition to in-review ---
+	_remove_label "$key" "agent:in-progress"
+	_add_label "$key" "agent:in-review"
+	_transition_to_in_review "$key"
 
-    local review_comment
-    review_comment=$(python3 -c "
+	local review_comment
+	review_comment=$(python3 -c "
 import json
 lines = [
     'The securetty agent has dispatched a code change for this issue.',
@@ -663,23 +661,23 @@ lines.extend([
 ])
 print(json.dumps({'body': chr(10).join(lines)}))
 " 2>/dev/null)
-    _jira_post "/rest/api/2/issue/${key}/comment" "$review_comment"
+	_jira_post "/rest/api/2/issue/${key}/comment" "$review_comment"
 
-    if [ -n "${SECURETTY_DISPATCHER_URL:-}" ]; then
-        curl -sf -X PUT "${SECURETTY_DISPATCHER_URL}/triage/${key}" \
-            -H "Content-Type: application/json" \
-            -d '{"feedback_status":"awaiting_review"}' >> "$LOG_FILE" 2>&1 || true
-    fi
+	if [ -n "${SECURETTY_DISPATCHER_URL:-}" ]; then
+		curl -sf -X PUT "${SECURETTY_DISPATCHER_URL}/triage/${key}" \
+			-H "Content-Type: application/json" \
+			-d '{"feedback_status":"awaiting_review"}' >>"$LOG_FILE" 2>&1 || true
+	fi
 
-    _log_stdout "codeable: ${key} -- ${reason} -> ${top_dir} (agent:in-review)"
+	_log_stdout "codeable: ${key} -- ${reason} -> ${top_dir} (agent:in-review)"
 }
 
 _action_skip() {
-    local key="$1"
-    local reason="$2"
+	local key="$1"
+	local reason="$2"
 
-    _add_label "$key" "agent:skipped"
-    _log_stdout "skip: ${key} -- ${reason}"
+	_add_label "$key" "agent:skipped"
+	_log_stdout "skip: ${key} -- ${reason}"
 }
 
 # =============================================================================
@@ -687,78 +685,78 @@ _action_skip() {
 # =============================================================================
 
 main() {
-    local key="${1:-}"
+	local key="${1:-}"
 
-    if [ -z "$key" ]; then
-        echo "Usage: securetty-jira-triage <ISSUE-KEY>" >&2
-        echo "  e.g. securetty-jira-triage AAP-12345" >&2
-        exit 1
-    fi
+	if [ -z "$key" ]; then
+		echo "Usage: securetty-jira-triage <ISSUE-KEY>" >&2
+		echo "  e.g. securetty-jira-triage AAP-12345" >&2
+		exit 1
+	fi
 
-    if [ -z "$JIRA_URL" ]; then
-        echo "ERROR: SECURETTY_JIRA_URL is not set" >&2
-        exit 1
-    fi
+	if [ -z "$JIRA_URL" ]; then
+		echo "ERROR: SECURETTY_JIRA_URL is not set" >&2
+		exit 1
+	fi
 
-    mkdir -p "$DAEMON_DIR"
+	mkdir -p "$DAEMON_DIR"
 
-    _log "triaging ${key}"
+	_log "triaging ${key}"
 
-    # Fetch issue details
-    local issue_json
-    issue_json=$(_jira_get "/rest/api/2/issue/${key}?fields=summary,description,issuetype,priority,components,labels,status,subtasks")
+	# Fetch issue details
+	local issue_json
+	issue_json=$(_jira_get "/rest/api/2/issue/${key}?fields=summary,description,issuetype,priority,components,labels,status,subtasks")
 
-    if [ -z "$issue_json" ]; then
-        _log_stdout "ERROR: failed to fetch issue ${key}"
-        exit 1
-    fi
+	if [ -z "$issue_json" ]; then
+		_log_stdout "ERROR: failed to fetch issue ${key}"
+		exit 1
+	fi
 
-    # Extract labels and check for existing agent:* labels
-    local labels_json
-    labels_json=$(echo "$issue_json" | python3 -c "
+	# Extract labels and check for existing agent:* labels
+	local labels_json
+	labels_json=$(echo "$issue_json" | python3 -c "
 import json, sys
 issue = json.load(sys.stdin)
 labels = issue.get('fields', {}).get('labels', [])
 json.dump(labels, sys.stdout)
 " 2>/dev/null)
 
-    if _has_agent_label "$labels_json"; then
-        _log "skipping ${key}: already has agent:* label"
-        return 0
-    fi
+	if _has_agent_label "$labels_json"; then
+		_log "skipping ${key}: already has agent:* label"
+		return 0
+	fi
 
-    # Add agent:triaged immediately
-    _add_label "$key" "agent:triaged"
+	# Add agent:triaged immediately
+	_add_label "$key" "agent:triaged"
 
-    # Classify the issue
-    local classification
-    classification=$(_classify "$issue_json")
+	# Classify the issue
+	local classification
+	classification=$(_classify "$issue_json")
 
-    if [ -z "$classification" ]; then
-        _log_stdout "ERROR: classification failed for ${key}"
-        _add_label "$key" "agent:skipped"
-        return 1
-    fi
+	if [ -z "$classification" ]; then
+		_log_stdout "ERROR: classification failed for ${key}"
+		_add_label "$key" "agent:skipped"
+		return 1
+	fi
 
-    local action reason
-    action="${classification%%:*}"
-    reason="${classification#*:}"
+	local action reason
+	action="${classification%%:*}"
+	reason="${classification#*:}"
 
-    case "$action" in
-        needs-info)
-            _action_needs_info "$key" "$reason" "$issue_json"
-            ;;
-        codeable)
-            _action_codeable "$key" "$reason" "$issue_json"
-            ;;
-        skip)
-            _action_skip "$key" "$reason"
-            ;;
-        *)
-            _log_stdout "ERROR: unknown classification '${action}' for ${key}"
-            _add_label "$key" "agent:skipped"
-            ;;
-    esac
+	case "$action" in
+	needs-info)
+		_action_needs_info "$key" "$reason" "$issue_json"
+		;;
+	codeable)
+		_action_codeable "$key" "$reason" "$issue_json"
+		;;
+	skip)
+		_action_skip "$key" "$reason"
+		;;
+	*)
+		_log_stdout "ERROR: unknown classification '${action}' for ${key}"
+		_add_label "$key" "agent:skipped"
+		;;
+	esac
 }
 
 main "$@"
