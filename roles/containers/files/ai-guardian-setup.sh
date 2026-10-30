@@ -9,11 +9,11 @@ CONFIG_FILE="$CONFIG_DIR/ai-guardian.json"
 mkdir -p "$CONFIG_DIR"
 
 ai-guardian setup --ide claude --create-config --permissive --force 2>/dev/null || {
-    echo "ai-guardian setup failed, skipping" >&2
-    exit 0
+	echo "ai-guardian setup failed, skipping" >&2
+	exit 0
 }
 
-[ -f "$CONFIG_FILE" ] || exit 0
+[[ -f "$CONFIG_FILE" ]] || exit 0
 
 python3.12 -c "
 import json, sys

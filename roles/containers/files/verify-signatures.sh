@@ -40,7 +40,7 @@ EOF
 # ---------------------------------------------------------------------------
 # Argument parsing
 # ---------------------------------------------------------------------------
-while [ $# -gt 0 ]; do
+while [[ $# -gt 0 ]]; do
 	case "$1" in
 	--skip-if-missing)
 		SKIP_IF_MISSING=true
@@ -48,7 +48,7 @@ while [ $# -gt 0 ]; do
 		;;
 	--binary)
 		MODE="binary"
-		[ $# -ge 4 ] || {
+		[[ $# -ge 4 ]] || {
 			echo "ERROR: --binary requires <name> <repo> <version>" >&2
 			usage
 		}
@@ -59,7 +59,7 @@ while [ $# -gt 0 ]; do
 		;;
 	--image)
 		MODE="image"
-		[ $# -ge 2 ] || {
+		[[ $# -ge 2 ]] || {
 			echo "ERROR: --image requires <image-ref>" >&2
 			usage
 		}
@@ -76,7 +76,7 @@ while [ $# -gt 0 ]; do
 	esac
 done
 
-[ -n "$MODE" ] || {
+[[ -n "$MODE" ]] || {
 	echo "ERROR: no mode specified" >&2
 	usage
 }
@@ -85,7 +85,7 @@ done
 # Check cosign availability
 # ---------------------------------------------------------------------------
 if ! command -v cosign >/dev/null 2>&1; then
-	if [ "$SKIP_IF_MISSING" = true ]; then
+	if [[ "$SKIP_IF_MISSING" = true ]]; then
 		echo "WARN: cosign not installed, skipping verification (--skip-if-missing)" >&2
 		exit 0
 	else
@@ -142,7 +142,7 @@ verify_binary() {
 	done
 
 	# 2. Try detached .sig + optional .pem certificate
-	if [ -z "$found_method" ]; then
+	if [[ -z "$found_method" ]]; then
 		for candidate in \
 			"${base_url}/${artifact_base}.sig" \
 			"${base_url}/${name}.sig" \
@@ -156,7 +156,7 @@ verify_binary() {
 		done
 
 		# Look for an accompanying certificate
-		if [ -n "$sig_url" ]; then
+		if [[ -n "$sig_url" ]]; then
 			local cert_candidate="${sig_url%.sig}.pem"
 			if curl -fsSL -o "${tmpdir}/artifact.pem" "$cert_candidate" 2>/dev/null; then
 				cert_url="$cert_candidate"
@@ -165,9 +165,9 @@ verify_binary() {
 		fi
 	fi
 
-	if [ -z "$found_method" ]; then
+	if [[ -z "$found_method" ]]; then
 		echo "  WARN: no .sig or .bundle found for ${name} ${tag} -- agent may not publish Sigstore signatures" >&2
-		if [ "$SKIP_IF_MISSING" = true ]; then
+		if [[ "$SKIP_IF_MISSING" = true ]]; then
 			echo "  skipping verification (no signature artifact)" >&2
 			return 0
 		else
@@ -190,9 +190,9 @@ verify_binary() {
 		fi
 	done
 
-	if [ "$artifact_downloaded" = false ]; then
+	if [[ "$artifact_downloaded" = false ]]; then
 		echo "  WARN: could not download release artifact for blob verification" >&2
-		if [ "$SKIP_IF_MISSING" = true ]; then
+		if [[ "$SKIP_IF_MISSING" = true ]]; then
 			echo "  skipping verification (artifact not downloadable)" >&2
 			return 0
 		fi
@@ -213,7 +213,7 @@ verify_binary() {
 	sig)
 		echo "  running: cosign verify-blob --signature (detached sig)" >&2
 		local cert_args=()
-		if [ -n "$cert_url" ]; then
+		if [[ -n "$cert_url" ]]; then
 			cert_args=(--cert "${tmpdir}/artifact.pem"
 				--certificate-oidc-issuer="https://token.actions.githubusercontent.com"
 				--certificate-identity-regexp="github\\.com/${repo}")
@@ -228,7 +228,7 @@ verify_binary() {
 		;;
 	esac
 
-	if [ "$rc" -eq 0 ]; then
+	if [[ "$rc" -eq 0 ]]; then
 		echo "  OK: ${name} ${tag} signature verified" >&2
 	else
 		echo "  FAIL: ${name} ${tag} signature verification failed (rc=${rc})" >&2
@@ -249,11 +249,11 @@ verify_image() {
 		--certificate-identity-regexp=".*" \
 		"$image" >&2 2>&1 || rc=$?
 
-	if [ "$rc" -eq 0 ]; then
+	if [[ "$rc" -eq 0 ]]; then
 		echo "  OK: ${image} image signature verified" >&2
 	else
 		echo "  FAIL: ${image} image verification failed (rc=${rc})" >&2
-		if [ "$SKIP_IF_MISSING" = true ]; then
+		if [[ "$SKIP_IF_MISSING" = true ]]; then
 			echo "  continuing despite failure (--skip-if-missing)" >&2
 			return 0
 		fi
