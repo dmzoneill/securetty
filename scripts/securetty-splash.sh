@@ -38,7 +38,7 @@ show_splash() {
     local info_count=${#info_lines[@]}
     local art_count=${#_SPLASH_ART[@]}
     local total_lines=$((art_count + 2))
-    [ "$info_count" -gt "$total_lines" ] && total_lines="$info_count"
+    [[ "$info_count" -gt "$total_lines" ]] && total_lines="$info_count"
 
     local gap="    "
     local sep_line=""
@@ -49,21 +49,21 @@ show_splash() {
     for ((i = 0; i < total_lines; i++)); do
         local left="" right=""
 
-        if [ "$i" -lt "$art_count" ]; then
+        if [[ "$i" -lt "$art_count" ]]; then
             left="${C}${_SPLASH_ART[$i]}${N}"
             local pad=$(((_SPLASH_ART_WIDTH - ${#_SPLASH_ART[$i]})))
-            [ "$pad" -gt 0 ] && left="${left}$(printf '%*s' "$pad" '')"
-        elif [ "$i" -eq "$((art_count))" ]; then
+            [[ "$pad" -gt 0 ]] && left="${left}$(printf '%*s' "$pad" '')"
+        elif [[ "$i" -eq "$((art_count))" ]]; then
             left=""
-        elif [ "$i" -eq "$((art_count + 1))" ]; then
+        elif [[ "$i" -eq "$((art_count + 1))" ]]; then
             left="  ${D}${tagline}${N}"
             local pad=$((_SPLASH_ART_WIDTH - ${#tagline} - 2))
-            [ "$pad" -gt 0 ] && left="${left}$(printf '%*s' "$pad" '')"
+            [[ "$pad" -gt 0 ]] && left="${left}$(printf '%*s' "$pad" '')"
         else
             left="$(printf '%*s' "$_SPLASH_ART_WIDTH" '')"
         fi
 
-        if [ "$i" -lt "$info_count" ]; then
+        if [[ "$i" -lt "$info_count" ]]; then
             local entry="${info_lines[$i]}"
             if [[ "$entry" == "---|"* ]]; then
                 right="${D}${sep_line}${N}"
@@ -74,22 +74,22 @@ show_splash() {
             fi
         fi
 
-        if [ "$i" -lt "$art_count" ]; then
-            if [ -n "$right" ]; then
+        if [[ "$i" -lt "$art_count" ]]; then
+            if [[ -n "$right" ]]; then
                 echo -e "${left}${gap}${right}"
             else
                 echo -e "${left}"
             fi
-        elif [ "$i" -eq "$art_count" ]; then
-            if [ -n "$right" ]; then
+        elif [[ "$i" -eq "$art_count" ]]; then
+            if [[ -n "$right" ]]; then
                 echo -e "$(printf '%*s' "$_SPLASH_ART_WIDTH" '')${gap}${right}"
             else
                 echo ""
             fi
         else
-            if [ -n "$right" ]; then
+            if [[ -n "$right" ]]; then
                 echo -e "${left}${gap}${right}"
-            elif [ -n "$left" ]; then
+            elif [[ -n "$left" ]]; then
                 echo -e "${left}"
             fi
         fi

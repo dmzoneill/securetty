@@ -95,7 +95,7 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
-if [ -z "$MODE" ]; then
+if [[ -z "$MODE" ]]; then
 	echo "Error: specify --check, --notify, or --json" >&2
 	echo "Run with --help for usage." >&2
 	exit 1
@@ -107,7 +107,7 @@ fi
 
 _cert_args() {
 	local args=""
-	[ -f "$SECURETTY_DIR/certs/client.crt" ] &&
+	[[ -f "$SECURETTY_DIR/certs/client.crt" ]] &&
 		args="--cert $SECURETTY_DIR/certs/client.crt --key $SECURETTY_DIR/certs/client.key --cacert $SECURETTY_DIR/certs/ca.crt"
 	echo "$args"
 }
@@ -149,15 +149,15 @@ check_containers() {
 	local count=0
 
 	while IFS=$'\t' read -r name state status; do
-		[ -z "$name" ] && continue
+		[[ -z "$name" ]] && continue
 		echo "$name" | grep -q securetty || continue
-		if [ "$state" != "running" ]; then
+		if [[ "$state" != "running" ]]; then
 			unhealthy_containers="${unhealthy_containers}${name} (${state}), "
 			count=$((count + 1))
 		fi
 	done < <(podman ps -a --format '{{.Names}}\t{{.State}}\t{{.Status}}' 2>/dev/null || true)
 
-	if [ "$count" -gt 0 ]; then
+	if [[ "$count" -gt 0 ]]; then
 		unhealthy_containers="${unhealthy_containers%, }"
 		_add_alert "container_unhealthy" "critical" "${count} unhealthy: ${unhealthy_containers}"
 	else
@@ -182,7 +182,7 @@ check_stuck_agents() {
 	# shellcheck disable=SC2086
 	response=$(curl $cert_args -sf "${DISPATCHER_URL}/jobs?status=running&limit=50" 2>/dev/null || echo "")
 
-	if [ -n "$response" ] && [ "$response" != "" ]; then
+	if [[ -n "$response" ]] && [[ "$response" != "" ]]; then
 		stuck_count=$(python3 -c "
 import json
 import sys
@@ -233,7 +233,7 @@ for s in stuck:
 # =============================================================================
 
 check_cost_spike() {
-	if [ ! -d "$COST_DIR" ]; then
+	if [[ ! -d "$COST_DIR" ]]; then
 		_add_ok "cost_spike" "No cost data available"
 		return
 	fi
@@ -273,7 +273,7 @@ if daily_avg > 0 and today_count > daily_avg * multiplier:
 else:
     print(f'OK|cost_spike|Today: {today_count} sessions, avg: {daily_avg:.1f}/day')
 " 2>/dev/null | while IFS='|' read -r status check severity message; do
-		if [ "$status" = "ALERT" ]; then
+		if [[ "$status" = "ALERT" ]]; then
 			_add_alert "$check" "$severity" "$message"
 		else
 			_add_ok "$check" "$message"
@@ -286,7 +286,7 @@ else:
 # =============================================================================
 
 check_error_rate() {
-	if [ ! -d "$OUTCOMES_DIR" ]; then
+	if [[ ! -d "$OUTCOMES_DIR" ]]; then
 		_add_ok "error_rate" "No outcomes data available"
 		return
 	fi
@@ -295,7 +295,7 @@ check_error_rate() {
 	today=$(date +%Y-%m-%d)
 	local today_file="$OUTCOMES_DIR/${today}.jsonl"
 
-	if [ ! -f "$today_file" ]; then
+	if [[ ! -f "$today_file" ]]; then
 		_add_ok "error_rate" "No sessions today"
 		return
 	fi
@@ -336,7 +336,7 @@ else:
     else:
         print(f'OK|error_rate|Error rate {rate:.1f}% in last hour ({failures}/{total} sessions)')
 " 2>/dev/null | while IFS='|' read -r status check severity message; do
-		if [ "$status" = "ALERT" ]; then
+		if [[ "$status" = "ALERT" ]]; then
 			_add_alert "$check" "$severity" "$message"
 		else
 			_add_ok "$check" "$message"
@@ -355,7 +355,7 @@ check_queue_backup() {
 	# shellcheck disable=SC2086
 	response=$(curl $cert_args -sf "${DISPATCHER_URL}/status" 2>/dev/null || echo "")
 
-	if [ -z "$response" ]; then
+	if [[ -z "$response" ]]; then
 		_add_ok "queue_backup" "Dispatcher unreachable (skipped)"
 		return
 	fi
@@ -402,7 +402,7 @@ output_check() {
 	echo "=================================================="
 
 	while IFS= read -r line; do
-		[ -z "$line" ] && continue
+		[[ -z "$line" ]] && continue
 		local check severity message fired
 		check=$(echo "$line" | python3 -c "import json,sys; print(json.loads(sys.stdin.read()).get('check',''))" 2>/dev/null || true)
 		severity=$(echo "$line" | python3 -c "import json,sys; print(json.loads(sys.stdin.read()).get('severity',''))" 2>/dev/null || true)
@@ -410,8 +410,8 @@ output_check() {
 		fired=$(echo "$line" | python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print('true' if d.get('fired') else 'false')" 2>/dev/null || true)
 
 		local icon color
-		if [ "$fired" = "true" ]; then
-			if [ "$severity" = "critical" ]; then
+		if [[ "$fired" = "true" ]]; then
+			if [[ "$severity" = "critical" ]]; then
 				icon="[CRIT]"
 				color='\033[0;31m'
 			else
@@ -428,7 +428,7 @@ output_check() {
 
 	echo ""
 
-	if [ "$ALERT_COUNT" -gt 0 ]; then
+	if [[ "$ALERT_COUNT" -gt 0 ]]; then
 		echo -e "  \033[0;31m${ALERT_COUNT} alert(s) firing\033[0m"
 	else
 		echo -e "  \033[0;32mAll checks passed\033[0m"
@@ -452,17 +452,17 @@ output_notify() {
 
 	local fired_count=0
 	while IFS= read -r line; do
-		[ -z "$line" ] && continue
+		[[ -z "$line" ]] && continue
 		local fired severity check message
 		fired=$(echo "$line" | python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print('true' if d.get('fired') else 'false')" 2>/dev/null || true)
-		[ "$fired" != "true" ] && continue
+		[[ "$fired" != "true" ]] && continue
 
 		severity=$(echo "$line" | python3 -c "import json,sys; print(json.loads(sys.stdin.read()).get('severity',''))" 2>/dev/null || true)
 		check=$(echo "$line" | python3 -c "import json,sys; print(json.loads(sys.stdin.read()).get('check',''))" 2>/dev/null || true)
 		message=$(echo "$line" | python3 -c "import json,sys; print(json.loads(sys.stdin.read()).get('message',''))" 2>/dev/null || true)
 
 		local urgency="normal"
-		[ "$severity" = "critical" ] && urgency="critical"
+		[[ "$severity" = "critical" ]] && urgency="critical"
 
 		notify-send -u "$urgency" -a "securetty" \
 			"securetty alert: ${check}" \
@@ -471,7 +471,7 @@ output_notify() {
 		fired_count=$((fired_count + 1))
 	done <"$ALERT_FILE"
 
-	if [ "$fired_count" -gt 0 ]; then
+	if [[ "$fired_count" -gt 0 ]]; then
 		echo "  Sent ${fired_count} desktop notification(s)"
 	fi
 }
@@ -527,17 +527,17 @@ ALERT_COUNT=$(grep -c '"fired":true' "$ALERT_FILE" 2>/dev/null || echo 0)
 case "$MODE" in
 check)
 	output_check
-	[ "$ALERT_COUNT" -gt 0 ] && exit 1
+	[[ "$ALERT_COUNT" -gt 0 ]] && exit 1
 	exit 0
 	;;
 notify)
 	output_notify
-	[ "$ALERT_COUNT" -gt 0 ] && exit 1
+	[[ "$ALERT_COUNT" -gt 0 ]] && exit 1
 	exit 0
 	;;
 json)
 	output_json
-	[ "$ALERT_COUNT" -gt 0 ] && exit 1
+	[[ "$ALERT_COUNT" -gt 0 ]] && exit 1
 	exit 0
 	;;
 esac
