@@ -1,8 +1,8 @@
 """Prometheus metrics for the securetty dispatcher."""
 
+import logging
 import os
 import sqlite3
-import time
 
 from prometheus_client import (
     CollectorRegistry,
@@ -11,6 +11,8 @@ from prometheus_client import (
     Histogram,
     generate_latest,
 )
+
+logger = logging.getLogger(__name__)
 
 DB_PATH = os.environ.get("DISPATCHER_DB", "/data/dispatcher.db")
 
@@ -72,22 +74,24 @@ def update_from_db():
     """Read current job counts from SQLite and update gauge metrics."""
     try:
         conn = _get_db()
-        running = conn.execute(
-            "SELECT COUNT(*) as c FROM jobs WHERE status='running'"
-        ).fetchone()["c"]
-        pending = conn.execute(
-            "SELECT COUNT(*) as c FROM jobs WHERE status='pending'"
-        ).fetchone()["c"]
+        query = "SELECT COUNT(*) AS c FROM jobs WHERE status=?"
+        running = conn.execute(query, ("running",)).fetchone()["c"]
+        pending = conn.execute(query, ("pending",)).fetchone()["c"]
         conn.close()
 
         securetty_jobs_running.set(running)
         securetty_jobs_pending.set(pending)
-    except Exception:
-        pass
+    except sqlite3.Error as exc:
+        logger.warning("Could not refresh job gauges from %s: %s", DB_PATH, exc)
 
 
-def record_job_complete(agent: str, skill: str | None, status: str,
-                        duration_seconds: float, exit_code: int | None = None):
+def record_job_complete(
+    agent: str,
+    skill: str | None,
+    status: str,
+    duration_seconds: float,
+    exit_code: int | None = None,
+):
     """Record metrics when a job finishes execution.
 
     Called from app.py after a job's status is updated in the database.
@@ -104,9 +108,7 @@ def record_job_complete(agent: str, skill: str | None, status: str,
     securetty_jobs_total.labels(status=status, agent=agent, skill=skill_label).inc()
 
     if exit_code is not None:
-        securetty_sessions_total.labels(
-            agent=agent, exit_code=str(exit_code)
-        ).inc()
+        securetty_sessions_total.labels(agent=agent, exit_code=str(exit_code)).inc()
 
     securetty_job_duration_seconds.labels(agent=agent).observe(duration_seconds)
     securetty_session_duration_seconds.observe(duration_seconds)
