@@ -5,6 +5,7 @@ Each server runs in its own process with its skill directory and TLS cert.
 Parent monitors children and exits if any die (fail-fast for container restart).
 """
 
+import importlib
 import multiprocessing
 import os
 import signal
@@ -30,15 +31,15 @@ MCP_SERVICES = [
 
 
 def run_server(svc):
+    """Import the skill's MCP server and serve it over TLS on its port."""
     name, port = svc["name"], svc["port"]
     cert = f"/certs/{svc['cert']}.crt"
     key = f"/certs/{svc['cert']}.key"
 
     sys.path.insert(0, svc["skill_dir"])
     try:
-        from server import mcp
-        import uvicorn
-
+        uvicorn = importlib.import_module("uvicorn")
+        mcp = importlib.import_module("server").mcp
         app = mcp.http_app()
         uvicorn.run(
             app,
@@ -48,15 +49,16 @@ def run_server(svc):
             ssl_keyfile=key,
             log_level="warning",
         )
-    except Exception as e:
+    except (ImportError, AttributeError, OSError, RuntimeError, ValueError) as e:
         print(f"[{name}] FATAL: {e}", file=sys.stderr)
         sys.exit(1)
 
 
 def main():
+    """Start one process per MCP service and stop all if any exits."""
     procs = []
 
-    def shutdown(signum, frame):
+    def shutdown(_signum, _frame):
         for p in procs:
             if p.is_alive():
                 p.terminate()
@@ -66,9 +68,8 @@ def main():
     signal.signal(signal.SIGINT, shutdown)
 
     for svc in MCP_SERVICES:
-        p = multiprocessing.Process(
-            target=run_server, args=(svc,), name=f"mcp-{svc['name']}"
-        )
+        proc_name = f"mcp-{svc['name']}"
+        p = multiprocessing.Process(target=run_server, args=(svc,), name=proc_name)
         p.start()
         procs.append(p)
 
@@ -76,9 +77,8 @@ def main():
         time.sleep(5)
         for p in procs:
             if not p.is_alive():
-                print(
-                    f"{p.name} died (exit {p.exitcode}), shutting down", file=sys.stderr
-                )
+                msg = f"{p.name} died (exit {p.exitcode}), shutting down"
+                print(msg, file=sys.stderr)
                 for q in procs:
                     if q.is_alive():
                         q.terminate()
