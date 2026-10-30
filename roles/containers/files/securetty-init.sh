@@ -26,7 +26,7 @@ PROJECT_DIR=""
 # =============================================================================
 
 usage() {
-    cat <<'USAGE'
+	cat <<'USAGE'
 securetty-init.sh -- bootstrap securetty scaffolding in a project
 
 Usage:
@@ -59,7 +59,7 @@ Examples:
   securetty-init.sh ~/projects/my-app
   securetty-init.sh . --with-evals --with-hooks
 USAGE
-    exit 0
+	exit 0
 }
 
 # =============================================================================
@@ -67,39 +67,39 @@ USAGE
 # =============================================================================
 
 log_info() {
-    echo "==> $*"
+	echo "==> $*"
 }
 
 log_create() {
-    echo "  + $1"
+	echo "  + $1"
 }
 
 log_skip() {
-    echo "  ~ $1 (exists, use --force to overwrite)"
+	echo "  ~ $1 (exists, use --force to overwrite)"
 }
 
 log_error() {
-    echo "ERROR: $*" >&2
+	echo "ERROR: $*" >&2
 }
 
 write_file() {
-    local path="$1"
-    local content="$2"
+	local path="$1"
+	local content="$2"
 
-    if [[ -f "$path" && $FORCE -eq 0 ]]; then
-        log_skip "$path"
-        return 1
-    fi
+	if [[ -f "$path" && $FORCE -eq 0 ]]; then
+		log_skip "$path"
+		return 1
+	fi
 
-    mkdir -p "$(dirname "$path")"
-    printf '%s\n' "$content" > "$path"
-    log_create "$path"
-    return 0
+	mkdir -p "$(dirname "$path")"
+	printf '%s\n' "$content" >"$path"
+	log_create "$path"
+	return 0
 }
 
 get_project_name() {
-    local dir="$1"
-    basename "$(cd "$dir" && pwd)"
+	local dir="$1"
+	basename "$(cd "$dir" && pwd)"
 }
 
 # =============================================================================
@@ -107,8 +107,8 @@ get_project_name() {
 # =============================================================================
 
 generate_settings_json() {
-    local project_name="$1"
-    cat <<EOF
+	local project_name="$1"
+	cat <<EOF
 {
   "permissions": {
     "allow": [
@@ -127,8 +127,8 @@ EOF
 }
 
 generate_settings_json_with_hooks() {
-    local project_name="$1"
-    cat <<EOF
+	local project_name="$1"
+	cat <<EOF
 {
   "permissions": {
     "allow": [
@@ -160,14 +160,14 @@ EOF
 }
 
 generate_claude_md() {
-    cat <<'EOF'
+	cat <<'EOF'
 @AGENTS.md
 EOF
 }
 
 generate_agents_md() {
-    local project_name="$1"
-    cat <<EOF
+	local project_name="$1"
+	cat <<EOF
 # AGENTS.md -- ${project_name} AI Agent Guide
 
 ## Purpose
@@ -198,7 +198,7 @@ EOF
 }
 
 generate_skillsaw_yaml() {
-    cat <<'EOF'
+	cat <<'EOF'
 # skillsaw configuration
 # https://github.com/stbenjam/skillsaw
 
@@ -287,8 +287,8 @@ EOF
 }
 
 generate_promptfoo_config() {
-    local project_name="$1"
-    cat <<EOF
+	local project_name="$1"
+	cat <<EOF
 # promptfoo eval config for ${project_name}
 # Run: npx promptfoo@latest eval --config evals/promptfooconfig.yaml
 
@@ -319,8 +319,8 @@ EOF
 }
 
 generate_skill_quality_eval() {
-    local project_name="$1"
-    cat <<EOF
+	local project_name="$1"
+	cat <<EOF
 # Skill quality evaluation for ${project_name}
 # Validates that SKILL.md files meet quality standards
 
@@ -342,7 +342,7 @@ EOF
 }
 
 generate_governance_hook() {
-    cat <<'EOF'
+	cat <<'EOF'
 #!/bin/bash
 # PreToolUse governance hook: gate skill invocations
 # Reads Claude Code hook JSON from stdin
@@ -376,49 +376,49 @@ EOF
 # =============================================================================
 
 create_base_scaffolding() {
-    local project_dir="$1"
-    local project_name
-    project_name=$(get_project_name "$project_dir")
+	local project_dir="$1"
+	local project_name
+	project_name=$(get_project_name "$project_dir")
 
-    log_info "Initializing securetty scaffolding in ${project_dir}"
-    log_info "Project name: ${project_name}"
-    echo ""
+	log_info "Initializing securetty scaffolding in ${project_dir}"
+	log_info "Project name: ${project_name}"
+	echo ""
 
-    # .claude/settings.json
-    if [[ $WITH_HOOKS -eq 1 ]]; then
-        write_file "${project_dir}/.claude/settings.json" "$(generate_settings_json_with_hooks "$project_name")"
-    else
-        write_file "${project_dir}/.claude/settings.json" "$(generate_settings_json "$project_name")"
-    fi
+	# .claude/settings.json
+	if [[ $WITH_HOOKS -eq 1 ]]; then
+		write_file "${project_dir}/.claude/settings.json" "$(generate_settings_json_with_hooks "$project_name")"
+	else
+		write_file "${project_dir}/.claude/settings.json" "$(generate_settings_json "$project_name")"
+	fi
 
-    # CLAUDE.md
-    write_file "${project_dir}/CLAUDE.md" "$(generate_claude_md)"
+	# CLAUDE.md
+	write_file "${project_dir}/CLAUDE.md" "$(generate_claude_md)"
 
-    # AGENTS.md
-    write_file "${project_dir}/AGENTS.md" "$(generate_agents_md "$project_name")"
+	# AGENTS.md
+	write_file "${project_dir}/AGENTS.md" "$(generate_agents_md "$project_name")"
 
-    # .skillsaw.yaml
-    write_file "${project_dir}/.skillsaw.yaml" "$(generate_skillsaw_yaml)"
+	# .skillsaw.yaml
+	write_file "${project_dir}/.skillsaw.yaml" "$(generate_skillsaw_yaml)"
 }
 
 create_evals_scaffolding() {
-    local project_dir="$1"
-    local project_name
-    project_name=$(get_project_name "$project_dir")
+	local project_dir="$1"
+	local project_name
+	project_name=$(get_project_name "$project_dir")
 
-    log_info "Adding eval templates"
+	log_info "Adding eval templates"
 
-    write_file "${project_dir}/evals/promptfooconfig.yaml" "$(generate_promptfoo_config "$project_name")"
-    write_file "${project_dir}/evals/skill-quality.yaml" "$(generate_skill_quality_eval "$project_name")"
+	write_file "${project_dir}/evals/promptfooconfig.yaml" "$(generate_promptfoo_config "$project_name")"
+	write_file "${project_dir}/evals/skill-quality.yaml" "$(generate_skill_quality_eval "$project_name")"
 }
 
 create_hooks_scaffolding() {
-    local project_dir="$1"
+	local project_dir="$1"
 
-    log_info "Adding governance hooks"
+	log_info "Adding governance hooks"
 
-    write_file "${project_dir}/scripts/governance-hook.sh" "$(generate_governance_hook)"
-    chmod +x "${project_dir}/scripts/governance-hook.sh" 2>/dev/null || true
+	write_file "${project_dir}/scripts/governance-hook.sh" "$(generate_governance_hook)"
+	chmod +x "${project_dir}/scripts/governance-hook.sh" 2>/dev/null || true
 }
 
 # =============================================================================
@@ -426,61 +426,64 @@ create_hooks_scaffolding() {
 # =============================================================================
 
 while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --with-evals)
-            WITH_EVALS=1
-            shift
-            ;;
-        --with-hooks)
-            WITH_HOOKS=1
-            shift
-            ;;
-        --force)
-            FORCE=1
-            shift
-            ;;
-        --help|-h|help)
-            usage
-            ;;
-        -*)
-            log_error "Unknown option: $1"
-            usage
-            ;;
-        *)
-            if [[ -z "$PROJECT_DIR" ]]; then
-                PROJECT_DIR="$1"
-            else
-                log_error "Unexpected argument: $1"
-                usage
-            fi
-            shift
-            ;;
-    esac
+	case "$1" in
+	--with-evals)
+		WITH_EVALS=1
+		shift
+		;;
+	--with-hooks)
+		WITH_HOOKS=1
+		shift
+		;;
+	--force)
+		FORCE=1
+		shift
+		;;
+	--help | -h | help)
+		usage
+		;;
+	-*)
+		log_error "Unknown option: $1"
+		usage
+		;;
+	*)
+		if [[ -z "$PROJECT_DIR" ]]; then
+			PROJECT_DIR="$1"
+		else
+			log_error "Unexpected argument: $1"
+			usage
+		fi
+		shift
+		;;
+	esac
 done
 
 if [[ -z "$PROJECT_DIR" ]]; then
-    log_error "Project directory is required"
-    echo ""
-    usage
+	log_error "Project directory is required"
+	echo ""
+	usage
 fi
 
 # Resolve to absolute path
-PROJECT_DIR=$(cd "$PROJECT_DIR" 2>/dev/null && pwd || { mkdir -p "$PROJECT_DIR" && cd "$PROJECT_DIR" && pwd; })
+if [[ ! -d "$PROJECT_DIR" ]]; then
+	mkdir -p "$PROJECT_DIR"
+fi
+PROJECT_DIR=$(cd "$PROJECT_DIR" && pwd)
 
 if [[ ! -d "$PROJECT_DIR" ]]; then
-    log_error "Cannot create or access directory: $PROJECT_DIR"
-    exit 1
+	log_error "Cannot create or access directory: $PROJECT_DIR"
+	exit 1
 fi
 
 # Run scaffolding
 create_base_scaffolding "$PROJECT_DIR"
 
 if [[ $WITH_EVALS -eq 1 ]]; then
-    create_evals_scaffolding "$PROJECT_DIR"
+	create_evals_scaffolding "$PROJECT_DIR"
 fi
 
 if [[ $WITH_HOOKS -eq 1 ]]; then
-    create_hooks_scaffolding "$PROJECT_DIR"
+	create_hooks_scaffolding "$PROJECT_DIR"
 fi
 
 echo ""
@@ -490,9 +493,9 @@ echo "Next steps:"
 echo "  1. Review and customize AGENTS.md with your project details"
 echo "  2. Run 'skillsaw lint' to validate configuration"
 if [[ $WITH_EVALS -eq 1 ]]; then
-    echo "  3. Edit evals/*.yaml with project-specific test cases"
-    echo "  4. Run 'npx promptfoo@latest eval' to test"
+	echo "  3. Edit evals/*.yaml with project-specific test cases"
+	echo "  4. Run 'npx promptfoo@latest eval' to test"
 fi
 if [[ $WITH_HOOKS -eq 1 ]]; then
-    echo "  5. Customize scripts/governance-hook.sh with your governance rules"
+	echo "  5. Customize scripts/governance-hook.sh with your governance rules"
 fi
