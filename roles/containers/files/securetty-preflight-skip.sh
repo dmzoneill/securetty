@@ -47,12 +47,12 @@ EOF
 # ---------------------------------------------------------------------------
 # Argument parsing
 # ---------------------------------------------------------------------------
-[ $# -ge 1 ] || usage
+[[ $# -ge 1 ]] || usage
 
-while [ $# -gt 0 ]; do
+while [[ $# -gt 0 ]]; do
 	case "$1" in
 	--source)
-		[ $# -ge 2 ] || {
+		[[ $# -ge 2 ]] || {
 			echo "ERROR: --source requires a value" >&2
 			usage
 		}
@@ -67,7 +67,7 @@ while [ $# -gt 0 ]; do
 		usage
 		;;
 	*)
-		if [ -z "$WORK_ITEM" ]; then
+		if [[ -z "$WORK_ITEM" ]]; then
 			WORK_ITEM="$1"
 		else
 			echo "ERROR: unexpected argument: $1" >&2
@@ -78,7 +78,7 @@ while [ $# -gt 0 ]; do
 	esac
 done
 
-[ -n "$WORK_ITEM" ] || {
+[[ -n "$WORK_ITEM" ]] || {
 	echo "ERROR: no work item specified" >&2
 	usage
 }
@@ -86,7 +86,7 @@ done
 # ---------------------------------------------------------------------------
 # Auto-detect source from URL if not explicitly provided
 # ---------------------------------------------------------------------------
-if [ -z "$SOURCE" ]; then
+if [[ -z "$SOURCE" ]]; then
 	case "$WORK_ITEM" in
 	*github.com*) SOURCE="github" ;;
 	*gitlab.com* | *gitlab.cee.redhat.com*) SOURCE="gitlab" ;;
@@ -138,7 +138,7 @@ check_stale_duplicate() {
 		cutoff_iso=$(date -u -d "@${cutoff}" +%Y-%m-%dT%H:%M:%S 2>/dev/null ||
 			date -u -r "${cutoff}" +%Y-%m-%dT%H:%M:%S 2>/dev/null || echo "")
 
-		if [ -n "$cutoff_iso" ]; then
+		if [[ -n "$cutoff_iso" ]]; then
 			# If work item appears in completed jobs, check timestamp
 			if echo "$completed" | grep -q "\"work_item\":\"${work_item}\"" 2>/dev/null ||
 				echo "$completed" | grep -q "\"work_item\": \"${work_item}\"" 2>/dev/null; then
@@ -165,7 +165,7 @@ check_github_pr() {
 	# Extract owner/repo and PR number from URL
 	local pr_path
 	pr_path=$(echo "$url" | sed -n 's|.*github\.com/\([^/]*/[^/]*\)/pull/\([0-9]*\).*|\1 \2|p')
-	if [ -z "$pr_path" ]; then
+	if [[ -z "$pr_path" ]]; then
 		echo "  WARN: could not parse GitHub PR URL: $url" >&2
 		return 0
 	fi
@@ -180,7 +180,7 @@ check_github_pr() {
 		return 0
 	fi
 
-	if [ "$state" != "OPEN" ]; then
+	if [[ "$state" != "OPEN" ]]; then
 		echo "  SKIP: GitHub PR $repo#$pr_num is $state (not OPEN)" >&2
 		return 1
 	fi
@@ -203,7 +203,7 @@ check_github_issue() {
 	# Extract owner/repo and issue number from URL
 	local issue_path
 	issue_path=$(echo "$url" | sed -n 's|.*github\.com/\([^/]*/[^/]*\)/issues/\([0-9]*\).*|\1 \2|p')
-	if [ -z "$issue_path" ]; then
+	if [[ -z "$issue_path" ]]; then
 		echo "  WARN: could not parse GitHub issue URL: $url" >&2
 		return 0
 	fi
@@ -221,7 +221,7 @@ check_github_issue() {
 	local state
 	state=$(echo "$json" | grep -o '"state":"[^"]*"' | head -1 | cut -d'"' -f4)
 
-	if [ "$state" != "OPEN" ]; then
+	if [[ "$state" != "OPEN" ]]; then
 		echo "  SKIP: GitHub issue $repo#$issue_num is $state (not OPEN)" >&2
 		return 1
 	fi
@@ -229,7 +229,7 @@ check_github_issue() {
 	# Check if already assigned
 	local assignee_count
 	assignee_count=$(echo "$json" | grep -o '"login"' | wc -l)
-	if [ "$assignee_count" -gt 0 ]; then
+	if [[ "$assignee_count" -gt 0 ]]; then
 		echo "  SKIP: GitHub issue $repo#$issue_num is already assigned ($assignee_count assignees)" >&2
 		return 1
 	fi
@@ -253,7 +253,7 @@ check_gitlab_mr() {
 	# Handles: https://gitlab.com/org/repo/-/merge_requests/7
 	local mr_path
 	mr_path=$(echo "$url" | sed -n 's|.*gitlab[^/]*/\(.*\)/-/merge_requests/\([0-9]*\).*|\1 \2|p')
-	if [ -z "$mr_path" ]; then
+	if [[ -z "$mr_path" ]]; then
 		echo "  WARN: could not parse GitLab MR URL: $url" >&2
 		return 0
 	fi
@@ -269,7 +269,7 @@ check_gitlab_mr() {
 		return 0
 	fi
 
-	if [ "$state" != "opened" ]; then
+	if [[ "$state" != "opened" ]]; then
 		echo "  SKIP: GitLab MR $project!$mr_num is $state (not opened)" >&2
 		return 1
 	fi
@@ -284,7 +284,7 @@ check_gitlab_mr() {
 check_jira_issue() {
 	local issue_key="$1"
 
-	if [ -z "$JIRA_URL" ] || [ -z "$JIRA_TOKEN" ]; then
+	if [[ -z "$JIRA_URL" ]] || [[ -z "$JIRA_TOKEN" ]]; then
 		echo "  WARN: SECURETTY_JIRA_URL or SECURETTY_JIRA_TOKEN not set, skipping Jira check" >&2
 		return 0
 	fi
