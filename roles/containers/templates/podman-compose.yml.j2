@@ -476,6 +476,9 @@ services:
       - .env.mcp-github
       - .env.mcp-slack
       - .env.mcp-wordpress
+    environment:
+      # Listen on all interfaces inside the container so agents on securetty_net can reach the MCP servers.
+      MCP_GATEWAY_BIND_HOST: "0.0.0.0"
     volumes:
       - {{ securetty_mcp_skills_dir }}/jira:/mcp/jira:ro
       - {{ securetty_mcp_skills_dir }}/gitlab:/mcp/gitlab:ro

@@ -11,12 +11,21 @@ import signal
 import sys
 import time
 
+# Bind address for the MCP servers. Defaults to loopback; the compose file sets
+# MCP_GATEWAY_BIND_HOST so peers on the internal container network can connect.
+BIND_HOST = os.environ.get("MCP_GATEWAY_BIND_HOST", "127.0.0.1")
+
 MCP_SERVICES = [
     {"name": "jira", "port": 8801, "skill_dir": "/mcp/jira", "cert": "mcp-jira"},
     {"name": "gitlab", "port": 8802, "skill_dir": "/mcp/gitlab", "cert": "mcp-gitlab"},
     {"name": "github", "port": 8803, "skill_dir": "/mcp/github", "cert": "mcp-github"},
     {"name": "slack", "port": 8804, "skill_dir": "/mcp/slack", "cert": "mcp-slack"},
-    {"name": "wordpress", "port": 8805, "skill_dir": "/mcp/wordpress", "cert": "mcp-wordpress"},
+    {
+        "name": "wordpress",
+        "port": 8805,
+        "skill_dir": "/mcp/wordpress",
+        "cert": "mcp-wordpress",
+    },
 ]
 
 
@@ -31,7 +40,14 @@ def run_server(svc):
         import uvicorn
 
         app = mcp.http_app()
-        uvicorn.run(app, host="0.0.0.0", port=port, ssl_certfile=cert, ssl_keyfile=key, log_level="warning")
+        uvicorn.run(
+            app,
+            host=BIND_HOST,
+            port=port,
+            ssl_certfile=cert,
+            ssl_keyfile=key,
+            log_level="warning",
+        )
     except Exception as e:
         print(f"[{name}] FATAL: {e}", file=sys.stderr)
         sys.exit(1)
@@ -50,7 +66,9 @@ def main():
     signal.signal(signal.SIGINT, shutdown)
 
     for svc in MCP_SERVICES:
-        p = multiprocessing.Process(target=run_server, args=(svc,), name=f"mcp-{svc['name']}")
+        p = multiprocessing.Process(
+            target=run_server, args=(svc,), name=f"mcp-{svc['name']}"
+        )
         p.start()
         procs.append(p)
 
@@ -58,7 +76,9 @@ def main():
         time.sleep(5)
         for p in procs:
             if not p.is_alive():
-                print(f"{p.name} died (exit {p.exitcode}), shutting down", file=sys.stderr)
+                print(
+                    f"{p.name} died (exit {p.exitcode}), shutting down", file=sys.stderr
+                )
                 for q in procs:
                     if q.is_alive():
                         q.terminate()
