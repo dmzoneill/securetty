@@ -5,7 +5,7 @@
 # to track state.  Skips issues that already carry any agent:* label.
 set -euo pipefail
 
-if [ -d "/tmp/securetty-state" ]; then
+if [[ -d "/tmp/securetty-state" ]]; then
 	DAEMON_DIR="/tmp/securetty-state"
 else
 	DAEMON_DIR="$HOME/.securetty"
@@ -17,7 +17,7 @@ JIRA_USER="${SECURETTY_JIRA_USER:-}"
 JIRA_TOKEN="${JIRA_API_TOKEN:-}"
 
 # Try creds proxy if no token is set directly
-if [ -z "$JIRA_TOKEN" ]; then
+if [[ -z "$JIRA_TOKEN" ]]; then
 	JIRA_TOKEN=$(curl -sf http://localhost:9401/creds/jira_api_token 2>/dev/null || true)
 fi
 
@@ -42,9 +42,9 @@ _log_stdout() {
 # =============================================================================
 
 _jira_auth_header() {
-	if [ -n "$JIRA_USER" ] && [ -n "$JIRA_TOKEN" ]; then
+	if [[ -n "$JIRA_USER" ]] && [[ -n "$JIRA_TOKEN" ]]; then
 		echo "-u ${JIRA_USER}:${JIRA_TOKEN}"
-	elif [ -n "$JIRA_TOKEN" ]; then
+	elif [[ -n "$JIRA_TOKEN" ]]; then
 		echo "-H Authorization: Bearer ${JIRA_TOKEN}"
 	else
 		echo ""
@@ -242,7 +242,7 @@ _ensure_clean_worktree() {
 	local repo_dir="$1"
 	local key="$2"
 
-	if [ ! -d "$repo_dir/.git" ]; then
+	if [[ ! -d "$repo_dir/.git" ]]; then
 		_log "ERROR: ${repo_dir} is not a git repository"
 		return 1
 	fi
@@ -250,7 +250,7 @@ _ensure_clean_worktree() {
 	local status
 	status=$(git -C "$repo_dir" status --porcelain 2>/dev/null)
 
-	if [ -n "$status" ]; then
+	if [[ -n "$status" ]]; then
 		local file_count
 		file_count=$(echo "$status" | wc -l)
 		_log "BLOCKED: ${repo_dir} has ${file_count} uncommitted change(s)"
@@ -290,7 +290,7 @@ _create_agent_branch() {
 
 	local default_branch
 	default_branch=$(git -C "$repo_dir" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
-	if [ -z "$default_branch" ]; then
+	if [[ -z "$default_branch" ]]; then
 		for candidate in main master; do
 			if git -C "$repo_dir" rev-parse --verify "origin/${candidate}" &>/dev/null; then
 				default_branch="$candidate"
@@ -299,7 +299,7 @@ _create_agent_branch() {
 		done
 	fi
 
-	if [ -z "$default_branch" ]; then
+	if [[ -z "$default_branch" ]]; then
 		_log "ERROR: cannot determine default branch in ${repo_dir}"
 		return 1
 	fi
@@ -328,7 +328,7 @@ _transition_to_in_progress() {
 	local key="$1"
 	local transitions_json
 	transitions_json=$(_jira_get "/rest/api/2/issue/${key}/transitions")
-	[ -z "$transitions_json" ] && return 1
+	[[ -z "$transitions_json" ]] && return 1
 
 	local target_id
 	target_id=$(echo "$transitions_json" | python3 -c "
@@ -342,7 +342,7 @@ for t in data.get('transitions', []):
 print('')
 " 2>/dev/null)
 
-	if [ -n "$target_id" ]; then
+	if [[ -n "$target_id" ]]; then
 		local body
 		body=$(printf '{"transition":{"id":"%s"}}' "$target_id")
 		_jira_post "/rest/api/2/issue/${key}/transitions" "$body"
@@ -356,7 +356,7 @@ _transition_to_in_review() {
 	local key="$1"
 	local transitions_json
 	transitions_json=$(_jira_get "/rest/api/2/issue/${key}/transitions")
-	[ -z "$transitions_json" ] && return 1
+	[[ -z "$transitions_json" ]] && return 1
 
 	local target_id
 	target_id=$(echo "$transitions_json" | python3 -c "
@@ -370,7 +370,7 @@ for t in data.get('transitions', []):
 print('')
 " 2>/dev/null)
 
-	if [ -n "$target_id" ]; then
+	if [[ -n "$target_id" ]]; then
 		local body
 		body=$(printf '{"transition":{"id":"%s"}}' "$target_id")
 		_jira_post "/rest/api/2/issue/${key}/transitions" "$body"
@@ -527,7 +527,7 @@ r = json.load(sys.stdin)
 print(r[0].get('signal','') if r else '')
 " 2>/dev/null)
 
-	if [ -z "$top_dir" ]; then
+	if [[ -z "$top_dir" ]]; then
 		_log "cannot resolve project directory for ${key}"
 		_add_label "$key" "agent:needs-info"
 
@@ -577,7 +577,7 @@ print(json.dumps({'body': chr(10).join(lines)}))
 		_log "dispatching ${key} via securetty CLI (work_dir=${repo_dir})"
 		dispatch_result=$(securetty dispatch "Implement Jira issue ${key}" --source "jira-triage" 2>&1 || true)
 		echo "$dispatch_result" >>"$LOG_FILE"
-	elif [ -n "${SECURETTY_DISPATCHER_URL:-}" ]; then
+	elif [[ -n "${SECURETTY_DISPATCHER_URL:-}" ]]; then
 		_log "dispatching ${key} via dispatcher API (work_dir=${repo_dir})"
 		local body
 		body=$(python3 -c "
@@ -603,7 +603,7 @@ print(json.dumps({
 	fi
 
 	local job_id=""
-	if [ -n "$dispatch_result" ]; then
+	if [[ -n "$dispatch_result" ]]; then
 		job_id=$(echo "$dispatch_result" | python3 -c "
 import json, sys
 try:
@@ -615,7 +615,7 @@ except Exception:
 	fi
 
 	# Record triage history
-	if [ -n "${SECURETTY_DISPATCHER_URL:-}" ]; then
+	if [[ -n "${SECURETTY_DISPATCHER_URL:-}" ]]; then
 		local project
 		project=$(echo "$key" | cut -d- -f1)
 		local triage_body
@@ -663,7 +663,7 @@ print(json.dumps({'body': chr(10).join(lines)}))
 " 2>/dev/null)
 	_jira_post "/rest/api/2/issue/${key}/comment" "$review_comment"
 
-	if [ -n "${SECURETTY_DISPATCHER_URL:-}" ]; then
+	if [[ -n "${SECURETTY_DISPATCHER_URL:-}" ]]; then
 		curl -sf -X PUT "${SECURETTY_DISPATCHER_URL}/triage/${key}" \
 			-H "Content-Type: application/json" \
 			-d '{"feedback_status":"awaiting_review"}' >>"$LOG_FILE" 2>&1 || true
@@ -687,13 +687,13 @@ _action_skip() {
 main() {
 	local key="${1:-}"
 
-	if [ -z "$key" ]; then
+	if [[ -z "$key" ]]; then
 		echo "Usage: securetty-jira-triage <ISSUE-KEY>" >&2
 		echo "  e.g. securetty-jira-triage AAP-12345" >&2
 		exit 1
 	fi
 
-	if [ -z "$JIRA_URL" ]; then
+	if [[ -z "$JIRA_URL" ]]; then
 		echo "ERROR: SECURETTY_JIRA_URL is not set" >&2
 		exit 1
 	fi
@@ -706,7 +706,7 @@ main() {
 	local issue_json
 	issue_json=$(_jira_get "/rest/api/2/issue/${key}?fields=summary,description,issuetype,priority,components,labels,status,subtasks")
 
-	if [ -z "$issue_json" ]; then
+	if [[ -z "$issue_json" ]]; then
 		_log_stdout "ERROR: failed to fetch issue ${key}"
 		exit 1
 	fi
@@ -732,7 +732,7 @@ json.dump(labels, sys.stdout)
 	local classification
 	classification=$(_classify "$issue_json")
 
-	if [ -z "$classification" ]; then
+	if [[ -z "$classification" ]]; then
 		_log_stdout "ERROR: classification failed for ${key}"
 		_add_label "$key" "agent:skipped"
 		return 1

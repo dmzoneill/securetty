@@ -51,7 +51,7 @@ show_splash() {
 
 		if [[ "$i" -lt "$art_count" ]]; then
 			left="${C}${_SPLASH_ART[$i]}${N}"
-			local pad=$(((_SPLASH_ART_WIDTH - ${#_SPLASH_ART[$i]})))
+			local pad=$((_SPLASH_ART_WIDTH - ${#_SPLASH_ART[$i]}))
 			[[ "$pad" -gt 0 ]] && left="${left}$(printf '%*s' "$pad" '')"
 		elif [[ "$i" -eq "$((art_count))" ]]; then
 			left=""
