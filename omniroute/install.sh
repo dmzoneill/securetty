@@ -15,12 +15,12 @@ best_version=$(echo "$time_json" | jq -r --argjson cutoff "$CUTOFF_EPOCH" '
     | sort_by(.value) | reverse | .[0].key // empty
 ' 2>/dev/null || echo "")
 
-if [ -n "$best_version" ]; then
-    echo "Installing $PKG@$best_version"
-    npm install -g "${PKG}@${best_version}"
+if [[ -n "$best_version" ]]; then
+	echo "Installing $PKG@$best_version"
+	npm install -g "${PKG}@${best_version}"
 else
-    echo "No version older than ${QUARANTINE_DAYS}d, installing latest"
-    npm install -g "$PKG"
+	echo "No version older than ${QUARANTINE_DAYS}d, installing latest"
+	npm install -g "$PKG"
 fi
 
 npm cache clean --force 2>/dev/null || true
