@@ -8,32 +8,30 @@ cd /workspace
 echo "=== Installing dependencies ==="
 
 # Python: create venv if missing, install from lockfile
-if [ -f "requirements.txt" ]; then
-    if [ ! -d ".venv" ]; then
-        python3 -m venv .venv
-    fi
-    source .venv/bin/activate
-    pip install --require-hashes -r requirements.txt 2>/dev/null \
-        || pip install -r requirements.txt
-    echo "[+] Python dependencies installed"
+if [[ -f "requirements.txt" ]]; then
+	if [[ ! -d ".venv" ]]; then
+		python3 -m venv .venv
+	fi
+	.venv/bin/pip install --require-hashes -r requirements.txt 2>/dev/null ||
+		.venv/bin/pip install -r requirements.txt
+	echo "[+] Python dependencies installed"
 fi
 
-if [ -f "pyproject.toml" ] && command -v uv &>/dev/null; then
-    if [ ! -d ".venv" ]; then
-        python3 -m venv .venv
-    fi
-    source .venv/bin/activate
-    uv sync
-    echo "[+] Python dependencies installed via uv"
+if [[ -f "pyproject.toml" ]] && command -v uv &>/dev/null; then
+	if [[ ! -d ".venv" ]]; then
+		python3 -m venv .venv
+	fi
+	uv sync
+	echo "[+] Python dependencies installed via uv"
 fi
 
 # Node: install from lockfile, no scripts
-if [ -f "package-lock.json" ]; then
-    npm ci --ignore-scripts
-    echo "[+] Node dependencies installed (scripts disabled)"
-elif [ -f "package.json" ]; then
-    npm install --ignore-scripts
-    echo "[+] Node dependencies installed (scripts disabled)"
+if [[ -f "package-lock.json" ]]; then
+	npm ci --ignore-scripts
+	echo "[+] Node dependencies installed (scripts disabled)"
+elif [[ -f "package.json" ]]; then
+	npm install --ignore-scripts
+	echo "[+] Node dependencies installed (scripts disabled)"
 fi
 
 echo ""
