@@ -46,13 +46,14 @@ _log_stdout() {
 # Jira query
 # =============================================================================
 
+# Fill the named array with curl auth arguments for Jira (empty when no token).
 _jira_auth_header() {
+	local -n _auth_out="$1"
+	_auth_out=()
 	if [[ -n "$JIRA_USER" ]] && [[ -n "$JIRA_TOKEN" ]]; then
-		echo "-u ${JIRA_USER}:${JIRA_TOKEN}"
+		_auth_out=(-u "${JIRA_USER}:${JIRA_TOKEN}")
 	elif [[ -n "$JIRA_TOKEN" ]]; then
-		echo "-H Authorization: Bearer ${JIRA_TOKEN}"
-	else
-		echo ""
+		_auth_out=(-H "Authorization: Bearer ${JIRA_TOKEN}")
 	fi
 }
 
@@ -85,12 +86,11 @@ _poll_jira() {
 	local encoded_jql
 	encoded_jql=$(python3 -c "import urllib.parse; print(urllib.parse.quote('''$jql''', safe=''))" 2>/dev/null)
 
-	local auth
-	auth=$(_jira_auth_header)
+	local -a auth
+	_jira_auth_header auth
 
 	local response
-	# shellcheck disable=SC2086
-	response=$(curl $auth -sf -H "Content-Type: application/json" \
+	response=$(curl "${auth[@]}" -sf -H "Content-Type: application/json" \
 		"${JIRA_URL}/rest/api/2/search?jql=${encoded_jql}&maxResults=20&fields=key" 2>/dev/null || echo "")
 
 	if [[ -z "$response" ]]; then

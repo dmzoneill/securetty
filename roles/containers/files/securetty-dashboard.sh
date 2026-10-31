@@ -77,11 +77,17 @@ done
 # TLS certificate arguments for dispatcher communication
 # =============================================================================
 
+# Fill the named array with curl mTLS arguments (empty when no client cert).
 _cert_args() {
-	local args=""
-	[[ -f "$SECURETTY_DIR/certs/client.crt" ]] &&
-		args="--cert $SECURETTY_DIR/certs/client.crt --key $SECURETTY_DIR/certs/client.key --cacert $SECURETTY_DIR/certs/ca.crt"
-	echo "$args"
+	local -n _cert_out="$1"
+	_cert_out=()
+	if [[ -f "$SECURETTY_DIR/certs/client.crt" ]]; then
+		_cert_out=(
+			--cert "$SECURETTY_DIR/certs/client.crt"
+			--key "$SECURETTY_DIR/certs/client.key"
+			--cacert "$SECURETTY_DIR/certs/ca.crt"
+		)
+	fi
 }
 
 # =============================================================================
@@ -129,10 +135,9 @@ except Exception as e:
 
 collect_dispatcher_status() {
 	# Returns JSON object from dispatcher /status endpoint
-	local cert_args
-	cert_args=$(_cert_args)
-	# shellcheck disable=SC2086
-	curl $cert_args -sf "${DISPATCHER_URL}/status" 2>/dev/null || echo '{}'
+	local -a cert_args
+	_cert_args cert_args
+	curl "${cert_args[@]}" -sf "${DISPATCHER_URL}/status" 2>/dev/null || echo '{}'
 }
 
 collect_agent_metrics() {

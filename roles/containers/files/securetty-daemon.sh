@@ -38,33 +38,36 @@ _log_stdout() {
 # Dispatcher communication
 # =============================================================================
 
+# Fill the named array with curl mTLS arguments (empty when no client cert).
 _cert_args() {
-	local args=""
-	[[ -f "$SECURETTY_DIR/certs/client.crt" ]] &&
-		args="--cert $SECURETTY_DIR/certs/client.crt --key $SECURETTY_DIR/certs/client.key --cacert $SECURETTY_DIR/certs/ca.crt"
-	echo "$args"
+	local -n _cert_out="$1"
+	_cert_out=()
+	if [[ -f "$SECURETTY_DIR/certs/client.crt" ]]; then
+		_cert_out=(
+			--cert "$SECURETTY_DIR/certs/client.crt"
+			--key "$SECURETTY_DIR/certs/client.key"
+			--cacert "$SECURETTY_DIR/certs/ca.crt"
+		)
+	fi
 }
 
 _dispatcher_get() {
 	local path="$1"
-	local cert_args
-	cert_args=$(_cert_args)
-	# shellcheck disable=SC2086
-	curl $cert_args -sf "${DISPATCHER_URL}${path}" 2>/dev/null || echo ""
+	local -a cert_args
+	_cert_args cert_args
+	curl "${cert_args[@]}" -sf "${DISPATCHER_URL}${path}" 2>/dev/null || echo ""
 }
 
 _dispatcher_post() {
 	local path="$1"
 	local body="${2:-}"
-	local cert_args
-	cert_args=$(_cert_args)
+	local -a cert_args
+	_cert_args cert_args
 	if [[ -n "$body" ]]; then
-		# shellcheck disable=SC2086
-		curl $cert_args -sf -X POST "${DISPATCHER_URL}${path}" \
+		curl "${cert_args[@]}" -sf -X POST "${DISPATCHER_URL}${path}" \
 			-H "Content-Type: application/json" -d "$body" 2>/dev/null || echo ""
 	else
-		# shellcheck disable=SC2086
-		curl $cert_args -sf -X POST "${DISPATCHER_URL}${path}" 2>/dev/null || echo ""
+		curl "${cert_args[@]}" -sf -X POST "${DISPATCHER_URL}${path}" 2>/dev/null || echo ""
 	fi
 }
 

@@ -41,42 +41,40 @@ _log_stdout() {
 # Jira REST helpers
 # =============================================================================
 
+# Fill the named array with curl auth arguments for Jira (empty when no token).
 _jira_auth_header() {
+	local -n _auth_out="$1"
+	_auth_out=()
 	if [[ -n "$JIRA_USER" ]] && [[ -n "$JIRA_TOKEN" ]]; then
-		echo "-u ${JIRA_USER}:${JIRA_TOKEN}"
+		_auth_out=(-u "${JIRA_USER}:${JIRA_TOKEN}")
 	elif [[ -n "$JIRA_TOKEN" ]]; then
-		echo "-H Authorization: Bearer ${JIRA_TOKEN}"
-	else
-		echo ""
+		_auth_out=(-H "Authorization: Bearer ${JIRA_TOKEN}")
 	fi
 }
 
 _jira_get() {
 	local path="$1"
-	local auth
-	auth=$(_jira_auth_header)
-	# shellcheck disable=SC2086
-	curl $auth -sf -H "Content-Type: application/json" \
+	local -a auth
+	_jira_auth_header auth
+	curl "${auth[@]}" -sf -H "Content-Type: application/json" \
 		"${JIRA_URL}${path}" 2>/dev/null || echo ""
 }
 
 _jira_put() {
 	local path="$1"
 	local body="$2"
-	local auth
-	auth=$(_jira_auth_header)
-	# shellcheck disable=SC2086
-	curl $auth -sf -X PUT -H "Content-Type: application/json" \
+	local -a auth
+	_jira_auth_header auth
+	curl "${auth[@]}" -sf -X PUT -H "Content-Type: application/json" \
 		-d "$body" "${JIRA_URL}${path}" 2>/dev/null || echo ""
 }
 
 _jira_post() {
 	local path="$1"
 	local body="$2"
-	local auth
-	auth=$(_jira_auth_header)
-	# shellcheck disable=SC2086
-	curl $auth -sf -X POST -H "Content-Type: application/json" \
+	local -a auth
+	_jira_auth_header auth
+	curl "${auth[@]}" -sf -X POST -H "Content-Type: application/json" \
 		-d "$body" "${JIRA_URL}${path}" 2>/dev/null || echo ""
 }
 
