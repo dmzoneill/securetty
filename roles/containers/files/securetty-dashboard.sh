@@ -79,7 +79,7 @@ done
 
 _cert_args() {
 	local args=""
-	[ -f "$SECURETTY_DIR/certs/client.crt" ] &&
+	[[ -f "$SECURETTY_DIR/certs/client.crt" ]] &&
 		args="--cert $SECURETTY_DIR/certs/client.crt --key $SECURETTY_DIR/certs/client.key --cacert $SECURETTY_DIR/certs/ca.crt"
 	echo "$args"
 }
@@ -397,8 +397,9 @@ _header() {
 	ts=$(date -u +%FT%TZ)
 	local _splash_script
 	_splash_script="$(dirname "$0")/../../scripts/securetty-splash.sh"
-	[ -f "$_splash_script" ] || _splash_script="$(cd "$(dirname "$0")" && pwd)/../../scripts/securetty-splash.sh"
-	if [ -f "$_splash_script" ]; then
+	[[ -f "$_splash_script" ]] || _splash_script="$(cd "$(dirname "$0")" && pwd)/../../scripts/securetty-splash.sh"
+	if [[ -f "$_splash_script" ]]; then
+		# shellcheck source=/dev/null
 		source "$_splash_script"
 		show_splash "--tagline|Observability Dashboard  ${ts}"
 	else
@@ -589,7 +590,7 @@ render_tui() {
 	alerts_data=$(collect_alerts)
 
 	# Clear screen for live mode
-	if [ "$MODE" = "live" ]; then
+	if [[ "$MODE" = "live" ]]; then
 		printf '\033[2J\033[H'
 	fi
 
@@ -600,7 +601,7 @@ render_tui() {
 	render_cost "$cost"
 	render_alerts "$alerts_data"
 
-	if [ "$MODE" = "live" ]; then
+	if [[ "$MODE" = "live" ]]; then
 		echo -e "  ${DIM}Refreshing every ${REFRESH_INTERVAL}s | Press Ctrl+C to exit${RESET}"
 	fi
 }
