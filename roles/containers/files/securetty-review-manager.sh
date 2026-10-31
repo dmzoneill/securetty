@@ -627,7 +627,7 @@ _poll_once() {
 	# Search Jira for issues with agent:in-review label
 	local jql="labels = \"agent:in-review\""
 	local encoded_jql
-	encoded_jql=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$jql', safe=''))" 2>/dev/null)
+	encoded_jql=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$jql" 2>/dev/null)
 
 	local search_json
 	search_json=$(_jira_get "/rest/api/2/search?jql=${encoded_jql}&maxResults=50&fields=key,summary,labels,updated")
