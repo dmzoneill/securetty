@@ -83,7 +83,7 @@ _poll_jira() {
 	local jql="project IN (${project_clause}) AND assignee = currentUser() AND labels NOT IN (${exclude_labels}) AND status NOT IN (Done, Closed, Resolved) ORDER BY priority DESC, updated DESC"
 
 	local encoded_jql
-	encoded_jql=$(python3 -c "import urllib.parse; print(urllib.parse.quote('''$jql''', safe=''))" 2>/dev/null)
+	encoded_jql=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$jql" 2>/dev/null)
 
 	local auth
 	auth=$(_jira_auth_header)
