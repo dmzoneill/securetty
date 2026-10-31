@@ -105,8 +105,8 @@ verify_binary() {
 	local base_url="https://github.com/${repo}/releases/download/${tag}"
 	local tmpdir
 	tmpdir=$(mktemp -d)
-	# shellcheck disable=SC2064
-	trap "rm -rf '$tmpdir'" EXIT
+	_VERIFY_TMPDIR="$tmpdir"
+	trap 'rm -rf "$_VERIFY_TMPDIR"' EXIT
 
 	echo "verify-binary: ${name} ${repo} ${tag}" >&2
 

@@ -105,11 +105,17 @@ fi
 # TLS certificate arguments
 # =============================================================================
 
+# Fill the named array with curl mTLS arguments (empty when no client cert).
 _cert_args() {
-	local args=""
-	[[ -f "$SECURETTY_DIR/certs/client.crt" ]] &&
-		args="--cert $SECURETTY_DIR/certs/client.crt --key $SECURETTY_DIR/certs/client.key --cacert $SECURETTY_DIR/certs/ca.crt"
-	echo "$args"
+	local -n _cert_out="$1"
+	_cert_out=()
+	if [[ -f "$SECURETTY_DIR/certs/client.crt" ]]; then
+		_cert_out=(
+			--cert "$SECURETTY_DIR/certs/client.crt"
+			--key "$SECURETTY_DIR/certs/client.key"
+			--cacert "$SECURETTY_DIR/certs/ca.crt"
+		)
+	fi
 }
 
 # =============================================================================
@@ -176,11 +182,10 @@ check_stuck_agents() {
 	now_epoch=$(date +%s)
 
 	# Check dispatcher for running jobs that started more than STUCK_MINUTES ago
-	local cert_args
-	cert_args=$(_cert_args)
+	local -a cert_args
+	_cert_args cert_args
 	local response
-	# shellcheck disable=SC2086
-	response=$(curl $cert_args -sf "${DISPATCHER_URL}/jobs?status=running&limit=50" 2>/dev/null || echo "")
+	response=$(curl "${cert_args[@]}" -sf "${DISPATCHER_URL}/jobs?status=running&limit=50" 2>/dev/null || echo "")
 
 	if [[ -n "$response" ]] && [[ "$response" != "" ]]; then
 		stuck_count=$(python3 -c "
@@ -349,11 +354,10 @@ else:
 # =============================================================================
 
 check_queue_backup() {
-	local cert_args
-	cert_args=$(_cert_args)
+	local -a cert_args
+	_cert_args cert_args
 	local response
-	# shellcheck disable=SC2086
-	response=$(curl $cert_args -sf "${DISPATCHER_URL}/status" 2>/dev/null || echo "")
+	response=$(curl "${cert_args[@]}" -sf "${DISPATCHER_URL}/status" 2>/dev/null || echo "")
 
 	if [[ -z "$response" ]]; then
 		_add_ok "queue_backup" "Dispatcher unreachable (skipped)"
