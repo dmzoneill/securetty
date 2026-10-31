@@ -399,7 +399,7 @@ _header() {
 	_splash_script="$(dirname "$0")/../../scripts/securetty-splash.sh"
 	[[ -f "$_splash_script" ]] || _splash_script="$(cd "$(dirname "$0")" && pwd)/../../scripts/securetty-splash.sh"
 	if [[ -f "$_splash_script" ]]; then
-		# shellcheck source=/dev/null
+		# shellcheck source=scripts/securetty-splash.sh
 		source "$_splash_script"
 		show_splash "--tagline|Observability Dashboard  ${ts}"
 	else

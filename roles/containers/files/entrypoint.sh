@@ -8,7 +8,7 @@ show_banner() {
 	splash_script="$(dirname "$0")/securetty-splash.sh"
 	[[ -f "$splash_script" ]] || splash_script="/usr/local/bin/securetty-splash.sh"
 	[[ -f "$splash_script" ]] || return 0
-	# shellcheck source=/dev/null
+	# shellcheck source=scripts/securetty-splash.sh
 	source "$splash_script"
 
 	[[ -f "$manifest" ]] || {
