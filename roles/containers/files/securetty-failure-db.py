@@ -18,8 +18,14 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-DB_PATH = os.environ.get("SECURETTY_FAILURE_DB", os.path.expanduser("~/.securetty/failures.db"))
-OUTCOMES_DIR = os.environ.get("SECURETTY_OUTCOMES_DIR", os.path.expanduser("~/.securetty/outcomes"))
+DB_PATH = os.environ.get(
+    "SECURETTY_FAILURE_DB",
+    os.path.expanduser("~/.securetty/failures.db"),
+)
+OUTCOMES_DIR = os.environ.get(
+    "SECURETTY_OUTCOMES_DIR",
+    os.path.expanduser("~/.securetty/outcomes"),
+)
 FAILURE_THRESHOLD = 30.0  # percent
 
 
@@ -95,7 +101,9 @@ def ingest(conn: sqlite3.Connection) -> None:
 
     # Find already-ingested files and their line counts
     ingested = {}
-    for row in conn.execute("SELECT source_file, SUM(lines_imported) as total FROM ingestion_log GROUP BY source_file"):
+    for row in conn.execute(
+        "SELECT source_file, SUM(lines_imported) as total FROM ingestion_log GROUP BY source_file",
+    ):
         ingested[row["source_file"]] = row["total"]
 
     now = datetime.now(timezone.utc).isoformat()
@@ -107,7 +115,7 @@ def ingest(conn: sqlite3.Connection) -> None:
         imported = 0
         skipped = 0
 
-        with open(jsonl_file) as f:
+        with open(jsonl_file, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line:
@@ -128,9 +136,19 @@ def ingest(conn: sqlite3.Connection) -> None:
                 try:
                     conn.execute(
                         """INSERT INTO sessions
-                           (timestamp, agent, exit_code, duration_seconds, workdir, session_id, source_file, ingested_at)
+                           (timestamp, agent, exit_code, duration_seconds, workdir,
+                            session_id, source_file, ingested_at)
                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                        (ts, agent, exit_code, duration, workdir, session_id, fname, now),
+                        (
+                            ts,
+                            agent,
+                            exit_code,
+                            duration,
+                            workdir,
+                            session_id,
+                            fname,
+                            now,
+                        ),
                     )
                     imported += 1
                 except sqlite3.IntegrityError:
@@ -148,7 +166,9 @@ def ingest(conn: sqlite3.Connection) -> None:
     _refresh_patterns(conn)
 
     conn.commit()
-    print(f"Ingestion complete: {total_imported} new entries imported, {total_skipped} skipped (duplicates/errors).")
+    print(
+        f"Ingestion complete: {total_imported} new entries imported, {total_skipped} skipped (duplicates/errors).",
+    )
 
 
 def _refresh_patterns(conn: sqlite3.Connection) -> None:
@@ -181,16 +201,27 @@ def _refresh_patterns(conn: sqlite3.Connection) -> None:
         most_common_wd = wd_row["workdir"] if wd_row else ""
 
         conn.execute(
-            """INSERT INTO patterns (agent, total_sessions, total_failures, failure_rate, avg_duration_seconds, most_common_workdir, updated_at)
+            """INSERT INTO patterns (agent, total_sessions, total_failures, failure_rate,
+               avg_duration_seconds, most_common_workdir, updated_at)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (agent, total, failures, round(rate, 1), round(avg_dur, 1), most_common_wd, now),
+            (
+                agent,
+                total,
+                failures,
+                round(rate, 1),
+                round(avg_dur, 1),
+                most_common_wd,
+                now,
+            ),
         )
 
 
 def report(conn: sqlite3.Connection) -> None:
     """Query patterns and output a summary report."""
     total_row = conn.execute("SELECT COUNT(*) as c FROM sessions").fetchone()
-    fail_row = conn.execute("SELECT COUNT(*) as c FROM sessions WHERE exit_code != 0").fetchone()
+    fail_row = conn.execute(
+        "SELECT COUNT(*) as c FROM sessions WHERE exit_code != 0",
+    ).fetchone()
     total = total_row["c"]
     failures = fail_row["c"]
     rate = (failures / total * 100) if total > 0 else 0
@@ -204,7 +235,7 @@ def report(conn: sqlite3.Connection) -> None:
     print()
 
     patterns = conn.execute(
-        "SELECT * FROM patterns ORDER BY failure_rate DESC"
+        "SELECT * FROM patterns ORDER BY failure_rate DESC",
     ).fetchall()
 
     if not patterns:
@@ -239,14 +270,18 @@ def report(conn: sqlite3.Connection) -> None:
 
     # Recent failures
     recent = conn.execute(
-        "SELECT * FROM sessions WHERE exit_code != 0 ORDER BY timestamp DESC LIMIT 10"
+        "SELECT * FROM sessions WHERE exit_code != 0 ORDER BY timestamp DESC LIMIT 10",
     ).fetchall()
     if recent:
         print("-" * 60)
         print("Recent failures (last 10):")
         print("-" * 60)
         for r in recent:
-            print(f"  {r['timestamp']}  agent={r['agent']}  exit={r['exit_code']}  dur={r['duration_seconds']}s  workdir={r['workdir']}")
+            print(
+                f"  {r['timestamp']}  agent={r['agent']}  exit={r['exit_code']} "
+                f" dur={r['duration_seconds']}s "
+                f" workdir={r['workdir']}"
+            )
         print()
 
     print("=" * 60)
@@ -327,7 +362,9 @@ def suggest(conn: sqlite3.Connection) -> None:
             print("     Consider adding a pre-flight check to the agent's SKILL.md")
             print("     that validates the working environment before starting work.")
             print()
-            print("  2. Add an explicit error-handling section to the skill definition:")
+            print(
+                "  2. Add an explicit error-handling section to the skill definition:",
+            )
             print("     ---")
             print("     ## Error Recovery")
             print("     If the initial approach fails, try:")
@@ -370,8 +407,12 @@ def suggest(conn: sqlite3.Connection) -> None:
         # Workdir-specific suggestions
         if wd_rows and len(wd_rows) == 1:
             print()
-            print(f"  3. WORKDIR-SPECIFIC: All failures occur in {wd_rows[0]['workdir']}.")
-            print("     This may indicate a repo-specific issue rather than a skill problem.")
+            print(
+                f"  3. WORKDIR-SPECIFIC: All failures occur in {wd_rows[0]['workdir']}.",
+            )
+            print(
+                "     This may indicate a repo-specific issue rather than a skill problem.",
+            )
             print("     Check the repo's CLAUDE.md or .claude/ configuration.")
 
         print()
@@ -384,12 +425,25 @@ def suggest(conn: sqlite3.Connection) -> None:
 
 
 def main():
+    """Parse command-line arguments and run the requested failure-db command."""
     parser = argparse.ArgumentParser(
         description="securetty failure database — ingest outcomes, detect patterns, suggest fixes"
     )
-    parser.add_argument("--ingest", action="store_true", help="Import new JSONL entries since last run")
-    parser.add_argument("--report", action="store_true", help="Query patterns and output summary")
-    parser.add_argument("--suggest", action="store_true", help="Suggest SKILL.md edits for high-failure agents")
+    parser.add_argument(
+        "--ingest",
+        action="store_true",
+        help="Import new JSONL entries since last run",
+    )
+    parser.add_argument(
+        "--report",
+        action="store_true",
+        help="Query patterns and output summary",
+    )
+    parser.add_argument(
+        "--suggest",
+        action="store_true",
+        help="Suggest SKILL.md edits for high-failure agents",
+    )
     args = parser.parse_args()
 
     if not any([args.ingest, args.report, args.suggest]):
