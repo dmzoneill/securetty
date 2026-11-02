@@ -1,0 +1,14 @@
+======================================================================
+securetty remediation propagation
+======================================================================
+
+Remediated classifications: high
+
+Found 1 skill(s) to propagate to:
+
+  high-query (<TMP>/skills/high-query/SKILL.md) -- high (propagated from other)
+
+  Patched <TMP>/skills/high-query/SKILL.md
+  Backup at <TMP>/skills/high-query/SKILL.md.bak
+
+1/1 propagation(s) were applied.

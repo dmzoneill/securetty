@@ -4,13 +4,13 @@ How securetty automatically detects failure patterns, generates SKILL.md patches
 
 ## Overview
 
-The remediation engine (`securetty-remediate.py`) closes the loop between observing agent failures and fixing the instructions that caused them. Instead of manually reviewing failure reports and editing SKILL.md files, the engine scans the failure database, classifies failure patterns, generates additive patches, and propagates successful fixes to other skills that exhibit the same problems.
+The remediation engine (`securetty_remediate.py`) closes the loop between observing agent failures and fixing the instructions that caused them. Instead of manually reviewing failure reports and editing SKILL.md files, the engine scans the failure database, classifies failure patterns, generates additive patches, and propagates successful fixes to other skills that exhibit the same problems.
 
 The pipeline is fully auditable: every patch is logged with the failure pattern that triggered it, a backup of the original file is preserved, and the changelog tracks what changed, when, and why.
 
 ## Remediation Pipeline
 
-```
+```text
 Session runs and exits
         |
         v
@@ -20,19 +20,19 @@ securetty-session-logger.sh  -->  ~/.securetty/outcomes/*.jsonl
 securetty-failure-db.py --ingest  -->  ~/.securetty/failures.db
         |                                 (sessions + patterns tables)
         v
-securetty-remediate.py --scan     -->  Identify agents with >30% failure rate
+securetty_remediate.py --scan     -->  Identify agents with >30% failure rate
         |                                 Match agents to SKILL.md files
         |                                 Classify failure mode
         |                                 Generate patch suggestions
         v
-securetty-remediate.py --apply    -->  Append sections to SKILL.md files
+securetty_remediate.py --apply    -->  Append sections to SKILL.md files
         |                                 Create .bak backups
         |                                 Log to ~/.securetty/remediations.jsonl
         v
-securetty-remediate.py --propagate -->  Find other skills with same pattern
+securetty_remediate.py --propagate -->  Find other skills with same pattern
         |                                  Apply equivalent patches fleet-wide
         v
-securetty-remediate.py --changelog -->  Audit trail of all changes
+securetty_remediate.py --changelog -->  Audit trail of all changes
 ```
 
 Each stage is independently runnable. The scan stage is read-only and safe to run at any time. The apply stage requires `--confirm` to modify files. The propagate stage extends fixes that have already been validated on one skill to the rest of the fleet.
@@ -55,7 +55,7 @@ Agents exceeding the failure threshold (default 30%, configurable via `SECURETTY
 Each high-failure agent is classified into one of four categories based on its failure pattern:
 
 | Classification | Criteria | Patch Focus |
-|---------------|----------|-------------|
+| --------------- | ---------- | ------------- |
 | **critical** | Failure rate > 70% | Pre-flight validation, scope reduction, fallback strategy |
 | **high** | Failure rate > 50% | Prerequisite checks, incremental progress, error context capture |
 | **timeout** | Average duration > 600s | Time budget, progress checkpoints, scope guards |
@@ -116,11 +116,11 @@ When a fix is applied to one skill and reduces its failure rate, the same failur
 
 ### Propagation example
 
-```
-1. securetty-remediate.py --apply --confirm
+```text
+1. securetty_remediate.py --apply --confirm
    -> Patches slack-query SKILL.md (classification: high, 55% failure rate)
 
-2. securetty-remediate.py --propagate --confirm
+2. securetty_remediate.py --propagate --confirm
    -> Finds gmail-query also has "high" classification (52% failure rate)
    -> gmail-query SKILL.md does not have Troubleshooting section
    -> Generates equivalent patch customized for gmail-query's data
@@ -199,7 +199,7 @@ After applying a remediation patch to a SKILL.md, the improvement can be measure
 
 1. **Baseline** -- Record the agent's failure rate, average duration, and confidence score before the patch is applied. The failure database already tracks these metrics.
 
-2. **Apply patch** -- Use `securetty-remediate.py --apply --confirm` to add the remediation sections.
+2. **Apply patch** -- Use `securetty_remediate.py --apply --confirm` to add the remediation sections.
 
 3. **Observation window** -- Allow the agent to accumulate new sessions (recommended: at least 10-20 sessions or 7 days, whichever comes first).
 
@@ -208,7 +208,7 @@ After applying a remediation patch to a SKILL.md, the improvement can be measure
 ### What to measure
 
 | Metric | Source | Better means |
-|--------|--------|-------------|
+| -------- | -------- | ------------- |
 | Failure rate | `securetty-failure-db.py --report` | Lower percentage |
 | Confidence score | `securetty-confidence.py --score <agent>` | Higher score |
 | Average duration | `securetty-failure-db.py --report` | Shorter (for timeout remediations) |
@@ -230,7 +230,7 @@ Remediation velocity measures how quickly the system moves from detecting a fail
 
 ### Components of velocity
 
-```
+```text
 Detection time:    Time from first failure to pattern appearing in DB
                    (depends on --ingest frequency)
 
@@ -250,7 +250,7 @@ Validation time:   Time from apply to measurable improvement
 ### Improving velocity
 
 - **Automate ingestion** -- Run `securetty-failure-db.py --ingest` on a schedule (e.g., cron every hour)
-- **Automate scanning** -- Run `securetty-remediate.py --scan` after each ingestion to surface new candidates
+- **Automate scanning** -- Run `securetty_remediate.py --scan` after each ingestion to surface new candidates
 - **Review and apply** -- The `--apply` step intentionally requires `--confirm` to keep a human in the loop
 - **Propagate aggressively** -- Once a fix is validated on one skill, propagate immediately to reduce fleet-wide failure rates
 
@@ -260,42 +260,42 @@ Validation time:   Time from apply to measurable improvement
 
 ```bash
 # Identify agents with >30% failure rate, show patch suggestions
-securetty-remediate.py --scan
+securetty_remediate.py --scan
 
 # Preview mode (no database reads are affected either way; scan is read-only)
-securetty-remediate.py --scan --dry-run
+securetty_remediate.py --scan --dry-run
 ```
 
 ### Apply patches
 
 ```bash
 # Preview what would change
-securetty-remediate.py --apply --dry-run
+securetty_remediate.py --apply --dry-run
 
 # Apply patches (creates .bak backups, logs to remediations.jsonl)
-securetty-remediate.py --apply --confirm
+securetty_remediate.py --apply --confirm
 ```
 
 ### Propagate fixes fleet-wide
 
 ```bash
 # Preview propagation targets
-securetty-remediate.py --propagate --dry-run
+securetty_remediate.py --propagate --dry-run
 
 # Apply propagated patches
-securetty-remediate.py --propagate --confirm
+securetty_remediate.py --propagate --confirm
 ```
 
 ### View changelog
 
 ```bash
-securetty-remediate.py --changelog
+securetty_remediate.py --changelog
 ```
 
 ## Environment Variables
 
 | Variable | Default | Description |
-|----------|---------|-------------|
+| ---------- | --------- | ------------- |
 | `SECURETTY_FAILURE_DB` | `~/.securetty/failures.db` | Path to the failure database |
 | `SECURETTY_BUILTIN_SKILLS` | `~/src/agent-mcp-skills` | Directory containing built-in skill definitions |
 | `SECURETTY_USER_SKILLS` | `~/.securetty/skills` | Directory containing user-installed skill definitions |
@@ -309,4 +309,4 @@ securetty-remediate.py --changelog
 - [skill-marketplace.md](skill-marketplace.md) -- Skill discovery and management
 - `roles/containers/files/securetty-failure-db.py` -- Failure database ingest and pattern detection
 - `roles/containers/files/securetty-confidence.py` -- Confidence scoring computation
-- `roles/containers/files/securetty-remediate.py` -- Remediation engine (this document)
+- `roles/containers/files/securetty_remediate.py` -- Remediation engine (this document)

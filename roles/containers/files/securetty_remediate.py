@@ -9,11 +9,11 @@ Patches are strictly additive: they append "Known Issues" or
 "Troubleshooting" sections to SKILL.md files and never remove content.
 
 Usage:
-    securetty-remediate.py --scan                  Identify agents needing remediation
-    securetty-remediate.py --apply [--confirm]      Apply suggested patches
-    securetty-remediate.py --propagate              Propagate fixes to similar skills
-    securetty-remediate.py --changelog              Show remediation history
-    securetty-remediate.py --dry-run --apply        Preview without modifying files
+    securetty_remediate.py --scan                  Identify agents needing remediation
+    securetty_remediate.py --apply [--confirm]      Apply suggested patches
+    securetty_remediate.py --propagate              Propagate fixes to similar skills
+    securetty_remediate.py --changelog              Show remediation history
+    securetty_remediate.py --dry-run --apply        Preview without modifying files
 """
 
 import argparse
@@ -24,6 +24,7 @@ import shutil
 import sqlite3
 import sys
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -388,13 +389,20 @@ def _exit_code_label(code: int) -> str:
 # ---------------------------------------------------------------------------
 
 
+@dataclass
+class FailureContext:
+    """Failure statistics for one agent, used to build remediation sections."""
+
+    pattern: dict
+    exit_codes: list[dict]
+    workdirs: list[dict]
+    classification: str
+
+
 def _generate_patch(
     skill_name: str,
     skill_path: Path,
-    pattern: dict,
-    exit_codes: list[dict],
-    workdirs: list[dict],
-    classification: str,
+    ctx: FailureContext,
 ) -> dict | None:
     """Generate a patch descriptor for a single SKILL.md file.
 
@@ -403,11 +411,20 @@ def _generate_patch(
     sections_to_add = []
 
     if not _skill_has_section(skill_path, "Known Issues"):
-        section = _build_known_issues_section(skill_name, pattern, exit_codes, workdirs)
+        section = _build_known_issues_section(
+            skill_name,
+            ctx.pattern,
+            ctx.exit_codes,
+            ctx.workdirs,
+        )
         sections_to_add.append(("Known Issues", section))
 
     if not _skill_has_section(skill_path, "Troubleshooting"):
-        section = _build_troubleshooting_section(skill_name, pattern, classification)
+        section = _build_troubleshooting_section(
+            skill_name,
+            ctx.pattern,
+            ctx.classification,
+        )
         sections_to_add.append(("Troubleshooting", section))
 
     if not sections_to_add:
@@ -416,10 +433,10 @@ def _generate_patch(
     return {
         "skill": skill_name,
         "path": str(skill_path),
-        "classification": classification,
-        "failure_rate": pattern["failure_rate"],
-        "total_sessions": pattern["total_sessions"],
-        "total_failures": pattern["total_failures"],
+        "classification": ctx.classification,
+        "failure_rate": ctx.pattern["failure_rate"],
+        "total_sessions": ctx.pattern["total_sessions"],
+        "total_failures": ctx.pattern["total_failures"],
         "sections": [{"heading": h, "content": c} for h, c in sections_to_add],
     }
 
@@ -471,6 +488,60 @@ def _log_remediation(entry: dict) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _print_agent_header(pattern: dict, ctx: FailureContext) -> None:
+    """Print the failure summary for one agent in a scan."""
+    print("-" * 70)
+    print(f"Agent: {pattern['agent']}")
+    print(
+        f"  Failure rate: {pattern['failure_rate']:.1f}% "
+        f"({pattern['total_failures']}/{pattern['total_sessions']} sessions)"
+    )
+    print(f"  Classification: {ctx.classification}")
+    print(f"  Avg duration: {pattern.get('avg_duration_seconds', 0):.0f}s")
+    if ctx.exit_codes:
+        code_parts = [f"{ec['exit_code']}({ec['count']})" for ec in ctx.exit_codes]
+        print(f"  Exit codes: {', '.join(code_parts)}")
+
+
+def _scan_agent(
+    conn: sqlite3.Connection,
+    pattern: dict,
+    skill_files: dict[str, list[Path]],
+) -> list[dict]:
+    """Print one agent's scan results and return the patches it needs."""
+    agent = pattern["agent"]
+    exit_codes = _fetch_exit_code_distribution(conn, agent)
+    workdirs = _fetch_failure_workdirs(conn, agent)
+    ctx = FailureContext(
+        pattern,
+        exit_codes,
+        workdirs,
+        _classify_failure(pattern, exit_codes),
+    )
+    _print_agent_header(pattern, ctx)
+
+    # Find matching SKILL.md files
+    # Try exact match first, then partial match on agent name
+    matched_skills = _match_agent_to_skills(agent, skill_files)
+    if not matched_skills:
+        print(f"  No SKILL.md files found for agent '{agent}'")
+        print()
+        return []
+
+    patches: list[dict] = []
+    for skill_name, skill_paths in matched_skills.items():
+        for skill_path in skill_paths:
+            patch = _generate_patch(skill_name, skill_path, ctx)
+            if patch:
+                patches.append(patch)
+                for section in patch["sections"]:
+                    print(f"  Patch: +{section['heading']} -> {skill_path}")
+            else:
+                print(f"  {skill_path}: sections already present, no patch needed")
+    print()
+    return patches
+
+
 def cmd_scan(conn: sqlite3.Connection, dry_run: bool = False) -> list[dict]:
     """Identify agents with high failure rates and generate patch suggestions."""
     del dry_run  # scanning never writes; the flag is accepted for CLI symmetry
@@ -488,60 +559,11 @@ def cmd_scan(conn: sqlite3.Connection, dry_run: bool = False) -> list[dict]:
     print("securetty remediation scan")
     print("=" * 70)
     print()
-    print(
-        f"Agents exceeding {FAILURE_THRESHOLD:.0f}% failure rate: {len(patterns)}",
-    )
+    print(f"Agents exceeding {FAILURE_THRESHOLD:.0f}% failure rate: {len(patterns)}")
     print()
 
     for pattern in patterns:
-        agent = pattern["agent"]
-        exit_codes = _fetch_exit_code_distribution(conn, agent)
-        workdirs = _fetch_failure_workdirs(conn, agent)
-        classification = _classify_failure(pattern, exit_codes)
-
-        print("-" * 70)
-        print(f"Agent: {agent}")
-        print(
-            f"  Failure rate: {pattern['failure_rate']:.1f}% "
-            f"({pattern['total_failures']}/{pattern['total_sessions']} sessions)"
-        )
-        print(f"  Classification: {classification}")
-        print(f"  Avg duration: {pattern.get('avg_duration_seconds', 0):.0f}s")
-
-        if exit_codes:
-            code_parts = [f"{ec['exit_code']}({ec['count']})" for ec in exit_codes]
-            codes_str = ", ".join(code_parts)
-            print(f"  Exit codes: {codes_str}")
-
-        # Find matching SKILL.md files
-        # Try exact match first, then partial match on agent name
-        matched_skills = _match_agent_to_skills(agent, skill_files)
-
-        if not matched_skills:
-            print(f"  No SKILL.md files found for agent '{agent}'")
-            print()
-            continue
-
-        for skill_name, skill_paths in matched_skills.items():
-            for skill_path in skill_paths:
-                patch = _generate_patch(
-                    skill_name,
-                    skill_path,
-                    pattern,
-                    exit_codes,
-                    workdirs,
-                    classification,
-                )
-                if patch:
-                    patches.append(patch)
-                    for section in patch["sections"]:
-                        print(f"  Patch: +{section['heading']} -> {skill_path}")
-                else:
-                    print(
-                        f"  {skill_path}: sections already present, no patch needed",
-                    )
-
-        print()
+        patches.extend(_scan_agent(conn, pattern, skill_files))
 
     print("=" * 70)
     if patches:
@@ -595,6 +617,33 @@ def _match_agent_to_skills(
 # ---------------------------------------------------------------------------
 
 
+def _apply_and_log(patches: list[dict], action: str, dry_run: bool) -> int:
+    """Apply patches, logging each success unless dry-run; return how many succeeded."""
+    applied = 0
+    now = datetime.now(timezone.utc).isoformat()
+    for patch in patches:
+        if not _apply_patch(patch, dry_run=dry_run):
+            continue
+        applied += 1
+        entry = {
+            "timestamp": now,
+            "action": action,
+            "skill": patch["skill"],
+            "path": patch["path"],
+            "classification": patch["classification"],
+            "failure_rate": patch["failure_rate"],
+            "total_sessions": patch["total_sessions"],
+            "total_failures": patch["total_failures"],
+            "sections_added": [s["heading"] for s in patch["sections"]],
+        }
+        if action == "propagate":
+            entry["propagated_from"] = patch.get("propagated_from", "unknown")
+        entry["dry_run"] = dry_run
+        if not dry_run:
+            _log_remediation(entry)
+    return applied
+
+
 def cmd_apply(
     conn: sqlite3.Connection,
     confirm: bool = False,
@@ -619,27 +668,7 @@ def cmd_apply(
     print("=" * 70)
     print()
 
-    applied = 0
-    now = datetime.now(timezone.utc).isoformat()
-
-    for patch in patches:
-        success = _apply_patch(patch, dry_run=dry_run)
-        if success:
-            applied += 1
-            entry = {
-                "timestamp": now,
-                "action": "apply",
-                "skill": patch["skill"],
-                "path": patch["path"],
-                "classification": patch["classification"],
-                "failure_rate": patch["failure_rate"],
-                "total_sessions": patch["total_sessions"],
-                "total_failures": patch["total_failures"],
-                "sections_added": [s["heading"] for s in patch["sections"]],
-                "dry_run": dry_run,
-            }
-            if not dry_run:
-                _log_remediation(entry)
+    applied = _apply_and_log(patches, "apply", dry_run)
 
     print()
     verb = "would be" if dry_run else "were"
@@ -660,6 +689,58 @@ def _extract_pattern_signature(patch: dict) -> str:
     return patch["classification"]
 
 
+def _remediated_classifications(entries: list[dict]) -> dict[str, dict]:
+    """Map each classification with a completed apply to its latest apply entry."""
+    remediated: dict[str, dict] = {}
+    for entry in entries:
+        if entry.get("action") == "apply" and not entry.get("dry_run"):
+            classification = entry.get("classification", "")
+            if classification:
+                remediated[classification] = entry
+    return remediated
+
+
+def _patched_paths(entries: list[dict]) -> set[str]:
+    """Return SKILL.md paths that already received a live apply or propagation."""
+    patched_actions = ("apply", "propagate")
+    live_remediations = [r for r in entries if not r.get("dry_run")]
+    done = [r for r in live_remediations if r.get("action") in patched_actions]
+    return {r["path"] for r in done}
+
+
+def _find_propagation_targets(
+    conn: sqlite3.Connection,
+    remediated: dict[str, dict],
+    already_patched: set[str],
+) -> list[dict]:
+    """Build patches for unpatched skills whose agents share a remediated classification."""
+    targets: list[dict] = []
+    skill_files = _discover_skill_files()
+    for pattern in _fetch_patterns(conn, FAILURE_THRESHOLD):
+        agent = pattern["agent"]
+        exit_codes = _fetch_exit_code_distribution(conn, agent)
+        classification = _classify_failure(pattern, exit_codes)
+        if classification not in remediated:
+            continue
+        for skill_name, skill_paths in _match_agent_to_skills(
+            agent,
+            skill_files,
+        ).items():
+            for skill_path in skill_paths:
+                if str(skill_path) in already_patched:
+                    continue
+                workdirs = _fetch_failure_workdirs(conn, agent)
+                ctx = FailureContext(pattern, exit_codes, workdirs, classification)
+                patch = _generate_patch(skill_name, skill_path, ctx)
+                if patch:
+                    patch["propagated_from"] = remediated[classification].get(
+                        "skill",
+                        "unknown",
+                    )
+                    targets.append(patch)
+    return targets
+
+
 def cmd_propagate(
     conn: sqlite3.Connection,
     confirm: bool = False,
@@ -677,74 +758,30 @@ def cmd_propagate(
         print("No remediations have been applied yet. Run --apply --confirm first.")
         return
 
-    # Build a set of classifications that have been remediated and
-    # the corresponding patch templates
-    remediated_classifications: dict[str, dict] = {}
-    for entry in applied_remediations:
-        if entry.get("action") == "apply" and not entry.get("dry_run"):
-            classification = entry.get("classification", "")
-            if classification:
-                remediated_classifications[classification] = entry
-
-    if not remediated_classifications:
+    remediated = _remediated_classifications(applied_remediations)
+    if not remediated:
         print("No completed remediations found to propagate.")
         return
-
-    # Scan all agents for matching patterns
-    patterns = _fetch_patterns(conn, FAILURE_THRESHOLD)
-    skill_files = _discover_skill_files()
-
-    # Find skills that need the same remediation but have not been patched
-    patched_actions = ("apply", "propagate")
-    live_remediations = [r for r in applied_remediations if not r.get("dry_run")]
-    done = [r for r in live_remediations if r.get("action") in patched_actions]
-    already_patched = {r["path"] for r in done}
-
-    propagation_targets: list[dict] = []
 
     print("=" * 70)
     print("securetty remediation propagation")
     print("=" * 70)
     print()
-    print(
-        f"Remediated classifications: {', '.join(sorted(remediated_classifications.keys()))}",
-    )
+    print(f"Remediated classifications: {', '.join(sorted(remediated.keys()))}")
     print()
 
-    for pattern in patterns:
-        agent = pattern["agent"]
-        exit_codes = _fetch_exit_code_distribution(conn, agent)
-        classification = _classify_failure(pattern, exit_codes)
-
-        if classification not in remediated_classifications:
-            continue
-
-        matched_skills = _match_agent_to_skills(agent, skill_files)
-        for skill_name, skill_paths in matched_skills.items():
-            for skill_path in skill_paths:
-                if str(skill_path) in already_patched:
-                    continue
-                workdirs = _fetch_failure_workdirs(conn, agent)
-                patch = _generate_patch(
-                    skill_name,
-                    skill_path,
-                    pattern,
-                    exit_codes,
-                    workdirs,
-                    classification,
-                )
-                if patch:
-                    source = remediated_classifications[classification]
-                    patch["propagated_from"] = source.get("skill", "unknown")
-                    propagation_targets.append(patch)
-
-    if not propagation_targets:
+    targets = _find_propagation_targets(
+        conn,
+        remediated,
+        _patched_paths(applied_remediations),
+    )
+    if not targets:
         print("No propagation targets found. All matching skills are patched.")
         return
 
-    print(f"Found {len(propagation_targets)} skill(s) to propagate to:")
+    print(f"Found {len(targets)} skill(s) to propagate to:")
     print()
-    for target in propagation_targets:
+    for target in targets:
         print(
             f"  {target['skill']} ({target['path']}) -- {target['classification']} "
             f"(propagated from {target.get('propagated_from', '?')})"
@@ -759,32 +796,11 @@ def cmd_propagate(
         print("DRY RUN -- showing what would change")
         print()
 
-    applied = 0
-    now = datetime.now(timezone.utc).isoformat()
-
-    for patch in propagation_targets:
-        success = _apply_patch(patch, dry_run=dry_run)
-        if success:
-            applied += 1
-            entry = {
-                "timestamp": now,
-                "action": "propagate",
-                "skill": patch["skill"],
-                "path": patch["path"],
-                "classification": patch["classification"],
-                "failure_rate": patch["failure_rate"],
-                "total_sessions": patch["total_sessions"],
-                "total_failures": patch["total_failures"],
-                "sections_added": [s["heading"] for s in patch["sections"]],
-                "propagated_from": patch.get("propagated_from", "unknown"),
-                "dry_run": dry_run,
-            }
-            if not dry_run:
-                _log_remediation(entry)
+    applied = _apply_and_log(targets, "propagate", dry_run)
 
     print()
     verb = "would be" if dry_run else "were"
-    print(f"{applied}/{len(propagation_targets)} propagation(s) {verb} applied.")
+    print(f"{applied}/{len(targets)} propagation(s) {verb} applied.")
 
 
 # ---------------------------------------------------------------------------
@@ -809,6 +825,74 @@ def _load_remediations() -> list[dict]:
     return entries
 
 
+def _print_changelog_entry(entry: dict) -> None:
+    """Print one remediation log entry."""
+    prefix = "[dry-run] " if entry.get("dry_run", False) else ""
+    print(f"  {prefix}{entry.get('action', '?')}: {entry.get('skill', '?')}")
+    print(f"    Path: {entry.get('path', '?')}")
+    print(
+        f"    Classification: {entry.get('classification', '?')} ({entry.get('failure_rate', 0):.1f}% failure)",
+    )
+    print(f"    Sections added: {', '.join(entry.get('sections_added', []))}")
+    if entry.get("propagated_from"):
+        print(f"    Propagated from: {entry['propagated_from']}")
+    print()
+
+
+def _print_entries_by_date(entries: list[dict]) -> None:
+    """Print log entries grouped by date, newest date first."""
+    by_date: dict[str, list[dict]] = defaultdict(list)
+    for entry in entries:
+        ts = entry.get("timestamp", "unknown")
+        date = ts[:10] if len(ts) >= 10 else ts
+        by_date[date].append(entry)
+
+    for date in sorted(by_date.keys(), reverse=True):
+        print("-" * 70)
+        print(f"Date: {date}")
+        print("-" * 70)
+        for entry in by_date[date]:
+            _print_changelog_entry(entry)
+
+
+def _print_velocity(applies: list[dict]) -> None:
+    """Print how quickly patches have been applied."""
+    first_ts = applies[0].get("timestamp", "")
+    last_ts = applies[-1].get("timestamp", "")
+    print("-" * 70)
+    print("Remediation velocity")
+    print("-" * 70)
+    print(f"  First remediation: {first_ts}")
+    print(f"  Latest remediation: {last_ts}")
+    print(f"  Total applied: {len(applies)}")
+    if len(applies) > 1:
+        try:
+            first = datetime.fromisoformat(first_ts.replace("Z", "+00:00"))
+            last = datetime.fromisoformat(last_ts.replace("Z", "+00:00"))
+            span = (last - first).total_seconds() / 3600
+            if span > 0:
+                print(
+                    f"  Rate: {len(applies) / span:.2f} patches/hour over {span:.1f}h",
+                )
+        except (ValueError, TypeError):
+            pass
+    print()
+
+
+def _print_patched_skills(patched: list[dict]) -> None:
+    """Print how many live patches each skill has received."""
+    patched_skills = {entry.get("skill", "?") for entry in patched}
+    if not patched_skills:
+        return
+    print("-" * 70)
+    print("Skills with remediations")
+    print("-" * 70)
+    for skill in sorted(patched_skills):
+        count = sum(1 for e in patched if e.get("skill") == skill)
+        print(f"  {skill}: {count} patch(es)")
+    print()
+
+
 def cmd_changelog() -> None:
     """Output the remediation changelog."""
     entries = _load_remediations()
@@ -822,83 +906,21 @@ def cmd_changelog() -> None:
     print()
 
     # Summary statistics
-    total = len(entries)
     live = [e for e in entries if not e.get("dry_run")]
     applies = [e for e in live if e.get("action") == "apply"]
     propagations = [e for e in live if e.get("action") == "propagate"]
     dry_runs = [e for e in entries if e.get("dry_run")]
 
-    print(f"Total entries:    {total}")
+    print(f"Total entries:    {len(entries)}")
     print(f"Applied patches:  {len(applies)}")
     print(f"Propagations:     {len(propagations)}")
     print(f"Dry runs:         {len(dry_runs)}")
     print()
 
-    # Group by date
-    by_date: dict[str, list[dict]] = defaultdict(list)
-    for entry in entries:
-        ts = entry.get("timestamp", "unknown")
-        date = ts[:10] if len(ts) >= 10 else ts
-        by_date[date].append(entry)
-
-    for date in sorted(by_date.keys(), reverse=True):
-        date_entries = by_date[date]
-        print("-" * 70)
-        print(f"Date: {date}")
-        print("-" * 70)
-        for entry in date_entries:
-            action = entry.get("action", "?")
-            skill = entry.get("skill", "?")
-            path = entry.get("path", "?")
-            classification = entry.get("classification", "?")
-            rate = entry.get("failure_rate", 0)
-            sections = entry.get("sections_added", [])
-            is_dry = entry.get("dry_run", False)
-
-            prefix = "[dry-run] " if is_dry else ""
-            print(f"  {prefix}{action}: {skill}")
-            print(f"    Path: {path}")
-            print(f"    Classification: {classification} ({rate:.1f}% failure)")
-            print(f"    Sections added: {', '.join(sections)}")
-            if entry.get("propagated_from"):
-                print(f"    Propagated from: {entry['propagated_from']}")
-            print()
-
-    # Remediation velocity
+    _print_entries_by_date(entries)
     if applies:
-        first_ts = applies[0].get("timestamp", "")
-        last_ts = applies[-1].get("timestamp", "")
-        print("-" * 70)
-        print("Remediation velocity")
-        print("-" * 70)
-        print(f"  First remediation: {first_ts}")
-        print(f"  Latest remediation: {last_ts}")
-        print(f"  Total applied: {len(applies)}")
-        if len(applies) > 1:
-            try:
-                first = datetime.fromisoformat(first_ts.replace("Z", "+00:00"))
-                last = datetime.fromisoformat(last_ts.replace("Z", "+00:00"))
-                span = (last - first).total_seconds() / 3600
-                if span > 0:
-                    rate = len(applies) / span
-                    print(f"  Rate: {rate:.2f} patches/hour over {span:.1f}h")
-            except (ValueError, TypeError):
-                pass
-        print()
-
-    # Skills patched
-    patched_skills = set()
-    for entry in applies + propagations:
-        patched_skills.add(entry.get("skill", "?"))
-
-    if patched_skills:
-        print("-" * 70)
-        print("Skills with remediations")
-        print("-" * 70)
-        for skill in sorted(patched_skills):
-            count = sum(1 for e in applies + propagations if e.get("skill") == skill)
-            print(f"  {skill}: {count} patch(es)")
-        print()
+        _print_velocity(applies)
+    _print_patched_skills(applies + propagations)
 
     print("=" * 70)
 

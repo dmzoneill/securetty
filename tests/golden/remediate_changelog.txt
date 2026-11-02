@@ -1,0 +1,59 @@
+======================================================================
+securetty remediation changelog
+======================================================================
+
+Total entries:    5
+Applied patches:  3
+Propagations:     1
+Dry runs:         1
+
+----------------------------------------------------------------------
+Date: 2026-01-03
+----------------------------------------------------------------------
+  apply: nots
+    Path: ?
+    Classification: ? (0.0% failure)
+    Sections added: Notes
+
+----------------------------------------------------------------------
+Date: 2026-01-02
+----------------------------------------------------------------------
+  propagate: crit
+    Path: /elsewhere/SKILL.md
+    Classification: high (60.0% failure)
+    Sections added: Known Issues
+    Propagated from: x
+
+  [dry-run] apply: other
+    Path: /elsewhere/SKILL.md
+    Classification: high (60.0% failure)
+    Sections added: Known Issues
+
+----------------------------------------------------------------------
+Date: 2026-01-01
+----------------------------------------------------------------------
+  apply: other
+    Path: /elsewhere/SKILL.md
+    Classification: high (60.0% failure)
+    Sections added: Known Issues
+
+  apply: crit
+    Path: /elsewhere/SKILL.md
+    Classification: critical (60.0% failure)
+    Sections added: Known Issues
+
+----------------------------------------------------------------------
+Remediation velocity
+----------------------------------------------------------------------
+  First remediation: 2026-01-01T00:00:00Z
+  Latest remediation: 2026-01-03
+  Total applied: 3
+
+----------------------------------------------------------------------
+Skills with remediations
+----------------------------------------------------------------------
+  crit: 2 patch(es)
+  nots: 1 patch(es)
+  other: 1 patch(es)
+
+======================================================================

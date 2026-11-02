@@ -1,0 +1,11 @@
+======================================================================
+securetty remediation propagation
+======================================================================
+
+Remediated classifications: high
+
+Found 1 skill(s) to propagate to:
+
+  high-query (<TMP>/skills/high-query/SKILL.md) -- high (propagated from other)
+
+Use --confirm to apply propagated patches. Use --dry-run to preview.

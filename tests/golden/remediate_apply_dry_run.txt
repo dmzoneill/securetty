@@ -1,0 +1,59 @@
+======================================================================
+securetty remediation scan
+======================================================================
+
+Agents exceeding 30% failure rate: 4
+
+----------------------------------------------------------------------
+Agent: crit
+  Failure rate: 100.0% (4/4 sessions)
+  Classification: critical
+  Avg duration: 900s
+  Exit codes: 137(2), 2(2)
+  Patch: +Known Issues -> <TMP>/skills/crit/SKILL.md
+  Patch: +Troubleshooting -> <TMP>/skills/crit/SKILL.md
+
+----------------------------------------------------------------------
+Agent: lonely
+  Failure rate: 66.7% (2/3 sessions)
+  Classification: high
+  Avg duration: 10s
+  Exit codes: 137(1), 2(1)
+  <TMP>/skills/lonely-done/SKILL.md: sections already present, no patch needed
+
+----------------------------------------------------------------------
+Agent: high
+  Failure rate: 60.0% (3/5 sessions)
+  Classification: high
+  Avg duration: 30s
+  Exit codes: 137(2), 2(1)
+  Patch: +Known Issues -> <TMP>/skills/high-query/SKILL.md
+  Patch: +Troubleshooting -> <TMP>/skills/high-query/SKILL.md
+
+----------------------------------------------------------------------
+Agent: elev
+  Failure rate: 40.0% (2/5 sessions)
+  Classification: elevated
+  Avg duration: 10s
+  Exit codes: 137(1), 2(1)
+  Patch: +Troubleshooting -> <TMP>/skills/elev-tools/SKILL.md
+
+======================================================================
+
+3 patch(es) generated. Run --apply --confirm to apply them.
+======================================================================
+
+======================================================================
+DRY RUN -- showing what would change
+======================================================================
+
+  [dry-run] Would append to <TMP>/skills/crit/SKILL.md:
+    + ## Known Issues
+    + ## Troubleshooting
+  [dry-run] Would append to <TMP>/skills/high-query/SKILL.md:
+    + ## Known Issues
+    + ## Troubleshooting
+  [dry-run] Would append to <TMP>/skills/elev-tools/SKILL.md:
+    + ## Troubleshooting
+
+3/3 patch(es) would be applied.

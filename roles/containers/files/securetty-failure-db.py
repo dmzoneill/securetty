@@ -87,6 +87,71 @@ def init_db(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _read_jsonl(path: Path) -> tuple[list[dict], int]:
+    """Parse a JSONL file, returning the decoded entries and the count of invalid lines."""
+    entries: list[dict] = []
+    invalid = 0
+    with open(path, encoding="utf-8") as handle:
+        raw_lines = [raw.strip() for raw in handle]
+    for raw in filter(None, raw_lines):
+        try:
+            entries.append(json.loads(raw))
+        except json.JSONDecodeError:
+            invalid += 1
+    return entries, invalid
+
+
+def _insert_session(
+    conn: sqlite3.Connection,
+    entry: dict,
+    fname: str,
+    now: str,
+) -> bool:
+    """Insert one session row; return False if it is a duplicate."""
+    row = (
+        entry.get("timestamp", ""),
+        entry.get("agent", "unknown"),
+        entry.get("exit_code", 0),
+        entry.get("duration_seconds", 0),
+        entry.get("workdir", "unknown"),
+        entry.get("session_id", ""),
+        fname,
+        now,
+    )
+    try:
+        conn.execute(
+            """INSERT INTO sessions
+               (timestamp, agent, exit_code, duration_seconds, workdir,
+                session_id, source_file, ingested_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            row,
+        )
+    except sqlite3.IntegrityError:
+        return False
+    return True
+
+
+def _ingest_file(
+    conn: sqlite3.Connection,
+    jsonl_file: Path,
+    now: str,
+) -> tuple[int, int]:
+    """Import one JSONL file and log it; return (imported, skipped)."""
+    fname = str(jsonl_file)
+    entries, skipped = _read_jsonl(jsonl_file)
+    imported = 0
+    for entry in entries:
+        if _insert_session(conn, entry, fname, now):
+            imported += 1
+        else:
+            skipped += 1
+    conn.execute(
+        "INSERT INTO ingestion_log (source_file, lines_imported, lines_skipped, ingested_at) VALUES (?, ?, ?, ?)",
+        (fname, imported, skipped, now),
+    )
+    return imported, skipped
+
+
 def ingest(conn: sqlite3.Connection) -> None:
     """Import new JSONL entries since last run."""
     outcomes_path = Path(OUTCOMES_DIR)
@@ -99,66 +164,11 @@ def ingest(conn: sqlite3.Connection) -> None:
         print("No JSONL files found.", file=sys.stderr)
         sys.exit(1)
 
-    # Find already-ingested files and their line counts
-    ingested = {}
-    for row in conn.execute(
-        "SELECT source_file, SUM(lines_imported) as total FROM ingestion_log GROUP BY source_file",
-    ):
-        ingested[row["source_file"]] = row["total"]
-
     now = datetime.now(timezone.utc).isoformat()
     total_imported = 0
     total_skipped = 0
-
     for jsonl_file in jsonl_files:
-        fname = str(jsonl_file)
-        imported = 0
-        skipped = 0
-
-        with open(jsonl_file, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    entry = json.loads(line)
-                except json.JSONDecodeError:
-                    skipped += 1
-                    continue
-
-                ts = entry.get("timestamp", "")
-                agent = entry.get("agent", "unknown")
-                exit_code = entry.get("exit_code", 0)
-                duration = entry.get("duration_seconds", 0)
-                workdir = entry.get("workdir", "unknown")
-                session_id = entry.get("session_id", "")
-
-                try:
-                    conn.execute(
-                        """INSERT INTO sessions
-                           (timestamp, agent, exit_code, duration_seconds, workdir,
-                            session_id, source_file, ingested_at)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                        (
-                            ts,
-                            agent,
-                            exit_code,
-                            duration,
-                            workdir,
-                            session_id,
-                            fname,
-                            now,
-                        ),
-                    )
-                    imported += 1
-                except sqlite3.IntegrityError:
-                    # Duplicate entry, skip
-                    skipped += 1
-
-        conn.execute(
-            "INSERT INTO ingestion_log (source_file, lines_imported, lines_skipped, ingested_at) VALUES (?, ?, ?, ?)",
-            (fname, imported, skipped, now),
-        )
+        imported, skipped = _ingest_file(conn, jsonl_file, now)
         total_imported += imported
         total_skipped += skipped
 
@@ -287,6 +297,137 @@ def report(conn: sqlite3.Connection) -> None:
     print("=" * 60)
 
 
+RATE_SUGGESTIONS = {
+    "CRITICAL": [
+        "     Consider adding a pre-flight check to the agent's SKILL.md",
+        "     that validates the working environment before starting work.",
+        "",
+        "  2. Add an explicit error-handling section to the skill definition:",
+        "     ---",
+        "     ## Error Recovery",
+        "     If the initial approach fails, try:",
+        "     - Verify all required tools are installed",
+        "     - Check connectivity to required services",
+        "     - Fall back to a simpler implementation strategy",
+        "     ---",
+    ],
+    "HIGH": [
+        "     Add guardrails to the SKILL.md prompt:",
+        "     ---",
+        "     ## Prerequisites",
+        "     Before starting, verify:",
+        "     - Required dependencies are available",
+        "     - Working directory is a valid git repository",
+        "     - Network access to required endpoints is confirmed",
+        "     ---",
+    ],
+    "ELEVATED": [
+        "     Consider adding retry guidance to the SKILL.md:",
+        "     ---",
+        "     ## On Failure",
+        "     If a step fails:",
+        "     - Log the error context for retrospective analysis",
+        "     - Attempt one retry with adjusted parameters",
+        "     - If still failing, exit cleanly with diagnostic output",
+        "     ---",
+    ],
+}
+
+TIMEOUT_SUGGESTION = [
+    "     Add a timeout clause to the SKILL.md:",
+    "     ---",
+    "     ## Timeout",
+    "     If the task is not complete within 10 minutes,",
+    "     save progress and exit with a partial result.",
+    "     ---",
+]
+
+
+def _print_lines(lines: list[str]) -> None:
+    """Print each line in order."""
+    for line in lines:
+        print(line)
+
+
+def _failure_breakdown(conn: sqlite3.Connection, agent: str) -> tuple[list, list]:
+    """Return the top failure workdirs and the exit code distribution for an agent."""
+    wd_rows = conn.execute(
+        """SELECT workdir, COUNT(*) as c
+           FROM sessions
+           WHERE agent=? AND exit_code != 0
+           GROUP BY workdir
+           ORDER BY c DESC
+           LIMIT 5""",
+        (agent,),
+    ).fetchall()
+    ec_rows = conn.execute(
+        """SELECT exit_code, COUNT(*) as c
+           FROM sessions
+           WHERE agent=? AND exit_code != 0
+           GROUP BY exit_code
+           ORDER BY c DESC""",
+        (agent,),
+    ).fetchall()
+    return wd_rows, ec_rows
+
+
+def _print_agent_summary(p: sqlite3.Row, wd_rows: list, ec_rows: list) -> None:
+    """Print an agent's failure statistics."""
+    print("-" * 60)
+    print(f"Agent: {p['agent']}")
+    print(
+        f"  Failure rate: {p['failure_rate']}% ({p['total_failures']}/{p['total_sessions']} sessions)",
+    )
+    print(f"  Avg duration: {p['avg_duration_seconds']}s")
+    print(f"  Common workdir: {p['most_common_workdir']}")
+    print()
+    if ec_rows:
+        print("  Exit code distribution:")
+        for ec in ec_rows:
+            print(f"    exit_code={ec['exit_code']}: {ec['c']} occurrences")
+        print()
+    if wd_rows:
+        print("  Top failure workdirs:")
+        for wd in wd_rows:
+            print(f"    {wd['workdir']}: {wd['c']} failures")
+        print()
+
+
+def _print_agent_suggestions(
+    agent: str,
+    rate: float,
+    avg_dur: float,
+    wd_rows: list,
+) -> None:
+    """Print the SKILL.md suggestions for one agent."""
+    print("  Suggested SKILL.md changes:")
+    print()
+    if rate > 70:
+        level = "CRITICAL"
+    elif rate > 50:
+        level = "HIGH"
+    else:
+        level = "ELEVATED"
+    print(f"  1. {level}: {agent} fails in >{rate:.0f}% of sessions.")
+    _print_lines(RATE_SUGGESTIONS[level])
+
+    # Duration-based suggestions
+    if avg_dur > 600:
+        print()
+        print(f"  2. TIMEOUT RISK: Average duration is {avg_dur:.0f}s (>{600}s).")
+        _print_lines(TIMEOUT_SUGGESTION)
+
+    # Workdir-specific suggestions
+    if wd_rows and len(wd_rows) == 1:
+        print()
+        print(f"  3. WORKDIR-SPECIFIC: All failures occur in {wd_rows[0]['workdir']}.")
+        print(
+            "     This may indicate a repo-specific issue rather than a skill problem.",
+        )
+        print("     Check the repo's CLAUDE.md or .claude/ configuration.")
+    print()
+
+
 def suggest(conn: sqlite3.Connection) -> None:
     """Suggest SKILL.md edits for agents with high failure rates."""
     patterns = conn.execute(
@@ -307,115 +448,14 @@ def suggest(conn: sqlite3.Connection) -> None:
     print()
 
     for p in patterns:
-        agent = p["agent"]
-        rate = p["failure_rate"]
-        total = p["total_sessions"]
-        failures = p["total_failures"]
-        avg_dur = p["avg_duration_seconds"]
-        common_wd = p["most_common_workdir"]
-
-        # Gather failure workdirs for this agent
-        wd_rows = conn.execute(
-            """SELECT workdir, COUNT(*) as c
-               FROM sessions
-               WHERE agent=? AND exit_code != 0
-               GROUP BY workdir
-               ORDER BY c DESC
-               LIMIT 5""",
-            (agent,),
-        ).fetchall()
-
-        # Gather exit code distribution
-        ec_rows = conn.execute(
-            """SELECT exit_code, COUNT(*) as c
-               FROM sessions
-               WHERE agent=? AND exit_code != 0
-               GROUP BY exit_code
-               ORDER BY c DESC""",
-            (agent,),
-        ).fetchall()
-
-        print("-" * 60)
-        print(f"Agent: {agent}")
-        print(f"  Failure rate: {rate}% ({failures}/{total} sessions)")
-        print(f"  Avg duration: {avg_dur}s")
-        print(f"  Common workdir: {common_wd}")
-        print()
-
-        if ec_rows:
-            print("  Exit code distribution:")
-            for ec in ec_rows:
-                print(f"    exit_code={ec['exit_code']}: {ec['c']} occurrences")
-            print()
-
-        if wd_rows:
-            print("  Top failure workdirs:")
-            for wd in wd_rows:
-                print(f"    {wd['workdir']}: {wd['c']} failures")
-            print()
-
-        print("  Suggested SKILL.md changes:")
-        print()
-
-        if rate > 70:
-            print(f"  1. CRITICAL: {agent} fails in >{rate:.0f}% of sessions.")
-            print("     Consider adding a pre-flight check to the agent's SKILL.md")
-            print("     that validates the working environment before starting work.")
-            print()
-            print(
-                "  2. Add an explicit error-handling section to the skill definition:",
-            )
-            print("     ---")
-            print("     ## Error Recovery")
-            print("     If the initial approach fails, try:")
-            print("     - Verify all required tools are installed")
-            print("     - Check connectivity to required services")
-            print("     - Fall back to a simpler implementation strategy")
-            print("     ---")
-        elif rate > 50:
-            print(f"  1. HIGH: {agent} fails in >{rate:.0f}% of sessions.")
-            print("     Add guardrails to the SKILL.md prompt:")
-            print("     ---")
-            print("     ## Prerequisites")
-            print("     Before starting, verify:")
-            print("     - Required dependencies are available")
-            print("     - Working directory is a valid git repository")
-            print("     - Network access to required endpoints is confirmed")
-            print("     ---")
-        else:
-            print(f"  1. ELEVATED: {agent} fails in >{rate:.0f}% of sessions.")
-            print("     Consider adding retry guidance to the SKILL.md:")
-            print("     ---")
-            print("     ## On Failure")
-            print("     If a step fails:")
-            print("     - Log the error context for retrospective analysis")
-            print("     - Attempt one retry with adjusted parameters")
-            print("     - If still failing, exit cleanly with diagnostic output")
-            print("     ---")
-
-        # Duration-based suggestions
-        if avg_dur > 600:
-            print()
-            print(f"  2. TIMEOUT RISK: Average duration is {avg_dur:.0f}s (>{600}s).")
-            print("     Add a timeout clause to the SKILL.md:")
-            print("     ---")
-            print("     ## Timeout")
-            print("     If the task is not complete within 10 minutes,")
-            print("     save progress and exit with a partial result.")
-            print("     ---")
-
-        # Workdir-specific suggestions
-        if wd_rows and len(wd_rows) == 1:
-            print()
-            print(
-                f"  3. WORKDIR-SPECIFIC: All failures occur in {wd_rows[0]['workdir']}.",
-            )
-            print(
-                "     This may indicate a repo-specific issue rather than a skill problem.",
-            )
-            print("     Check the repo's CLAUDE.md or .claude/ configuration.")
-
-        print()
+        wd_rows, ec_rows = _failure_breakdown(conn, p["agent"])
+        _print_agent_summary(p, wd_rows, ec_rows)
+        _print_agent_suggestions(
+            p["agent"],
+            p["failure_rate"],
+            p["avg_duration_seconds"],
+            wd_rows,
+        )
 
     print("=" * 60)
     print("To apply changes, edit the relevant SKILL.md files manually.")
