@@ -10,7 +10,6 @@ Supported agents: claude, codex, gemini, kiro, cline, ampcode, opencode, goose, 
 import json
 import os
 import sys
-import textwrap
 from pathlib import Path
 
 HOME = os.path.expanduser("~")

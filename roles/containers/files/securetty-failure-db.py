@@ -15,7 +15,6 @@ import json
 import os
 import sqlite3
 import sys
-from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -325,55 +324,55 @@ def suggest(conn: sqlite3.Connection) -> None:
 
         if rate > 70:
             print(f"  1. CRITICAL: {agent} fails in >{rate:.0f}% of sessions.")
-            print(f"     Consider adding a pre-flight check to the agent's SKILL.md")
-            print(f"     that validates the working environment before starting work.")
+            print("     Consider adding a pre-flight check to the agent's SKILL.md")
+            print("     that validates the working environment before starting work.")
             print()
-            print(f"  2. Add an explicit error-handling section to the skill definition:")
-            print(f"     ---")
-            print(f"     ## Error Recovery")
-            print(f"     If the initial approach fails, try:")
-            print(f"     - Verify all required tools are installed")
-            print(f"     - Check connectivity to required services")
-            print(f"     - Fall back to a simpler implementation strategy")
-            print(f"     ---")
+            print("  2. Add an explicit error-handling section to the skill definition:")
+            print("     ---")
+            print("     ## Error Recovery")
+            print("     If the initial approach fails, try:")
+            print("     - Verify all required tools are installed")
+            print("     - Check connectivity to required services")
+            print("     - Fall back to a simpler implementation strategy")
+            print("     ---")
         elif rate > 50:
             print(f"  1. HIGH: {agent} fails in >{rate:.0f}% of sessions.")
-            print(f"     Add guardrails to the SKILL.md prompt:")
-            print(f"     ---")
-            print(f"     ## Prerequisites")
-            print(f"     Before starting, verify:")
-            print(f"     - Required dependencies are available")
-            print(f"     - Working directory is a valid git repository")
-            print(f"     - Network access to required endpoints is confirmed")
-            print(f"     ---")
+            print("     Add guardrails to the SKILL.md prompt:")
+            print("     ---")
+            print("     ## Prerequisites")
+            print("     Before starting, verify:")
+            print("     - Required dependencies are available")
+            print("     - Working directory is a valid git repository")
+            print("     - Network access to required endpoints is confirmed")
+            print("     ---")
         else:
             print(f"  1. ELEVATED: {agent} fails in >{rate:.0f}% of sessions.")
-            print(f"     Consider adding retry guidance to the SKILL.md:")
-            print(f"     ---")
-            print(f"     ## On Failure")
-            print(f"     If a step fails:")
-            print(f"     - Log the error context for retrospective analysis")
-            print(f"     - Attempt one retry with adjusted parameters")
-            print(f"     - If still failing, exit cleanly with diagnostic output")
-            print(f"     ---")
+            print("     Consider adding retry guidance to the SKILL.md:")
+            print("     ---")
+            print("     ## On Failure")
+            print("     If a step fails:")
+            print("     - Log the error context for retrospective analysis")
+            print("     - Attempt one retry with adjusted parameters")
+            print("     - If still failing, exit cleanly with diagnostic output")
+            print("     ---")
 
         # Duration-based suggestions
         if avg_dur > 600:
             print()
             print(f"  2. TIMEOUT RISK: Average duration is {avg_dur:.0f}s (>{600}s).")
-            print(f"     Add a timeout clause to the SKILL.md:")
-            print(f"     ---")
-            print(f"     ## Timeout")
-            print(f"     If the task is not complete within 10 minutes,")
-            print(f"     save progress and exit with a partial result.")
-            print(f"     ---")
+            print("     Add a timeout clause to the SKILL.md:")
+            print("     ---")
+            print("     ## Timeout")
+            print("     If the task is not complete within 10 minutes,")
+            print("     save progress and exit with a partial result.")
+            print("     ---")
 
         # Workdir-specific suggestions
         if wd_rows and len(wd_rows) == 1:
             print()
             print(f"  3. WORKDIR-SPECIFIC: All failures occur in {wd_rows[0]['workdir']}.")
-            print(f"     This may indicate a repo-specific issue rather than a skill problem.")
-            print(f"     Check the repo's CLAUDE.md or .claude/ configuration.")
+            print("     This may indicate a repo-specific issue rather than a skill problem.")
+            print("     Check the repo's CLAUDE.md or .claude/ configuration.")
 
         print()
 

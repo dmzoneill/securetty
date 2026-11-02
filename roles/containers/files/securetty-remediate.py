@@ -17,7 +17,6 @@ Usage:
 """
 
 import argparse
-import copy
 import json
 import os
 import re
@@ -205,7 +204,6 @@ def _build_known_issues_section(
     rate = pattern["failure_rate"]
     total = pattern["total_sessions"]
     failures = pattern["total_failures"]
-    avg_dur = pattern.get("avg_duration_seconds", 0)
 
     lines = [
         "",
