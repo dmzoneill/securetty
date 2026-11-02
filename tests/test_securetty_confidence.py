@@ -19,7 +19,7 @@ SESSIONS = [
     ("codex", "/r/beta", 0, 10, 1),
     ("codex", "/r/beta", 137, 2400, 2),
     ("codex", "/r/alpha", 0, 10, 3),
-    # unparseable and timezone-naive timestamps
+    # invalid and timezone-naive timestamps
     ("codex", "/r/gamma", 3, 10, "not a date"),
     ("codex", "/r/gamma", 0, 10, "2026-06-15T11:00:00"),
 ]

@@ -4,7 +4,7 @@ How securetty learns from historical session outcomes to make smarter escalation
 
 ## Overview
 
-The confidence scoring model (`securetty_confidence.py`) reads the failure database (`~/.securetty/failures.db`) and computes per-agent, per-repo confidence scores between 0.0 and 1.0. These scores feed into escalation decisions alongside the risk classifier: a low-confidence agent working on a high-failure repo gets escalated sooner than a high-confidence agent on a clean repo.
+The confidence scoring model (`securetty_confidence.py`) reads the failure database (`~/.securetty/failures.db`) and computes per-agent, per-repository confidence scores between 0.0 and 1.0. These scores feed into escalation decisions alongside the risk classifier: a low-confidence agent working on a high-failure repository gets escalated sooner than a high-confidence agent on a clean repository.
 
 The system is self-tuning. As more session outcomes accumulate, the recommended escalation threshold adjusts automatically based on whether the model's predictions align with actual outcomes.
 
@@ -42,11 +42,11 @@ The `recency_weight` in the report is the average weight across all sessions for
 
 ### repo_factor (0.3-1.2)
 
-A repo-specific modifier that compares the agent's failure rate in a specific repo against its global failure rate.
+A repository-specific modifier that compares the agent's failure rate in a specific repository against its global failure rate.
 
-- If the repo failure rate exceeds the global rate, `repo_factor` is `1 / excess_ratio`, floored at 0.3.
-- If the repo failure rate is below the global rate, `repo_factor` gets a slight bonus up to 1.2.
-- When no repo is specified, `repo_factor` is 1.0.
+- If the repository failure rate exceeds the global rate, `repo_factor` is `1 / excess_ratio`, floored at 0.3.
+- If the repository failure rate is below the global rate, `repo_factor` gets a slight bonus up to 1.2.
+- When no repository is specified, `repo_factor` is 1.0.
 
 Repos with chronic problems pull scores down; repos where the agent consistently succeeds get a small boost.
 
@@ -72,7 +72,7 @@ threshold = median(agent_success_rates) - stddev(agent_success_rates)
 
 This sets the bar at a point where agents scoring below it are performing meaningfully worse than the population. When no historical data exists, the default threshold is 0.6 (configurable via `SECURETTY_CONFIDENCE_DEFAULT_THRESHOLD`).
 
-Agents and agent+repo combinations scoring below the threshold should trigger escalation -- either promoting the escalation action from `warn` to `pause`, or tightening gate thresholds.
+Agents and agent+repository combinations scoring below the threshold should trigger escalation -- either promoting the escalation action from `warn` to `pause`, or tightening gate thresholds.
 
 ## How Thresholds Adapt Over Time
 
@@ -104,7 +104,7 @@ This is a human-in-the-loop system. The model suggests; the operator decides. Th
 
 ## Integration with Risk Classifier
 
-The risk classifier (`securetty-risk-classifier.sh`) and the confidence scorer work together to make escalation decisions. The risk classifier categorizes the _change_ (what files are being modified); the confidence scorer categorizes the _agent and repo_ (how reliable this combination has been historically).
+The risk classifier (`securetty-risk-classifier.sh`) and the confidence scorer work together to make escalation decisions. The risk classifier categorizes the _change_ (what files are being modified); the confidence scorer categorizes the _agent and repository_ (how reliable this combination has been historically).
 
 The combined decision matrix:
 
@@ -265,4 +265,4 @@ Escalation decision (combined with risk classifier output)
 - [trust-model.md](trust-model.md) -- Input trust classification
 - `roles/escalation/defaults/main.yml` -- Escalation gate configuration
 - `roles/containers/files/securetty_failure_db.py` -- Failure database ingest and patterns
-- `roles/containers/files/securetty-risk-classifier.sh` -- Risk classification of git diffs
+- `roles/containers/files/securetty-risk-classifier.sh` -- Risk classification of Git diffs
