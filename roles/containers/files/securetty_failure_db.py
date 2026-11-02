@@ -5,9 +5,9 @@ Reads JSONL outcome files into a SQLite database for persistent failure analysis
 Tracks ingestion state to avoid re-importing entries on subsequent runs.
 
 Usage:
-    securetty-failure-db.py --ingest   Import new JSONL entries since last run
-    securetty-failure-db.py --report   Query patterns and output summary
-    securetty-failure-db.py --suggest  Suggest SKILL.md edits for high-failure agents
+    securetty_failure_db.py --ingest   Import new JSONL entries since last run
+    securetty_failure_db.py --report   Query patterns and output summary
+    securetty_failure_db.py --suggest  Suggest SKILL.md edits for high-failure agents
 """
 
 import argparse

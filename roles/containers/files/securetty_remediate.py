@@ -63,7 +63,7 @@ def _get_db() -> sqlite3.Connection:
     if not os.path.isfile(DB_PATH):
         print(
             f"error: failure database not found at {DB_PATH}\n"
-            "Run securetty-failure-db.py --ingest to populate it first.",
+            "Run securetty_failure_db.py --ingest to populate it first.",
             file=sys.stderr,
         )
         sys.exit(1)

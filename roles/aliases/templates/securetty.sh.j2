@@ -1971,7 +1971,7 @@ case "${1:-help}" in
     init)             shift; _run_script securetty-init.sh "$@" ;;
     skill)            shift; if [ "${1:-}" = "run" ]; then shift; cmd_skill_run "$@"; else _run_script securetty-skill-manager.sh "$@"; fi ;;
     code-review)      shift; cmd_code_review "$@" ;;
-    confidence)       shift; python3 "$SECURETTY_DIR/roles/containers/files/securetty-confidence.py" "$@" ;;
+    confidence)       shift; python3 "$SECURETTY_DIR/roles/containers/files/securetty_confidence.py" "$@" ;;
     jira-triage)      shift; cmd_jira_triage "$@" ;;
     review-manager)   shift; _run_script securetty-review-manager.sh "$@" ;;
     update)           shift; cmd_update "$@" ;;

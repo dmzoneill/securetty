@@ -4,7 +4,7 @@ How securetty learns from historical session outcomes to make smarter escalation
 
 ## Overview
 
-The confidence scoring model (`securetty-confidence.py`) reads the failure database (`~/.securetty/failures.db`) and computes per-agent, per-repo confidence scores between 0.0 and 1.0. These scores feed into escalation decisions alongside the risk classifier: a low-confidence agent working on a high-failure repo gets escalated sooner than a high-confidence agent on a clean repo.
+The confidence scoring model (`securetty_confidence.py`) reads the failure database (`~/.securetty/failures.db`) and computes per-agent, per-repo confidence scores between 0.0 and 1.0. These scores feed into escalation decisions alongside the risk classifier: a low-confidence agent working on a high-failure repo gets escalated sooner than a high-confidence agent on a clean repo.
 
 The system is self-tuning. As more session outcomes accumulate, the recommended escalation threshold adjusts automatically based on whether the model's predictions align with actual outcomes.
 
@@ -12,7 +12,7 @@ The system is self-tuning. As more session outcomes accumulate, the recommended 
 
 The core formula is:
 
-```
+```text
 confidence = base_rate * recency_weight * repo_factor * duration_factor * pattern_penalty
 ```
 
@@ -22,7 +22,7 @@ Each component is described below.
 
 The agent's weighted success rate, computed from all sessions in the failure database. Success means `exit_code == 0`. This is a recency-weighted average, not a simple ratio -- recent sessions contribute more than old ones.
 
-```
+```text
 base_rate = sum(weight_i * success_i) / sum(weight_i)
 ```
 
@@ -32,7 +32,7 @@ Where `weight_i` is the recency weight for session `i` (see below).
 
 Exponential decay giving more importance to recent sessions. Each session's weight is:
 
-```
+```text
 weight = exp(-ln(2) * age_days / half_life)
 ```
 
@@ -66,7 +66,7 @@ An agent that always fails with exit code 1 is more predictable (and fixable) th
 
 The recommended escalation threshold is computed from the population of agent success rates:
 
-```
+```text
 threshold = median(agent_success_rates) - stddev(agent_success_rates)
 ```
 
@@ -95,8 +95,8 @@ If more than 20% of sessions that scored above the current threshold actually fa
 Over time, this creates a feedback loop:
 
 1. Sessions complete and their outcomes are logged by `securetty-session-logger.sh`.
-2. `securetty-failure-db.py --ingest` imports the outcomes into the database.
-3. `securetty-confidence.py --adjust` analyzes whether the threshold is well-calibrated.
+2. `securetty_failure_db.py --ingest` imports the outcomes into the database.
+3. `securetty_confidence.py --adjust` analyzes whether the threshold is well-calibrated.
 4. The operator (or automation) adjusts the threshold.
 5. Future escalation decisions use the new threshold.
 
@@ -104,34 +104,34 @@ This is a human-in-the-loop system. The model suggests; the operator decides. Th
 
 ## Integration with Risk Classifier
 
-The risk classifier (`securetty-risk-classifier.sh`) and the confidence scorer work together to make escalation decisions. The risk classifier categorizes the *change* (what files are being modified); the confidence scorer categorizes the *agent and repo* (how reliable this combination has been historically).
+The risk classifier (`securetty-risk-classifier.sh`) and the confidence scorer work together to make escalation decisions. The risk classifier categorizes the _change_ (what files are being modified); the confidence scorer categorizes the _agent and repo_ (how reliable this combination has been historically).
 
 The combined decision matrix:
 
-| Risk Level | High Confidence (above threshold) | Low Confidence (below threshold) |
-|-----------|----------------------------------|----------------------------------|
-| **High** | `pause` -- risky change but reliable agent, human reviews before proceeding | `abort` -- risky change and unreliable agent, stop immediately |
-| **Medium** | `warn` -- standard change with reliable agent, proceed with notice | `pause` -- standard change but unreliable agent, human confirms |
-| **Low** | no action -- safe change with reliable agent | `warn` -- safe change but unreliable agent, log a notice |
+| Risk Level | High Confidence (above threshold)                                           | Low Confidence (below threshold)                                |
+| ---------- | --------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| **High**   | `pause` -- risky change but reliable agent, human reviews before proceeding | `abort` -- risky change and unreliable agent, stop immediately  |
+| **Medium** | `warn` -- standard change with reliable agent, proceed with notice          | `pause` -- standard change but unreliable agent, human confirms |
+| **Low**    | no action -- safe change with reliable agent                                | `warn` -- safe change but unreliable agent, log a notice        |
 
 This refines the tier-based escalation documented in [security-tiers.md](security-tiers.md). Without confidence scoring, all agents at the same risk level get the same treatment. With confidence scoring, agents that have earned trust get more latitude while agents with poor track records face stricter gates.
 
 ### Example integration flow
 
-```
+```text
 1. Agent starts session on ~/src/myproject
 2. Risk classifier inspects the git diff -> "medium"
-3. Confidence scorer: securetty-confidence.py --score claude ~/src/myproject -> 0.82
+3. Confidence scorer: securetty_confidence.py --score claude ~/src/myproject -> 0.82
 4. Threshold: 0.55
 5. 0.82 > 0.55 -> high confidence
 6. Combined decision: medium risk + high confidence = "warn"
 7. Session proceeds with a logged warning
 ```
 
-```
+```text
 1. Agent starts session on ~/src/auth-service
 2. Risk classifier inspects the git diff -> "high"
-3. Confidence scorer: securetty-confidence.py --score gemini ~/src/auth-service -> 0.31
+3. Confidence scorer: securetty_confidence.py --score gemini ~/src/auth-service -> 0.31
 4. Threshold: 0.55
 5. 0.31 < 0.55 -> low confidence
 6. Combined decision: high risk + low confidence = "abort"
@@ -170,13 +170,13 @@ export SECURETTY_CONFIDENCE_DEFAULT_THRESHOLD=0.0
 
 ### Tuning parameters
 
-| Environment Variable | Default | Description |
-|---------------------|---------|-------------|
-| `SECURETTY_FAILURE_DB` | `~/.securetty/failures.db` | Path to the failure database |
-| `SECURETTY_CONFIDENCE_HALFLIFE` | `14` | Recency half-life in days |
-| `SECURETTY_CONFIDENCE_MIN_SESSIONS` | `5` | Minimum sessions before score is non-provisional |
-| `SECURETTY_CONFIDENCE_DEFAULT_THRESHOLD` | `0.6` | Default threshold when no data exists |
-| `SECURETTY_CONFIDENCE_DURATION_PENALTY` | `600` | Duration (seconds) above which agents are penalised |
+| Environment Variable                     | Default                    | Description                                         |
+| ---------------------------------------- | -------------------------- | --------------------------------------------------- |
+| `SECURETTY_FAILURE_DB`                   | `~/.securetty/failures.db` | Path to the failure database                        |
+| `SECURETTY_CONFIDENCE_HALFLIFE`          | `14`                       | Recency half-life in days                           |
+| `SECURETTY_CONFIDENCE_MIN_SESSIONS`      | `5`                        | Minimum sessions before score is non-provisional    |
+| `SECURETTY_CONFIDENCE_DEFAULT_THRESHOLD` | `0.6`                      | Default threshold when no data exists               |
+| `SECURETTY_CONFIDENCE_DURATION_PENALTY`  | `600`                      | Duration (seconds) above which agents are penalised |
 
 ## CLI Usage
 
@@ -184,33 +184,33 @@ export SECURETTY_CONFIDENCE_DEFAULT_THRESHOLD=0.0
 
 ```bash
 # Agent-level confidence
-securetty-confidence.py --score claude
+securetty_confidence.py --score claude
 
 # Agent + repo combination
-securetty-confidence.py --score claude ~/src/myproject
+securetty_confidence.py --score claude ~/src/myproject
 
 # JSON output for scripting
-securetty-confidence.py --score claude ~/src/myproject --json
+securetty_confidence.py --score claude ~/src/myproject --json
 ```
 
 ### Check the recommended threshold
 
 ```bash
-securetty-confidence.py --threshold
-securetty-confidence.py --threshold --json
+securetty_confidence.py --threshold
+securetty_confidence.py --threshold --json
 ```
 
 ### Get adjustment suggestions
 
 ```bash
-securetty-confidence.py --adjust
-securetty-confidence.py --adjust --json
+securetty_confidence.py --adjust
+securetty_confidence.py --adjust --json
 ```
 
 ### Full report
 
 ```bash
-securetty-confidence.py --report
+securetty_confidence.py --report
 ```
 
 The report includes per-agent scores, per-repo scores, the top agent-repo combinations, and threshold adjustment analysis.
@@ -221,38 +221,38 @@ The WG HAERCVM framework evaluates AI agent trustworthiness across multiple dime
 
 ### Mapping to E dimension scoring
 
-| HAERCVM E Criterion | securetty Confidence Component |
-|---------------------|-------------------------------|
-| Task completion rate | `base_rate` -- weighted success rate |
-| Consistency over time | `recency_weight` -- are recent results consistent with historical? |
-| Context sensitivity | `repo_factor` -- does the agent perform differently across repos? |
-| Efficiency | `duration_factor` -- does the agent converge in reasonable time? |
-| Failure predictability | `pattern_penalty` -- are failures diverse or concentrated? |
+| HAERCVM E Criterion    | securetty Confidence Component                                     |
+| ---------------------- | ------------------------------------------------------------------ |
+| Task completion rate   | `base_rate` -- weighted success rate                               |
+| Consistency over time  | `recency_weight` -- are recent results consistent with historical? |
+| Context sensitivity    | `repo_factor` -- does the agent perform differently across repos?  |
+| Efficiency             | `duration_factor` -- does the agent converge in reasonable time?   |
+| Failure predictability | `pattern_penalty` -- are failures diverse or concentrated?         |
 
 The composite confidence score maps to a WG HAERCVM E score as follows:
 
-| Confidence Score | E Dimension Rating | Interpretation |
-|-----------------|-------------------|----------------|
-| 0.8 - 1.0 | High effectiveness | Agent reliably completes tasks; minimal oversight needed |
-| 0.6 - 0.8 | Moderate effectiveness | Agent usually succeeds but warrants monitoring |
-| 0.4 - 0.6 | Low effectiveness | Agent struggles; escalation recommended |
-| 0.0 - 0.4 | Insufficient effectiveness | Agent should not operate autonomously |
+| Confidence Score | E Dimension Rating         | Interpretation                                           |
+| ---------------- | -------------------------- | -------------------------------------------------------- |
+| 0.8 - 1.0        | High effectiveness         | Agent reliably completes tasks; minimal oversight needed |
+| 0.6 - 0.8        | Moderate effectiveness     | Agent usually succeeds but warrants monitoring           |
+| 0.4 - 0.6        | Low effectiveness          | Agent struggles; escalation recommended                  |
+| 0.0 - 0.4        | Insufficient effectiveness | Agent should not operate autonomously                    |
 
-The confidence scoring model provides empirical, data-driven evidence for E dimension assessments rather than relying on subjective evaluation.  When an agent's confidence score drops below the escalation threshold, that is a quantitative signal that its E dimension rating has degraded and additional human oversight is warranted.
+The confidence scoring model provides empirical, data-driven evidence for E dimension assessments rather than relying on subjective evaluation. When an agent's confidence score drops below the escalation threshold, that is a quantitative signal that its E dimension rating has degraded and additional human oversight is warranted.
 
 ## Data Flow
 
-```
+```text
 Session runs
     |
     v
 securetty-session-logger.sh  --> ~/.securetty/outcomes/*.jsonl
     |
     v
-securetty-failure-db.py --ingest  --> ~/.securetty/failures.db
+securetty_failure_db.py --ingest  --> ~/.securetty/failures.db
     |
     v
-securetty-confidence.py --score/--threshold/--adjust/--report
+securetty_confidence.py --score/--threshold/--adjust/--report
     |
     v
 Escalation decision (combined with risk classifier output)
@@ -264,5 +264,5 @@ Escalation decision (combined with risk classifier output)
 - [security-tiers.md](security-tiers.md) -- Graduated risk-adaptive routing
 - [trust-model.md](trust-model.md) -- Input trust classification
 - `roles/escalation/defaults/main.yml` -- Escalation gate configuration
-- `roles/containers/files/securetty-failure-db.py` -- Failure database ingest and patterns
+- `roles/containers/files/securetty_failure_db.py` -- Failure database ingest and patterns
 - `roles/containers/files/securetty-risk-classifier.sh` -- Risk classification of git diffs

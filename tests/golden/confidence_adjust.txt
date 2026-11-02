@@ -1,0 +1,7 @@
+Current threshold:   0.6407
+Suggestion:          no_change
+Suggested threshold: 0.6407
+Reason: Threshold appears well-calibrated.
+
+Low-confidence sessions (last 7 days):  12 total, 6 accepted (50.0%)
+High-confidence sessions (last 7 days): 6 total, 0 rejected (0.0%)

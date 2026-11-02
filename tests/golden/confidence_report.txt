@@ -1,0 +1,46 @@
+========================================================================
+securetty confidence scoring report
+========================================================================
+
+Recommended escalation threshold: 0.6407
+  Basis: median(0.7143) - stddev(0.0736) across 3 agents
+  Total sessions in database: 21
+
+------------------------------------------------------------------------
+Per-agent confidence scores:
+------------------------------------------------------------------------
+Agent                   Score     Base  Recency  DurFctr   Sess   Fail  Prov
+claude                 0.5127   0.7345   0.7756   1.0000      9      2    no << below threshold
+codex                  0.5054   0.6667   0.8423   1.0000      5      2    no << below threshold
+gemini                 0.4856   0.6589   0.7782   0.9970      7      2    no << below threshold
+
+------------------------------------------------------------------------
+Per-repo confidence scores:
+------------------------------------------------------------------------
+Repo                                             Score   Sess   Fail
+/r/alpha                                        0.8322     13      2
+/r/beta                                         0.2989      5      3 << below threshold
+/r/gamma                                        0.6943      3      1
+
+------------------------------------------------------------------------
+Agent x Repo confidence (top combinations):
+------------------------------------------------------------------------
+Agent                Repo                              Score   Sess   Fail
+claude               /r/alpha                         0.9802      6      0
+gemini               /r/alpha                         0.4489      6      2 <<
+claude               /r/beta                          0.0198      3      2 <<
+codex                /r/beta                          0.2699      2      1 <<
+codex                /r/gamma                         0.3792      2      1 <<
+codex                /r/alpha                         1.0000      1      0
+gemini               /r/gamma                         0.1653      1      0 <<
+
+------------------------------------------------------------------------
+Threshold adjustment analysis (last 7 days):
+------------------------------------------------------------------------
+  Recent sessions: 18
+  Low-confidence sessions:  12 total, 6 accepted (50.0%)
+  High-confidence sessions: 6 total, 0 rejected (0.0%)
+  Suggestion: no_change
+  Reason: Threshold appears well-calibrated.
+
+========================================================================

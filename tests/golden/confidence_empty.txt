@@ -1,0 +1,17 @@
+Recommended escalation threshold: 0.6000
+  Basis: default (no historical data)
+  Total sessions: 0
+{
+  "current_threshold": 0.6,
+  "suggestion": "no_change",
+  "reason": "No recent sessions to analyze (last 7 days).",
+  "recent_sessions": 0
+}
+Confidence score for x @ /r: 0.6000 (provisional -- fewer than 5 sessions)
+  base_rate:       0.6000
+  recency_weight:  1.0000
+  repo_factor:     1.0000
+  duration_factor: 1.0000
+  sessions:        0
+  failures:        0
+  failure_patterns:0

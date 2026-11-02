@@ -1,0 +1,8 @@
+Confidence score for claude @ /r/alpha: 0.9802
+  base_rate:       1.0000
+  recency_weight:  0.8169
+  repo_factor:     1.2000
+  duration_factor: 1.0000
+  sessions:        6
+  failures:        0
+  failure_patterns:0

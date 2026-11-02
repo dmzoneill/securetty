@@ -1,0 +1,9 @@
+{
+  "recommended_threshold": 0.6407,
+  "basis": "median(0.7143) - stddev(0.0736) across 3 agents",
+  "total_sessions": 21,
+  "agent_count": 3,
+  "median_success_rate": 0.7143,
+  "mean_success_rate": 0.6974,
+  "stddev": 0.0736
+}

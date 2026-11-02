@@ -1,0 +1,8 @@
+Confidence score for gemini @ /r/alpha: 0.4489
+  base_rate:       0.6500
+  recency_weight:  0.8849
+  repo_factor:     0.8571
+  duration_factor: 0.9583
+  sessions:        6
+  failures:        2
+  failure_patterns:1

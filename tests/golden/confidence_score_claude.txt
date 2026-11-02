@@ -1,0 +1,8 @@
+Confidence score for claude: 0.5127
+  base_rate:       0.7345
+  recency_weight:  0.7756
+  repo_factor:     1.0000
+  duration_factor: 1.0000
+  sessions:        9
+  failures:        2
+  failure_patterns:2

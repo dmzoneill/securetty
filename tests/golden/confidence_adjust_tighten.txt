@@ -1,0 +1,1 @@
+{'current_threshold': 0.0, 'suggested_threshold': 0.1, 'suggestion': 'tighten', 'reason': '33% of high-confidence sessions (above 0.00) were rejected (6/18). Threshold is too loose -- suggest tightening to 0.1000.', 'recent_sessions': 18, 'low_confidence': {'total': 0, 'accepted': 0, 'accept_rate': 0}, 'high_confidence': {'total': 18, 'rejected': 6, 'reject_rate': 33.3}}

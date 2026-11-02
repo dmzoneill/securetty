@@ -1,0 +1,1 @@
+{'current_threshold': 0.99, 'suggested_threshold': 0.89, 'suggestion': 'relax', 'reason': '90% of low-confidence sessions (below 0.99) were accepted (9/10). Threshold is too strict -- suggest relaxing to 0.8900.', 'recent_sessions': 10, 'low_confidence': {'total': 10, 'accepted': 9, 'accept_rate': 90.0}, 'high_confidence': {'total': 0, 'rejected': 0, 'reject_rate': 0}}

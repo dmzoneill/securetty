@@ -17,7 +17,7 @@ Session runs and exits
 securetty-session-logger.sh  -->  ~/.securetty/outcomes/*.jsonl
         |
         v
-securetty-failure-db.py --ingest  -->  ~/.securetty/failures.db
+securetty_failure_db.py --ingest  -->  ~/.securetty/failures.db
         |                                 (sessions + patterns tables)
         v
 securetty_remediate.py --scan     -->  Identify agents with >30% failure rate
@@ -203,23 +203,23 @@ After applying a remediation patch to a SKILL.md, the improvement can be measure
 
 3. **Observation window** -- Allow the agent to accumulate new sessions (recommended: at least 10-20 sessions or 7 days, whichever comes first).
 
-4. **Compare** -- Run `securetty-failure-db.py --report` and `securetty-confidence.py --report` to compare post-patch metrics against the baseline.
+4. **Compare** -- Run `securetty_failure_db.py --report` and `securetty_confidence.py --report` to compare post-patch metrics against the baseline.
 
 ### What to measure
 
 | Metric                | Source                                    | Better means                       |
 | --------------------- | ----------------------------------------- | ---------------------------------- |
-| Failure rate          | `securetty-failure-db.py --report`        | Lower percentage                   |
-| Confidence score      | `securetty-confidence.py --score <agent>` | Higher score                       |
-| Average duration      | `securetty-failure-db.py --report`        | Shorter (for timeout remediations) |
-| Failure pattern count | `securetty-confidence.py --score <agent>` | Fewer distinct exit codes          |
+| Failure rate          | `securetty_failure_db.py --report`        | Lower percentage                   |
+| Confidence score      | `securetty_confidence.py --score <agent>` | Higher score                       |
+| Average duration      | `securetty_failure_db.py --report`        | Shorter (for timeout remediations) |
+| Failure pattern count | `securetty_confidence.py --score <agent>` | Fewer distinct exit codes          |
 
 ### Rollback decision
 
 If the failure rate does not improve after the observation window, the patch may not be addressing the root cause. In that case:
 
 1. Restore the backup: `cp SKILL.md.bak SKILL.md`
-2. Investigate the failure logs more deeply with `securetty-failure-db.py --suggest`
+2. Investigate the failure logs more deeply with `securetty_failure_db.py --suggest`
 3. Consider manual, targeted edits to the SKILL.md rather than template-based patches
 
 The remediation changelog provides the audit trail needed to identify which patches were applied and when, making rollback decisions traceable.
@@ -249,7 +249,7 @@ Validation time:   Time from apply to measurable improvement
 
 ### Improving velocity
 
-- **Automate ingestion** -- Run `securetty-failure-db.py --ingest` on a schedule (e.g., cron every hour)
+- **Automate ingestion** -- Run `securetty_failure_db.py --ingest` on a schedule (e.g., cron every hour)
 - **Automate scanning** -- Run `securetty_remediate.py --scan` after each ingestion to surface new candidates
 - **Review and apply** -- The `--apply` step intentionally requires `--confirm` to keep a human in the loop
 - **Propagate aggressively** -- Once a fix is validated on one skill, propagate immediately to reduce fleet-wide failure rates
@@ -307,6 +307,6 @@ securetty_remediate.py --changelog
 - [confidence-scoring.md](confidence-scoring.md) -- Confidence scoring model and escalation thresholds
 - [escalation-gates.md](escalation-gates.md) -- Session-level escalation controls
 - [skill-marketplace.md](skill-marketplace.md) -- Skill discovery and management
-- `roles/containers/files/securetty-failure-db.py` -- Failure database ingest and pattern detection
-- `roles/containers/files/securetty-confidence.py` -- Confidence scoring computation
+- `roles/containers/files/securetty_failure_db.py` -- Failure database ingest and pattern detection
+- `roles/containers/files/securetty_confidence.py` -- Confidence scoring computation
 - `roles/containers/files/securetty_remediate.py` -- Remediation engine (this document)

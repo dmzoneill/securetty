@@ -16,10 +16,10 @@ Where:
     repo_factor    = repo-specific modifier (repos with more failures penalize)
 
 Usage:
-    securetty-confidence.py --score <agent> [repo]   Confidence score (0.0-1.0)
-    securetty-confidence.py --threshold              Recommended escalation threshold
-    securetty-confidence.py --adjust                 Suggest threshold changes
-    securetty-confidence.py --report                 Full confidence report
+    securetty_confidence.py --score <agent> [repo]   Confidence score (0.0-1.0)
+    securetty_confidence.py --threshold              Recommended escalation threshold
+    securetty_confidence.py --adjust                 Suggest threshold changes
+    securetty_confidence.py --report                 Full confidence report
 """
 
 import argparse
@@ -29,17 +29,16 @@ import os
 import sqlite3
 import sys
 from collections import defaultdict
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
 DB_PATH = os.environ.get(
-    "SECURETTY_FAILURE_DB", os.path.expanduser("~/.securetty/failures.db")
+    "SECURETTY_FAILURE_DB",
+    os.path.expanduser("~/.securetty/failures.db"),
 )
 
 # Recency half-life in days.  Sessions older than this contribute half as
 # much to the confidence score as sessions that happened today.
-RECENCY_HALF_LIFE_DAYS = float(
-    os.environ.get("SECURETTY_CONFIDENCE_HALFLIFE", "14")
-)
+RECENCY_HALF_LIFE_DAYS = float(os.environ.get("SECURETTY_CONFIDENCE_HALFLIFE", "14"))
 
 # Minimum number of sessions before we produce a meaningful score.
 # Below this threshold the score is marked as provisional.
@@ -47,12 +46,12 @@ MIN_SESSIONS = int(os.environ.get("SECURETTY_CONFIDENCE_MIN_SESSIONS", "5"))
 
 # Default escalation threshold when no historical data exists.
 DEFAULT_THRESHOLD = float(
-    os.environ.get("SECURETTY_CONFIDENCE_DEFAULT_THRESHOLD", "0.6")
+    os.environ.get("SECURETTY_CONFIDENCE_DEFAULT_THRESHOLD", "0.6"),
 )
 
 # Duration penalty: sessions longer than this (seconds) are penalised.
 DURATION_PENALTY_THRESHOLD = int(
-    os.environ.get("SECURETTY_CONFIDENCE_DURATION_PENALTY", "600")
+    os.environ.get("SECURETTY_CONFIDENCE_DURATION_PENALTY", "600"),
 )
 
 # ---- database access -------------------------------------------------------
@@ -81,7 +80,7 @@ def get_db() -> sqlite3.Connection:
 def _has_sessions_table(conn: sqlite3.Connection) -> bool:
     """Return True if the sessions table exists."""
     row = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'"
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'",
     ).fetchone()
     return row is not None
 
@@ -122,55 +121,23 @@ def _duration_factor(avg_duration: float) -> float:
     return max(1.0 - (ratio - 1.0) * 0.25, 0.5)
 
 
-def compute_agent_score(
-    conn: sqlite3.Connection, agent: str, repo: str | None = None
-) -> dict:
-    """Compute the confidence score for an agent, optionally scoped to a repo.
-
-    Returns a dict with:
-        score        -- float 0.0-1.0
-        provisional  -- True if insufficient data
-        base_rate    -- raw success rate
-        recency_weight -- weighted recency factor
-        repo_factor  -- repo-specific modifier
-        duration_factor -- duration-based modifier
-        total_sessions -- count of sessions considered
-        total_failures -- count of failures
-        failure_patterns -- number of distinct failure exit codes
-    """
-    now = datetime.now(timezone.utc)
-
-    # Fetch sessions for this agent
+def _fetch_agent_rows(conn: sqlite3.Connection, agent: str, repo: str | None) -> list:
+    """Return an agent's sessions, newest first, optionally scoped to a repo."""
     if repo:
-        rows = conn.execute(
+        return conn.execute(
             "SELECT timestamp, exit_code, duration_seconds "
             "FROM sessions WHERE agent = ? AND workdir = ? "
             "ORDER BY timestamp DESC",
             (agent, repo),
         ).fetchall()
-    else:
-        rows = conn.execute(
-            "SELECT timestamp, exit_code, duration_seconds "
-            "FROM sessions WHERE agent = ? "
-            "ORDER BY timestamp DESC",
-            (agent,),
-        ).fetchall()
+    return conn.execute(
+        "SELECT timestamp, exit_code, duration_seconds FROM sessions WHERE agent = ? ORDER BY timestamp DESC",
+        (agent,),
+    ).fetchall()
 
-    total = len(rows)
-    if total == 0:
-        return {
-            "score": DEFAULT_THRESHOLD,
-            "provisional": True,
-            "base_rate": DEFAULT_THRESHOLD,
-            "recency_weight": 1.0,
-            "repo_factor": 1.0,
-            "duration_factor": 1.0,
-            "total_sessions": 0,
-            "total_failures": 0,
-            "failure_patterns": 0,
-        }
 
-    # Weighted success rate: recent sessions count more
+def _weighted_outcomes(rows: list, now: datetime) -> dict:
+    """Summarise sessions into recency-weighted successes and failure statistics."""
     weighted_successes = 0.0
     weighted_total = 0.0
     total_failures = 0
@@ -187,44 +154,101 @@ def compute_agent_score(
             failure_exit_codes.add(row["exit_code"])
         durations.append(row["duration_seconds"] or 0)
 
-    base_rate = weighted_successes / weighted_total if weighted_total > 0 else 0.0
+    return {
+        "weighted_successes": weighted_successes,
+        "weighted_total": weighted_total,
+        "total_failures": total_failures,
+        "pattern_count": len(failure_exit_codes),
+        "avg_duration": sum(durations) / len(durations) if durations else 0,
+    }
+
+
+def _repo_factor(
+    conn: sqlite3.Connection,
+    agent: str,
+    total_failures: int,
+    total: int,
+) -> float:
+    """Compare a repo's failure rate with the agent's global rate.
+
+    Repos that fail more than average are penalised; repos that fail less
+    get a slight bonus.
+    """
+    global_rows = conn.execute(
+        "SELECT COUNT(*) as total, "
+        "SUM(CASE WHEN exit_code != 0 THEN 1 ELSE 0 END) as failures "
+        "FROM sessions WHERE agent = ?",
+        (agent,),
+    ).fetchone()
+    global_total = global_rows["total"] or 1
+    global_failures = global_rows["failures"] or 0
+    global_fail_rate = global_failures / global_total
+
+    repo_fail_rate = total_failures / total if total > 0 else 0
+
+    if 0 < global_fail_rate < repo_fail_rate:
+        # Repo is worse than average -- penalise proportionally
+        excess = repo_fail_rate / global_fail_rate
+        return max(1.0 / excess, 0.3)  # floor at 0.3
+    if repo_fail_rate < global_fail_rate and global_fail_rate > 0:
+        # Repo is better than average -- slight bonus
+        return min(1.0 + (global_fail_rate - repo_fail_rate), 1.2)
+    return 1.0
+
+
+def compute_agent_score(
+    conn: sqlite3.Connection,
+    agent: str,
+    repo: str | None = None,
+) -> dict:
+    """Compute the confidence score for an agent, optionally scoped to a repo.
+
+    Returns a dict with:
+        score        -- float 0.0-1.0
+        provisional  -- True if insufficient data
+        base_rate    -- raw success rate
+        recency_weight -- weighted recency factor
+        repo_factor  -- repo-specific modifier
+        duration_factor -- duration-based modifier
+        total_sessions -- count of sessions considered
+        total_failures -- count of failures
+        failure_patterns -- number of distinct failure exit codes
+    """
+    now = datetime.now(timezone.utc)
+    rows = _fetch_agent_rows(conn, agent, repo)
+
+    total = len(rows)
+    if total == 0:
+        return {
+            "score": DEFAULT_THRESHOLD,
+            "provisional": True,
+            "base_rate": DEFAULT_THRESHOLD,
+            "recency_weight": 1.0,
+            "repo_factor": 1.0,
+            "duration_factor": 1.0,
+            "total_sessions": 0,
+            "total_failures": 0,
+            "failure_patterns": 0,
+        }
+
+    # Weighted success rate: recent sessions count more
+    stats = _weighted_outcomes(rows, now)
+    weighted_total = stats["weighted_total"]
+    base_rate = 0.0
+    if weighted_total > 0:
+        base_rate = stats["weighted_successes"] / weighted_total
 
     # Recency weight: average weight of all sessions (reflects data freshness)
     recency_w = weighted_total / total if total > 0 else 1.0
 
-    # Duration factor
-    avg_dur = sum(durations) / len(durations) if durations else 0
-    dur_factor = _duration_factor(avg_dur)
-
-    # Repo factor: if scoped to a repo, compare its failure rate to the
-    # agent's global failure rate.  Repos that fail more than average get
-    # penalised.
+    dur_factor = _duration_factor(stats["avg_duration"])
     repo_factor = 1.0
     if repo:
-        global_rows = conn.execute(
-            "SELECT COUNT(*) as total, "
-            "SUM(CASE WHEN exit_code != 0 THEN 1 ELSE 0 END) as failures "
-            "FROM sessions WHERE agent = ?",
-            (agent,),
-        ).fetchone()
-        global_total = global_rows["total"] or 1
-        global_failures = global_rows["failures"] or 0
-        global_fail_rate = global_failures / global_total
-
-        repo_fail_rate = total_failures / total if total > 0 else 0
-
-        if global_fail_rate > 0 and repo_fail_rate > global_fail_rate:
-            # Repo is worse than average -- penalise proportionally
-            excess = repo_fail_rate / global_fail_rate
-            repo_factor = max(1.0 / excess, 0.3)  # floor at 0.3
-        elif repo_fail_rate < global_fail_rate and global_fail_rate > 0:
-            # Repo is better than average -- slight bonus
-            repo_factor = min(1.0 + (global_fail_rate - repo_fail_rate), 1.2)
+        repo_factor = _repo_factor(conn, agent, stats["total_failures"], total)
 
     # Failure pattern penalty: agents with many distinct failure modes
     # (different exit codes) are less predictable
-    pattern_count = len(failure_exit_codes)
-    pattern_penalty = max(1.0 - pattern_count * 0.05, 0.7)
+    pattern_penalty = max(1.0 - stats["pattern_count"] * 0.05, 0.7)
 
     # Final composite score
     score = base_rate * recency_w * repo_factor * dur_factor * pattern_penalty
@@ -238,8 +262,8 @@ def compute_agent_score(
         "repo_factor": round(repo_factor, 4),
         "duration_factor": round(dur_factor, 4),
         "total_sessions": total,
-        "total_failures": total_failures,
-        "failure_patterns": pattern_count,
+        "total_failures": stats["total_failures"],
+        "failure_patterns": stats["pattern_count"],
     }
 
 
@@ -251,8 +275,7 @@ def compute_repo_score(conn: sqlite3.Connection, repo: str) -> dict:
     now = datetime.now(timezone.utc)
 
     rows = conn.execute(
-        "SELECT timestamp, agent, exit_code, duration_seconds "
-        "FROM sessions WHERE workdir = ? ORDER BY timestamp DESC",
+        "SELECT timestamp, agent, exit_code, duration_seconds FROM sessions WHERE workdir = ? ORDER BY timestamp DESC",
         (repo,),
     ).fetchall()
 
@@ -301,9 +324,7 @@ def compute_threshold(conn: sqlite3.Connection) -> dict:
     sessions below it failed.  This creates a natural decision boundary:
     sessions scoring below the threshold should be escalated.
     """
-    rows = conn.execute(
-        "SELECT agent, exit_code FROM sessions"
-    ).fetchall()
+    rows = conn.execute("SELECT agent, exit_code FROM sessions").fetchall()
 
     if not rows:
         return {
@@ -313,8 +334,8 @@ def compute_threshold(conn: sqlite3.Connection) -> dict:
         }
 
     # Compute per-agent success rates
-    agent_totals = defaultdict(int)
-    agent_successes = defaultdict(int)
+    agent_totals: defaultdict[str, int] = defaultdict(int)
+    agent_successes: defaultdict[str, int] = defaultdict(int)
 
     for row in rows:
         agent_totals[row["agent"]] += 1
@@ -358,40 +379,17 @@ def compute_threshold(conn: sqlite3.Connection) -> dict:
 # ---- threshold adjustment --------------------------------------------------
 
 
-def compute_adjustment(conn: sqlite3.Connection) -> dict:
-    """Analyze recent outcomes and suggest threshold adjustments.
-
-    Looks at sessions from the last 7 days.  If >80% of low-confidence
-    outputs got accepted (exit_code 0), the threshold can be relaxed.
-    If >20% of high-confidence outputs got rejected (exit_code != 0),
-    the threshold should be tightened.
-    """
-    threshold_info = compute_threshold(conn)
-    current_threshold = threshold_info["recommended_threshold"]
-
-    # Look at the last 7 days of sessions
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-
-    rows = conn.execute(
-        "SELECT agent, workdir, exit_code, timestamp "
-        "FROM sessions WHERE timestamp > ? ORDER BY timestamp DESC",
-        (cutoff,),
-    ).fetchall()
-
-    if not rows:
-        return {
-            "current_threshold": current_threshold,
-            "suggestion": "no_change",
-            "reason": "No recent sessions to analyze (last 7 days).",
-            "recent_sessions": 0,
-        }
-
-    # Compute confidence for each session's agent+repo combo and classify
+def _split_by_confidence(
+    conn: sqlite3.Connection,
+    rows: list,
+    threshold: float,
+) -> tuple[list, list]:
+    """Split sessions into those scoring below the threshold and the rest."""
     low_confidence_sessions = []
     high_confidence_sessions = []
 
     # Cache scores to avoid recomputation
-    score_cache = {}
+    score_cache: dict[tuple, float] = {}
 
     for row in rows:
         cache_key = (row["agent"], row["workdir"])
@@ -407,20 +405,55 @@ def compute_adjustment(conn: sqlite3.Connection) -> dict:
             "score": score,
         }
 
-        if score < current_threshold:
+        if score < threshold:
             low_confidence_sessions.append(entry)
         else:
             high_confidence_sessions.append(entry)
+    return low_confidence_sessions, high_confidence_sessions
 
-    # Analyze low-confidence sessions: how many actually succeeded?
-    low_total = len(low_confidence_sessions)
-    low_accepted = sum(1 for s in low_confidence_sessions if s["exit_code"] == 0)
-    low_accept_rate = (low_accepted / low_total * 100) if low_total > 0 else 0
 
-    # Analyze high-confidence sessions: how many failed?
-    high_total = len(high_confidence_sessions)
-    high_rejected = sum(1 for s in high_confidence_sessions if s["exit_code"] != 0)
-    high_reject_rate = (high_rejected / high_total * 100) if high_total > 0 else 0
+def _outcome_rate(sessions: list, failed: bool) -> tuple[int, int, float]:
+    """Return (total, matching, percent) for sessions that failed or succeeded."""
+    total = len(sessions)
+    matching = sum(1 for s in sessions if (s["exit_code"] != 0) == failed)
+    rate = (matching / total * 100) if total > 0 else 0
+    return total, matching, rate
+
+
+def compute_adjustment(conn: sqlite3.Connection) -> dict:
+    """Analyze recent outcomes and suggest threshold adjustments.
+
+    Looks at sessions from the last 7 days.  If >80% of low-confidence
+    outputs got accepted (exit_code 0), the threshold can be relaxed.
+    If >20% of high-confidence outputs got rejected (exit_code != 0),
+    the threshold should be tightened.
+    """
+    current_threshold = compute_threshold(conn)["recommended_threshold"]
+
+    # Look at the last 7 days of sessions
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+
+    rows = conn.execute(
+        "SELECT agent, workdir, exit_code, timestamp FROM sessions WHERE timestamp > ? ORDER BY timestamp DESC",
+        (cutoff,),
+    ).fetchall()
+
+    if not rows:
+        return {
+            "current_threshold": current_threshold,
+            "suggestion": "no_change",
+            "reason": "No recent sessions to analyze (last 7 days).",
+            "recent_sessions": 0,
+        }
+
+    low_sessions, high_sessions = _split_by_confidence(conn, rows, current_threshold)
+    # Low-confidence sessions: how many actually succeeded?
+    low_total, low_accepted, low_accept_rate = _outcome_rate(low_sessions, failed=False)
+    # High-confidence sessions: how many failed?
+    high_total, high_rejected, high_reject_rate = _outcome_rate(
+        high_sessions,
+        failed=True,
+    )
 
     suggestion = "no_change"
     reason = "Threshold appears well-calibrated."
@@ -469,25 +502,114 @@ def compute_adjustment(conn: sqlite3.Connection) -> dict:
 # ---- full report ------------------------------------------------------------
 
 
+def _print_section(title: str) -> None:
+    """Print a report section heading."""
+    print("-" * 72)
+    print(title)
+    print("-" * 72)
+
+
+def _print_agent_scores(
+    conn: sqlite3.Connection,
+    agents: list[str],
+    threshold: float,
+) -> None:
+    """Print the per-agent confidence table."""
+    _print_section("Per-agent confidence scores:")
+    header = f"{'Agent':<20} {'Score':>8} {'Base':>8} {'Recency':>8} {'DurFctr':>8} {'Sess':>6} {'Fail':>6} {'Prov':>5}"
+    print(header)
+
+    for agent in agents:
+        result = compute_agent_score(conn, agent)
+        prov = "yes" if result["provisional"] else "no"
+        flag = " << below threshold" if result["score"] < threshold else ""
+        print(
+            f"{agent:<20} {result['score']:>8.4f} {result['base_rate']:>8.4f} "
+            f"{result['recency_weight']:>8.4f} {result['duration_factor']:>8.4f} "
+            f"{result['total_sessions']:>6} {result['total_failures']:>6} "
+            f"{prov:>5}{flag}"
+        )
+    print()
+
+
+def _print_repo_scores(
+    conn: sqlite3.Connection,
+    repos: list[str],
+    threshold: float,
+) -> None:
+    """Print the per-repo confidence table."""
+    _print_section("Per-repo confidence scores:")
+    print(f"{'Repo':<45} {'Score':>8} {'Sess':>6} {'Fail':>6}")
+
+    for repo in repos:
+        result = compute_repo_score(conn, repo)
+        flag = " << below threshold" if result["score"] < threshold else ""
+        print(
+            f"{repo:<45} {result['score']:>8.4f} {result['total_sessions']:>6} {result['total_failures']:>6}{flag}",
+        )
+    print()
+
+
+def _print_combination_scores(conn: sqlite3.Connection, threshold: float) -> None:
+    """Print confidence for the top agent x repo combinations by session count."""
+    _print_section("Agent x Repo confidence (top combinations):")
+
+    combos = conn.execute(
+        "SELECT agent, workdir, COUNT(*) as c FROM sessions GROUP BY agent, workdir ORDER BY c DESC LIMIT 20"
+    ).fetchall()
+
+    print(f"{'Agent':<20} {'Repo':<30} {'Score':>8} {'Sess':>6} {'Fail':>6}")
+    for combo in combos:
+        result = compute_agent_score(conn, combo["agent"], combo["workdir"])
+        flag = " <<" if result["score"] < threshold else ""
+        print(
+            f"{combo['agent']:<20} {combo['workdir']:<30} "
+            f"{result['score']:>8.4f} {result['total_sessions']:>6} "
+            f"{result['total_failures']:>6}{flag}"
+        )
+    print()
+
+
+def _confidence_lines(adj: dict, prefix: str, when: str) -> list[str]:
+    """Format the low/high-confidence session summaries of an adjustment."""
+    lc = adj["low_confidence"]
+    hc = adj["high_confidence"]
+    low = f"{prefix}Low-confidence sessions{when}:  {lc['total']} total, "
+    low += f"{lc['accepted']} accepted ({lc['accept_rate']:.1f}%)"
+    high = f"{prefix}High-confidence sessions{when}: {hc['total']} total, "
+    high += f"{hc['rejected']} rejected ({hc['reject_rate']:.1f}%)"
+    return [low, high]
+
+
+def _print_adjustment_summary(conn: sqlite3.Connection) -> None:
+    """Print the threshold adjustment analysis section."""
+    adj = compute_adjustment(conn)
+    _print_section("Threshold adjustment analysis (last 7 days):")
+    print(f"  Recent sessions: {adj['recent_sessions']}")
+    if adj["recent_sessions"] > 0:
+        for line in _confidence_lines(adj, "  ", ""):
+            print(line)
+        print(f"  Suggestion: {adj['suggestion']}")
+        print(f"  Reason: {adj['reason']}")
+    else:
+        print(f"  {adj['reason']}")
+    print()
+
+
 def full_report(conn: sqlite3.Connection) -> None:
     """Print a comprehensive confidence report across all agents and repos."""
-
     # Gather all distinct agents and repos
-    agents = [
-        r["agent"]
-        for r in conn.execute(
-            "SELECT DISTINCT agent FROM sessions ORDER BY agent"
-        ).fetchall()
-    ]
-    repos = [
-        r["workdir"]
-        for r in conn.execute(
-            "SELECT DISTINCT workdir FROM sessions ORDER BY workdir"
-        ).fetchall()
-    ]
+    agent_rows = conn.execute(
+        "SELECT DISTINCT agent FROM sessions ORDER BY agent",
+    ).fetchall()
+    repo_rows = conn.execute(
+        "SELECT DISTINCT workdir FROM sessions ORDER BY workdir",
+    ).fetchall()
+    agents = [r["agent"] for r in agent_rows]
+    repos = [r["workdir"] for r in repo_rows]
 
     if not agents:
-        print("No session data available. Run securetty-failure-db.py --ingest first.")
+        print("No session data available. Run securetty_failure_db.py --ingest first.")
         return
 
     # Threshold
@@ -503,87 +625,10 @@ def full_report(conn: sqlite3.Connection) -> None:
     print(f"  Total sessions in database: {threshold_info['total_sessions']}")
     print()
 
-    # Per-agent scores
-    print("-" * 72)
-    print("Per-agent confidence scores:")
-    print("-" * 72)
-    header = (
-        f"{'Agent':<20} {'Score':>8} {'Base':>8} {'Recency':>8} "
-        f"{'DurFctr':>8} {'Sess':>6} {'Fail':>6} {'Prov':>5}"
-    )
-    print(header)
-
-    for agent in agents:
-        result = compute_agent_score(conn, agent)
-        prov = "yes" if result["provisional"] else "no"
-        flag = ""
-        if result["score"] < threshold:
-            flag = " << below threshold"
-        print(
-            f"{agent:<20} {result['score']:>8.4f} {result['base_rate']:>8.4f} "
-            f"{result['recency_weight']:>8.4f} {result['duration_factor']:>8.4f} "
-            f"{result['total_sessions']:>6} {result['total_failures']:>6} "
-            f"{prov:>5}{flag}"
-        )
-    print()
-
-    # Per-repo scores
-    print("-" * 72)
-    print("Per-repo confidence scores:")
-    print("-" * 72)
-    print(f"{'Repo':<45} {'Score':>8} {'Sess':>6} {'Fail':>6}")
-
-    for repo in repos:
-        result = compute_repo_score(conn, repo)
-        flag = ""
-        if result["score"] < threshold:
-            flag = " << below threshold"
-        print(
-            f"{repo:<45} {result['score']:>8.4f} "
-            f"{result['total_sessions']:>6} {result['total_failures']:>6}{flag}"
-        )
-    print()
-
-    # Agent x Repo matrix (top combinations by session count)
-    print("-" * 72)
-    print("Agent x Repo confidence (top combinations):")
-    print("-" * 72)
-
-    combos = conn.execute(
-        "SELECT agent, workdir, COUNT(*) as c "
-        "FROM sessions GROUP BY agent, workdir "
-        "ORDER BY c DESC LIMIT 20"
-    ).fetchall()
-
-    print(f"{'Agent':<20} {'Repo':<30} {'Score':>8} {'Sess':>6} {'Fail':>6}")
-    for combo in combos:
-        result = compute_agent_score(conn, combo["agent"], combo["workdir"])
-        flag = ""
-        if result["score"] < threshold:
-            flag = " <<"
-        print(
-            f"{combo['agent']:<20} {combo['workdir']:<30} "
-            f"{result['score']:>8.4f} {result['total_sessions']:>6} "
-            f"{result['total_failures']:>6}{flag}"
-        )
-    print()
-
-    # Adjustment suggestion
-    adj = compute_adjustment(conn)
-    print("-" * 72)
-    print("Threshold adjustment analysis (last 7 days):")
-    print("-" * 72)
-    print(f"  Recent sessions: {adj['recent_sessions']}")
-    if adj["recent_sessions"] > 0:
-        lc = adj["low_confidence"]
-        hc = adj["high_confidence"]
-        print(f"  Low-confidence sessions:  {lc['total']} total, {lc['accepted']} accepted ({lc['accept_rate']:.1f}%)")
-        print(f"  High-confidence sessions: {hc['total']} total, {hc['rejected']} rejected ({hc['reject_rate']:.1f}%)")
-        print(f"  Suggestion: {adj['suggestion']}")
-        print(f"  Reason: {adj['reason']}")
-    else:
-        print(f"  {adj['reason']}")
-    print()
+    _print_agent_scores(conn, agents, threshold)
+    _print_repo_scores(conn, repos, threshold)
+    _print_combination_scores(conn, threshold)
+    _print_adjustment_summary(conn)
 
     print("=" * 72)
 
@@ -607,7 +652,9 @@ def cmd_score(args, conn: sqlite3.Connection) -> None:
         label = f"{agent}"
         if repo:
             label += f" @ {repo}"
-        prov = " (provisional -- fewer than {0} sessions)".format(MIN_SESSIONS) if result["provisional"] else ""
+        prov = ""
+        if result["provisional"]:
+            prov = f" (provisional -- fewer than {MIN_SESSIONS} sessions)"
         print(f"Confidence score for {label}: {result['score']:.4f}{prov}")
         print(f"  base_rate:       {result['base_rate']:.4f}")
         print(f"  recency_weight:  {result['recency_weight']:.4f}")
@@ -625,7 +672,9 @@ def cmd_threshold(args, conn: sqlite3.Connection) -> None:
     if args.json:
         print(json.dumps(result, indent=2))
     else:
-        print(f"Recommended escalation threshold: {result['recommended_threshold']:.4f}")
+        print(
+            f"Recommended escalation threshold: {result['recommended_threshold']:.4f}",
+        )
         print(f"  Basis: {result['basis']}")
         print(f"  Total sessions: {result['total_sessions']}")
 
@@ -643,20 +692,20 @@ def cmd_adjust(args, conn: sqlite3.Connection) -> None:
         print(f"Reason: {result['reason']}")
         print()
         if result["recent_sessions"] > 0:
-            lc = result["low_confidence"]
-            hc = result["high_confidence"]
-            print(f"Low-confidence sessions (last 7 days):  {lc['total']} total, {lc['accepted']} accepted ({lc['accept_rate']:.1f}%)")
-            print(f"High-confidence sessions (last 7 days): {hc['total']} total, {hc['rejected']} rejected ({hc['reject_rate']:.1f}%)")
+            for line in _confidence_lines(result, "", " (last 7 days)"):
+                print(line)
 
 
 def cmd_report(args, conn: sqlite3.Connection) -> None:
     """Handle --report."""
+    del args  # the report has no options; accepted for a uniform handler signature
     full_report(conn)
 
 
-def main() -> None:
+def _build_parser() -> argparse.ArgumentParser:
+    """Build the parser for both subcommands and the legacy --flag style."""
     parser = argparse.ArgumentParser(
-        description="securetty confidence scoring model -- learned escalation thresholds"
+        description="securetty confidence scoring model -- learned escalation thresholds",
     )
 
     sub = parser.add_subparsers(dest="command")
@@ -664,11 +713,19 @@ def main() -> None:
     # --score
     score_parser = sub.add_parser("score", help="Confidence score for agent [repo]")
     score_parser.add_argument("agent", help="Agent name (e.g. claude, gemini)")
-    score_parser.add_argument("repo", nargs="?", default=None, help="Repository/workdir path")
+    score_parser.add_argument(
+        "repo",
+        nargs="?",
+        default=None,
+        help="Repository/workdir path",
+    )
     score_parser.add_argument("--json", action="store_true", help="JSON output")
 
     # --threshold
-    threshold_parser = sub.add_parser("threshold", help="Recommended escalation threshold")
+    threshold_parser = sub.add_parser(
+        "threshold",
+        help="Recommended escalation threshold",
+    )
     threshold_parser.add_argument("--json", action="store_true", help="JSON output")
 
     # --adjust
@@ -679,69 +736,91 @@ def main() -> None:
     sub.add_parser("report", help="Full confidence report")
 
     # Also support legacy --flag style
-    parser.add_argument("--score", nargs="+", metavar="AGENT", dest="score_args",
-                        help="Confidence score: --score <agent> [repo]")
-    parser.add_argument("--threshold", action="store_true", dest="threshold_flag",
-                        help="Recommended escalation threshold")
-    parser.add_argument("--adjust", action="store_true", dest="adjust_flag",
-                        help="Suggest threshold changes")
-    parser.add_argument("--report", action="store_true", dest="report_flag",
-                        help="Full confidence report")
-    parser.add_argument("--json", action="store_true", help="JSON output (for --flag style)")
+    parser.add_argument(
+        "--score",
+        nargs="+",
+        metavar="AGENT",
+        dest="score_args",
+        help="Confidence score: --score <agent> [repo]",
+    )
+    parser.add_argument(
+        "--threshold",
+        action="store_true",
+        dest="threshold_flag",
+        help="Recommended escalation threshold",
+    )
+    parser.add_argument(
+        "--adjust",
+        action="store_true",
+        dest="adjust_flag",
+        help="Suggest threshold changes",
+    )
+    parser.add_argument(
+        "--report",
+        action="store_true",
+        dest="report_flag",
+        help="Full confidence report",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="JSON output (for --flag style)",
+    )
+    return parser
 
+
+def _dispatch(args: argparse.Namespace, conn: sqlite3.Connection) -> None:
+    """Run the handler selected by a subcommand or a legacy flag."""
+    if args.command == "score":
+        cmd_score(args, conn)
+    elif args.command == "threshold":
+        cmd_threshold(args, conn)
+    elif args.command == "adjust":
+        cmd_adjust(args, conn)
+    elif args.command == "report":
+        cmd_report(args, conn)
+    elif args.score_args:
+        # Legacy --score <agent> [repo]
+        repo = args.score_args[1] if len(args.score_args) > 1 else None
+        cmd_score(
+            argparse.Namespace(agent=args.score_args[0], repo=repo, json=args.json),
+            conn,
+        )
+    elif args.threshold_flag:
+        cmd_threshold(argparse.Namespace(json=args.json), conn)
+    elif args.adjust_flag:
+        cmd_adjust(argparse.Namespace(json=args.json), conn)
+    elif args.report_flag:
+        cmd_report(argparse.Namespace(), conn)
+
+
+def main() -> None:
+    """Parse command-line arguments and run the requested confidence command."""
+    parser = _build_parser()
     args = parser.parse_args()
 
     # Handle legacy --flag style
-    if args.command is None:
-        if not any([args.score_args, args.threshold_flag, args.adjust_flag, args.report_flag]):
-            parser.print_help()
-            sys.exit(1)
+    legacy_flags = [
+        args.score_args,
+        args.threshold_flag,
+        args.adjust_flag,
+        args.report_flag,
+    ]
+    if args.command is None and not any(legacy_flags):
+        parser.print_help()
+        sys.exit(1)
 
     conn = get_db()
     if not _has_sessions_table(conn):
         print(
-            "error: sessions table not found in database. "
-            "Run securetty-failure-db.py --ingest first.",
+            "error: sessions table not found in database. Run securetty_failure_db.py --ingest first.",
             file=sys.stderr,
         )
         conn.close()
         sys.exit(1)
 
     try:
-        if args.command == "score":
-            cmd_score(args, conn)
-        elif args.command == "threshold":
-            cmd_threshold(args, conn)
-        elif args.command == "adjust":
-            cmd_adjust(args, conn)
-        elif args.command == "report":
-            cmd_report(args, conn)
-        elif args.score_args:
-            # Legacy --score <agent> [repo]
-            class LegacyArgs:
-                pass
-            la = LegacyArgs()
-            la.agent = args.score_args[0]
-            la.repo = args.score_args[1] if len(args.score_args) > 1 else None
-            la.json = args.json
-            cmd_score(la, conn)
-        elif args.threshold_flag:
-            class LegacyArgs:
-                pass
-            la = LegacyArgs()
-            la.json = args.json
-            cmd_threshold(la, conn)
-        elif args.adjust_flag:
-            class LegacyArgs:
-                pass
-            la = LegacyArgs()
-            la.json = args.json
-            cmd_adjust(la, conn)
-        elif args.report_flag:
-            class LegacyArgs:
-                pass
-            la = LegacyArgs()
-            cmd_report(la, conn)
+        _dispatch(args, conn)
     finally:
         conn.close()
 

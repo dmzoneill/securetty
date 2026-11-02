@@ -1,4 +1,4 @@
-"""Behaviour tests for securetty-failure-db.py: ingest, report and suggest output."""
+"""Behaviour tests for securetty_failure_db.py: ingest, report and suggest output."""
 
 import json
 import os
@@ -68,7 +68,7 @@ def fixture_fdb(tmp_path, monkeypatch):
     (outcomes / "a.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
     rest = [json.dumps(s) for s in SESSIONS[8:]] + [json.dumps(SESSIONS[0])]
     (outcomes / "b.jsonl").write_text("\n".join(rest) + "\n", encoding="utf-8")
-    module = load_script("roles/containers/files/securetty-failure-db.py", "failure_db")
+    module = load_script("roles/containers/files/securetty_failure_db.py", "failure_db")
     conn = module.get_db()
     module.init_db(conn)
     yield module, conn
@@ -160,10 +160,10 @@ def test_empty_database_messages(fdb, capsys):
 def test_main_requires_an_action(monkeypatch):
     """main() exits with status 1 when no action flag is given."""
     module = load_script(
-        "roles/containers/files/securetty-failure-db.py",
+        "roles/containers/files/securetty_failure_db.py",
         "failure_db_main",
     )
-    monkeypatch.setattr("sys.argv", ["securetty-failure-db.py"])
+    monkeypatch.setattr("sys.argv", ["securetty_failure_db.py"])
     with pytest.raises(SystemExit) as exc:
         module.main()
     assert exc.value.code == 1
@@ -172,7 +172,7 @@ def test_main_requires_an_action(monkeypatch):
 def test_main_runs_report(fdb, monkeypatch, capsys):
     """main() opens the database and dispatches --report."""
     module, _ = fdb
-    monkeypatch.setattr("sys.argv", ["securetty-failure-db.py", "--report"])
+    monkeypatch.setattr("sys.argv", ["securetty_failure_db.py", "--report"])
     module.main()
     assert "securetty failure database report" in capsys.readouterr().out
     assert os.path.isfile(module.DB_PATH)
