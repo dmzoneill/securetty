@@ -12,6 +12,11 @@ import os
 import sys
 from pathlib import Path
 
+try:
+    import yaml
+except ImportError:
+    yaml = None
+
 HOME = os.path.expanduser("~")
 
 MCP_SERVERS = {
@@ -188,9 +193,7 @@ def configure_opencode():
 
 def configure_goose():
     """Goose uses YAML config."""
-    try:
-        import yaml
-    except ImportError:
+    if yaml is None:
         print("SKIP: goose (pyyaml not installed)", file=sys.stderr)
         return
 
@@ -221,9 +224,7 @@ def configure_goose():
 
 def configure_aider():
     """Aider uses YAML config with mcp section."""
-    try:
-        import yaml
-    except ImportError:
+    if yaml is None:
         print("SKIP: aider (pyyaml not installed)", file=sys.stderr)
         return
 
