@@ -54,16 +54,16 @@ Agents exceeding the failure threshold (default 30%, configurable via `SECURETTY
 
 Each high-failure agent is classified into one of four categories based on its failure pattern:
 
-| Classification | Criteria | Patch Focus |
-| --------------- | ---------- | ------------- |
-| **critical** | Failure rate > 70% | Pre-flight validation, scope reduction, fallback strategy |
-| **high** | Failure rate > 50% | Prerequisite checks, incremental progress, error context capture |
-| **timeout** | Average duration > 600s | Time budget, progress checkpoints, scope guards |
-| **elevated** | Failure rate > 30% (default) | Retry guidance, diagnostic exits, outcome logging |
+| Classification | Criteria                     | Patch Focus                                                      |
+| -------------- | ---------------------------- | ---------------------------------------------------------------- |
+| **critical**   | Failure rate > 70%           | Pre-flight validation, scope reduction, fallback strategy        |
+| **high**       | Failure rate > 50%           | Prerequisite checks, incremental progress, error context capture |
+| **timeout**    | Average duration > 600s      | Time budget, progress checkpoints, scope guards                  |
+| **elevated**   | Failure rate > 30% (default) | Retry guidance, diagnostic exits, outcome logging                |
 
 ### Suggestion templates
 
-For each classification, the engine generates two additive markdown sections:
+For each classification, the engine generates two additive Markdown sections:
 
 **Known Issues** -- Documents the observed failure codes, their frequency, and the repositories where failures occur. This gives the agent (and human reviewers) concrete context about what goes wrong.
 
@@ -141,16 +141,16 @@ Every patch application and propagation is recorded in `~/.securetty/remediation
 
 ```json
 {
-    "timestamp": "2025-01-15T14:30:00+00:00",
-    "action": "apply",
-    "skill": "slack-query",
-    "path": "/home/user/src/agent-mcp-skills/slack/SKILL.md",
-    "classification": "high",
-    "failure_rate": 55.0,
-    "total_sessions": 40,
-    "total_failures": 22,
-    "sections_added": ["Known Issues", "Troubleshooting"],
-    "dry_run": false
+  "timestamp": "2025-01-15T14:30:00+00:00",
+  "action": "apply",
+  "skill": "slack-query",
+  "path": "/home/user/src/agent-mcp-skills/slack/SKILL.md",
+  "classification": "high",
+  "failure_rate": 55.0,
+  "total_sessions": 40,
+  "total_failures": 22,
+  "sections_added": ["Known Issues", "Troubleshooting"],
+  "dry_run": false
 }
 ```
 
@@ -158,17 +158,17 @@ Propagation entries include an additional `propagated_from` field:
 
 ```json
 {
-    "timestamp": "2025-01-15T14:35:00+00:00",
-    "action": "propagate",
-    "skill": "gmail-query",
-    "path": "/home/user/src/agent-mcp-skills/gmail/SKILL.md",
-    "classification": "high",
-    "failure_rate": 52.0,
-    "total_sessions": 35,
-    "total_failures": 18,
-    "sections_added": ["Troubleshooting"],
-    "propagated_from": "slack-query",
-    "dry_run": false
+  "timestamp": "2025-01-15T14:35:00+00:00",
+  "action": "propagate",
+  "skill": "gmail-query",
+  "path": "/home/user/src/agent-mcp-skills/gmail/SKILL.md",
+  "classification": "high",
+  "failure_rate": 52.0,
+  "total_sessions": 35,
+  "total_failures": 18,
+  "sections_added": ["Troubleshooting"],
+  "propagated_from": "slack-query",
+  "dry_run": false
 }
 ```
 
@@ -207,12 +207,12 @@ After applying a remediation patch to a SKILL.md, the improvement can be measure
 
 ### What to measure
 
-| Metric | Source | Better means |
-| -------- | -------- | ------------- |
-| Failure rate | `securetty-failure-db.py --report` | Lower percentage |
-| Confidence score | `securetty-confidence.py --score <agent>` | Higher score |
-| Average duration | `securetty-failure-db.py --report` | Shorter (for timeout remediations) |
-| Failure pattern count | `securetty-confidence.py --score <agent>` | Fewer distinct exit codes |
+| Metric                | Source                                    | Better means                       |
+| --------------------- | ----------------------------------------- | ---------------------------------- |
+| Failure rate          | `securetty-failure-db.py --report`        | Lower percentage                   |
+| Confidence score      | `securetty-confidence.py --score <agent>` | Higher score                       |
+| Average duration      | `securetty-failure-db.py --report`        | Shorter (for timeout remediations) |
+| Failure pattern count | `securetty-confidence.py --score <agent>` | Fewer distinct exit codes          |
 
 ### Rollback decision
 
@@ -294,13 +294,13 @@ securetty_remediate.py --changelog
 
 ## Environment Variables
 
-| Variable | Default | Description |
-| ---------- | --------- | ------------- |
-| `SECURETTY_FAILURE_DB` | `~/.securetty/failures.db` | Path to the failure database |
-| `SECURETTY_BUILTIN_SKILLS` | `~/src/agent-mcp-skills` | Directory containing built-in skill definitions |
-| `SECURETTY_USER_SKILLS` | `~/.securetty/skills` | Directory containing user-installed skill definitions |
-| `SECURETTY_REMEDIATIONS_LOG` | `~/.securetty/remediations.jsonl` | Path to the remediations audit log |
-| `SECURETTY_FAILURE_THRESHOLD` | `30.0` | Failure rate percentage above which agents are remediated |
+| Variable                      | Default                           | Description                                               |
+| ----------------------------- | --------------------------------- | --------------------------------------------------------- |
+| `SECURETTY_FAILURE_DB`        | `~/.securetty/failures.db`        | Path to the failure database                              |
+| `SECURETTY_BUILTIN_SKILLS`    | `~/src/agent-mcp-skills`          | Directory containing built-in skill definitions           |
+| `SECURETTY_USER_SKILLS`       | `~/.securetty/skills`             | Directory containing user-installed skill definitions     |
+| `SECURETTY_REMEDIATIONS_LOG`  | `~/.securetty/remediations.jsonl` | Path to the remediations audit log                        |
+| `SECURETTY_FAILURE_THRESHOLD` | `30.0`                            | Failure rate percentage above which agents are remediated |
 
 ## Related Documentation
 
