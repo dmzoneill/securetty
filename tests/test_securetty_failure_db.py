@@ -4,8 +4,7 @@ import json
 import os
 import sqlite3
 
-import pytest
-from conftest import golden, load_script
+from conftest import ExpectExit, golden, load_script
 
 SESSIONS = [
     # crit: 4/4 failures, long runs, one workdir -> critical, timeout, workdir-specific
@@ -56,9 +55,10 @@ SESSIONS = [
 ]
 
 
-@pytest.fixture(name="fdb")
-def fixture_fdb(tmp_path, monkeypatch):
+def _fdb(request):
     """Load the module with its database and outcomes directory under tmp_path."""
+    tmp_path = request.getfixturevalue("tmp_path")
+    monkeypatch = request.getfixturevalue("monkeypatch")
     monkeypatch.setenv("SECURETTY_FAILURE_DB", str(tmp_path / "db" / "failures.db"))
     outcomes = tmp_path / "outcomes"
     outcomes.mkdir()
@@ -71,12 +71,13 @@ def fixture_fdb(tmp_path, monkeypatch):
     module = load_script("roles/containers/files/securetty_failure_db.py", "failure_db")
     conn = module.get_db()
     module.init_db(conn)
-    yield module, conn
-    conn.close()
+    request.addfinalizer(conn.close)
+    return module, conn
 
 
-def test_ingest_counts_and_rows(fdb, capsys):
+def test_ingest_counts_and_rows(request, capsys):
     """Ingest imports valid rows, skips bad JSON and duplicates, and logs each file."""
+    fdb = _fdb(request)
     module, conn = fdb
     module.ingest(conn)
     out = capsys.readouterr().out
@@ -89,8 +90,9 @@ def test_ingest_counts_and_rows(fdb, capsys):
     assert [tuple(r) for r in log] == [(8, 1), (7, 1)]
 
 
-def test_ingest_patterns(fdb):
+def test_ingest_patterns(request):
     """Pattern aggregates are recomputed after ingest."""
+    fdb = _fdb(request)
     module, conn = fdb
     module.ingest(conn)
     rows = conn.execute(
@@ -105,30 +107,33 @@ def test_ingest_patterns(fdb):
     ]
 
 
-def test_ingest_missing_dir_exits(fdb, monkeypatch, tmp_path, capsys):
+def test_ingest_missing_dir_exits(request, monkeypatch, tmp_path, capsys):
     """A missing outcomes directory exits with status 1."""
+    fdb = _fdb(request)
     module, conn = fdb
     monkeypatch.setattr(module, "OUTCOMES_DIR", str(tmp_path / "missing"))
-    with pytest.raises(SystemExit) as exc:
+    with ExpectExit() as exc:
         module.ingest(conn)
     assert exc.value.code == 1
     assert "No outcomes directory" in capsys.readouterr().err
 
 
-def test_ingest_no_files_exits(fdb, monkeypatch, tmp_path, capsys):
+def test_ingest_no_files_exits(request, monkeypatch, tmp_path, capsys):
     """An empty outcomes directory exits with status 1."""
+    fdb = _fdb(request)
     module, conn = fdb
     empty = tmp_path / "empty"
     empty.mkdir()
     monkeypatch.setattr(module, "OUTCOMES_DIR", str(empty))
-    with pytest.raises(SystemExit) as exc:
+    with ExpectExit() as exc:
         module.ingest(conn)
     assert exc.value.code == 1
     assert capsys.readouterr().err == "No JSONL files found.\n"
 
 
-def test_report_output(fdb, capsys):
+def test_report_output(request, capsys):
     """The report output is unchanged."""
+    fdb = _fdb(request)
     module, conn = fdb
     module.ingest(conn)
     capsys.readouterr()
@@ -136,8 +141,9 @@ def test_report_output(fdb, capsys):
     assert capsys.readouterr().out == golden("failure_db_report.txt")
 
 
-def test_suggest_output(fdb, capsys):
+def test_suggest_output(request, capsys):
     """The suggestion output is unchanged for critical, high and elevated agents."""
+    fdb = _fdb(request)
     module, conn = fdb
     module.ingest(conn)
     capsys.readouterr()
@@ -145,8 +151,9 @@ def test_suggest_output(fdb, capsys):
     assert capsys.readouterr().out == golden("failure_db_suggest.txt")
 
 
-def test_empty_database_messages(fdb, capsys):
+def test_empty_database_messages(request, capsys):
     """Report and suggest handle an empty database."""
+    fdb = _fdb(request)
     module, conn = fdb
     module.report(conn)
     module.suggest(conn)
@@ -164,13 +171,14 @@ def test_main_requires_an_action(monkeypatch):
         "failure_db_main",
     )
     monkeypatch.setattr("sys.argv", ["securetty_failure_db.py"])
-    with pytest.raises(SystemExit) as exc:
+    with ExpectExit() as exc:
         module.main()
     assert exc.value.code == 1
 
 
-def test_main_runs_report(fdb, monkeypatch, capsys):
+def test_main_runs_report(request, monkeypatch, capsys):
     """main() opens the database and dispatches --report."""
+    fdb = _fdb(request)
     module, _ = fdb
     monkeypatch.setattr("sys.argv", ["securetty_failure_db.py", "--report"])
     module.main()

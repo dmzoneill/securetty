@@ -4,8 +4,7 @@ import json
 import sqlite3
 from datetime import datetime, timezone
 
-import pytest
-from conftest import golden, load_script
+from conftest import ExpectExit, golden, load_script
 
 AGENTS = {
     # agent: (sessions, failures, duration, workdirs)
@@ -64,9 +63,10 @@ def _build_db(path):
     conn.close()
 
 
-@pytest.fixture(name="env")
-def fixture_env(tmp_path, monkeypatch):
+def _env(request):
     """Load the module against a temporary database, skills tree and remediation log."""
+    tmp_path = request.getfixturevalue("tmp_path")
+    monkeypatch = request.getfixturevalue("monkeypatch")
     db = tmp_path / "failures.db"
     _build_db(db)
     skills = tmp_path / "skills"
@@ -86,8 +86,8 @@ def fixture_env(tmp_path, monkeypatch):
     module = load_script("roles/containers/files/securetty_remediate.py", "remediate")
     conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
-    yield module, conn, tmp_path
-    conn.close()
+    request.addfinalizer(conn.close)
+    return module, conn, tmp_path
 
 
 def _normalise(text, tmp_path):
@@ -124,8 +124,9 @@ def _read_log(tmp_path):
     return entries
 
 
-def test_scan_output_and_patches(env, capsys):
+def test_scan_output_and_patches(request, capsys):
     """Scan prints the same report and returns the same patches."""
+    env = _env(request)
     module, conn, tmp_path = env
     patches = module.cmd_scan(conn)
     out = _normalise(capsys.readouterr().out, tmp_path)
@@ -138,16 +139,18 @@ def test_scan_output_and_patches(env, capsys):
     ]
 
 
-def test_scan_patch_content(env):
+def test_scan_patch_content(request):
     """Generated section text is unchanged."""
+    env = _env(request)
     module, conn, tmp_path = env
     patches = module.cmd_scan(conn)
     content = "".join(s["content"] for p in patches for s in p["sections"])
     assert _normalise(content, tmp_path) == golden("remediate_sections.txt")
 
 
-def test_scan_nothing_over_threshold(env, monkeypatch, capsys):
+def test_scan_nothing_over_threshold(request, monkeypatch, capsys):
     """Scan reports nothing to do when no agent exceeds the threshold."""
+    env = _env(request)
     module, conn, _ = env
     monkeypatch.setattr(module, "FAILURE_THRESHOLD", 100.0)
     assert not module.cmd_scan(conn)
@@ -155,8 +158,9 @@ def test_scan_nothing_over_threshold(env, monkeypatch, capsys):
     assert capsys.readouterr().out == expected
 
 
-def test_apply_without_confirm(env, capsys):
+def test_apply_without_confirm(request, capsys):
     """Apply without --confirm or --dry-run changes nothing."""
+    env = _env(request)
     module, conn, tmp_path = env
     module.cmd_apply(conn)
     out = capsys.readouterr().out
@@ -167,8 +171,9 @@ def test_apply_without_confirm(env, capsys):
     assert not list(tmp_path.rglob("*.bak"))
 
 
-def test_apply_dry_run(env, capsys):
+def test_apply_dry_run(request, capsys):
     """A dry-run apply previews changes without writing files or the log."""
+    env = _env(request)
     module, conn, tmp_path = env
     module.cmd_apply(conn, dry_run=True)
     out = _normalise(capsys.readouterr().out, tmp_path)
@@ -176,8 +181,9 @@ def test_apply_dry_run(env, capsys):
     assert not (tmp_path / "log").exists()
 
 
-def test_apply_confirm(env, capsys):
+def test_apply_confirm(request, capsys):
     """A confirmed apply patches files, makes backups and logs each patch."""
+    env = _env(request)
     module, conn, tmp_path = env
     module.cmd_apply(conn, confirm=True)
     out = _normalise(capsys.readouterr().out, tmp_path)
@@ -207,24 +213,27 @@ APPLIED_HIGH = {
 }
 
 
-def test_propagate_without_log(env, capsys):
+def test_propagate_without_log(request, capsys):
     """Propagate needs at least one applied remediation."""
+    env = _env(request)
     module, conn, _ = env
     module.cmd_propagate(conn)
     expected = "No remediations have been applied yet. Run --apply --confirm first.\n"
     assert capsys.readouterr().out == expected
 
 
-def test_propagate_only_dry_runs(env, capsys):
+def test_propagate_only_dry_runs(request, capsys):
     """Dry-run entries are not propagated."""
+    env = _env(request)
     module, conn, tmp_path = env
     _write_log(tmp_path, [dict(APPLIED_HIGH, dry_run=True)])
     module.cmd_propagate(conn)
     assert capsys.readouterr().out == "No completed remediations found to propagate.\n"
 
 
-def test_propagate_no_targets(env, capsys):
+def test_propagate_no_targets(request, capsys):
     """Skills already patched are not propagation targets."""
+    env = _env(request)
     module, conn, tmp_path = env
     target = str(tmp_path / "skills" / "high-query" / "SKILL.md")
     _write_log(
@@ -237,16 +246,9 @@ def test_propagate_no_targets(env, capsys):
     )
 
 
-@pytest.mark.parametrize(
-    ("kwargs", "name"),
-    [
-        ({}, "remediate_propagate_preview.txt"),
-        ({"dry_run": True}, "remediate_propagate_dry_run.txt"),
-        ({"confirm": True}, "remediate_propagate_confirm.txt"),
-    ],
-)
-def test_propagate_modes(env, capsys, kwargs, name):
+def test_propagate_modes(request, capsys, kwargs, name):
     """Propagate output for preview, dry-run and confirm modes is unchanged."""
+    env = _env(request)
     module, conn, tmp_path = env
     _write_log(tmp_path, [APPLIED_HIGH])
     module.cmd_propagate(conn, **kwargs)
@@ -286,16 +288,18 @@ CHANGELOG = [
 ]
 
 
-def test_changelog_output(env, capsys):
+def test_changelog_output(request, capsys):
     """The changelog report is unchanged."""
+    env = _env(request)
     module, _, tmp_path = env
     _write_log(tmp_path, CHANGELOG)
     module.cmd_changelog()
     assert capsys.readouterr().out == golden("remediate_changelog.txt")
 
 
-def test_changelog_single_apply(env, capsys):
+def test_changelog_single_apply(request, capsys):
     """With a single apply no velocity rate is printed."""
+    env = _env(request)
     module, _, tmp_path = env
     _write_log(tmp_path, [APPLIED_HIGH])
     module.cmd_changelog()
@@ -304,15 +308,17 @@ def test_changelog_single_apply(env, capsys):
     assert "Rate:" not in out
 
 
-def test_changelog_empty(env, capsys):
+def test_changelog_empty(request, capsys):
     """An empty log prints a single message."""
+    env = _env(request)
     module, _, _ = env
     module.cmd_changelog()
     assert capsys.readouterr().out == "No remediations recorded yet.\n"
 
 
-def test_main_dispatch(env, monkeypatch, capsys):
+def test_main_dispatch(request, monkeypatch, capsys):
     """main() dispatches --changelog and --scan."""
+    env = _env(request)
     module, _, tmp_path = env
     monkeypatch.setattr("sys.argv", ["securetty_remediate.py", "--changelog", "--scan"])
     module.main()
@@ -320,17 +326,19 @@ def test_main_dispatch(env, monkeypatch, capsys):
     assert out == "No remediations recorded yet.\n" + golden("remediate_scan.txt")
 
 
-def test_main_requires_an_action(env, monkeypatch):
+def test_main_requires_an_action(request, monkeypatch):
     """main() exits with status 1 when no action flag is given."""
+    env = _env(request)
     module, _, _ = env
     monkeypatch.setattr("sys.argv", ["securetty_remediate.py"])
-    with pytest.raises(SystemExit) as exc:
+    with ExpectExit() as exc:
         module.main()
     assert exc.value.code == 1
 
 
-def test_changelog_velocity_rate(env, capsys):
+def test_changelog_velocity_rate(request, capsys):
     """Two timed applies four hours apart report a patch rate."""
+    env = _env(request)
     module, _, tmp_path = env
     _write_log(
         tmp_path,
@@ -338,3 +346,21 @@ def test_changelog_velocity_rate(env, capsys):
     )
     module.cmd_changelog()
     assert "  Rate: 0.50 patches/hour over 4.0h\n" in capsys.readouterr().out
+
+
+PARAMETRIZE = {
+    "test_propagate_modes": (
+        ("kwargs", "name"),
+        [
+            ({}, "remediate_propagate_preview.txt"),
+            ({"dry_run": True}, "remediate_propagate_dry_run.txt"),
+            ({"confirm": True}, "remediate_propagate_confirm.txt"),
+        ],
+    ),
+}
+
+
+def pytest_generate_tests(metafunc):
+    """Parametrize the tests listed in PARAMETRIZE."""
+    if metafunc.function.__name__ in PARAMETRIZE:
+        metafunc.parametrize(*PARAMETRIZE[metafunc.function.__name__])

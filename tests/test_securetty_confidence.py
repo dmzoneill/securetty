@@ -3,8 +3,7 @@
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
-import pytest
-from conftest import golden, load_script
+from conftest import ExpectExit, golden, load_script
 
 NOW = datetime(2026, 6, 15, 12, 0, tzinfo=timezone.utc)
 
@@ -64,9 +63,10 @@ def _load(tmp_path, monkeypatch, sessions=None):
     return module
 
 
-@pytest.fixture(name="conf")
-def fixture_conf(tmp_path, monkeypatch):
+def _conf(request):
     """The confidence module backed by the SESSIONS database."""
+    tmp_path = request.getfixturevalue("tmp_path")
+    monkeypatch = request.getfixturevalue("monkeypatch")
     return _load(tmp_path, monkeypatch, SESSIONS)
 
 
@@ -91,18 +91,19 @@ CLI_CASES = [
 ]
 
 
-@pytest.mark.parametrize(("argv", "name"), CLI_CASES)
-def test_cli_output(conf, monkeypatch, capsys, argv, name):
+def test_cli_output(request, monkeypatch, capsys, argv, name):
     """Every subcommand and legacy flag prints the same output as before."""
+    conf = _conf(request)
     monkeypatch.setattr("sys.argv", ["securetty_confidence.py", *argv])
     conf.main()
     assert capsys.readouterr().out == golden(name)
 
 
-def test_no_command_prints_help_and_exits(conf, monkeypatch, capsys):
+def test_no_command_prints_help_and_exits(request, monkeypatch, capsys):
     """Without a command or flag the help is printed and the exit status is 1."""
+    conf = _conf(request)
     monkeypatch.setattr("sys.argv", ["securetty_confidence.py"])
-    with pytest.raises(SystemExit) as exc:
+    with ExpectExit() as exc:
         conf.main()
     assert exc.value.code == 1
     assert capsys.readouterr().out.startswith("usage:")
@@ -114,7 +115,7 @@ def test_missing_sessions_table_exits(tmp_path, monkeypatch, capsys):
     sqlite3.connect(db).close()
     module = _load(tmp_path, monkeypatch)
     monkeypatch.setattr("sys.argv", ["securetty_confidence.py", "report"])
-    with pytest.raises(SystemExit) as exc:
+    with ExpectExit() as exc:
         module.main()
     assert exc.value.code == 1
     assert "sessions table not found" in capsys.readouterr().err
@@ -146,14 +147,6 @@ def test_empty_database_defaults(tmp_path, monkeypatch, capsys):
 MOSTLY_OK = [("a", "/r", 0 if d else 1, 10, d % 6) for d in range(10)]
 
 
-@pytest.mark.parametrize(
-    ("sessions", "threshold", "suggestion"),
-    [
-        (MOSTLY_OK, 0.99, "relax"),
-        (SESSIONS, 0.0, "tighten"),
-        (SESSIONS, 0.5, "no_change"),
-    ],
-)
 def test_adjustment_suggestions(tmp_path, monkeypatch, sessions, threshold, suggestion):
     """Each adjustment branch produces the same result as before."""
     module = _load(tmp_path, monkeypatch, sessions)
@@ -178,3 +171,22 @@ def test_old_sessions_only(tmp_path, monkeypatch):
         "reason": "No recent sessions to analyze (last 7 days).",
         "recent_sessions": 0,
     }
+
+
+PARAMETRIZE = {
+    "test_cli_output": (("argv", "name"), CLI_CASES),
+    "test_adjustment_suggestions": (
+        ("sessions", "threshold", "suggestion"),
+        [
+            (MOSTLY_OK, 0.99, "relax"),
+            (SESSIONS, 0.0, "tighten"),
+            (SESSIONS, 0.5, "no_change"),
+        ],
+    ),
+}
+
+
+def pytest_generate_tests(metafunc):
+    """Parametrize the tests listed in PARAMETRIZE."""
+    if metafunc.function.__name__ in PARAMETRIZE:
+        metafunc.parametrize(*PARAMETRIZE[metafunc.function.__name__])

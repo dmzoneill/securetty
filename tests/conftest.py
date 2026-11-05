@@ -23,3 +23,24 @@ def load_script(relative_path: str, module_name: str):
 def golden(name: str) -> str:
     """Return the contents of a golden output file."""
     return (GOLDEN_DIR / name).read_text(encoding="utf-8")
+
+
+class ExpectExit:
+    """Context manager asserting that its block raises SystemExit.
+
+    The caught exception is available as ``.value`` after the block.
+    """
+
+    def __init__(self):
+        self.value = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        if exc_type is None:
+            raise AssertionError("SystemExit not raised")
+        if not issubclass(exc_type, SystemExit):
+            return False
+        self.value = exc
+        return True
