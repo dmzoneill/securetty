@@ -8,6 +8,7 @@ _ST_PODMAN="{{ securetty_podman_cmd }}"
 _ST_COMPOSE="{{ securetty_compose_cmd }}"
 _ST_HOME="{{ securetty_home }}"
 _ST_AGENT_CONFIG_DIRS="{{ securetty_agent_config_dirs | join(' ') }}"
+read -r -a _ST_PODMAN_ARGV <<<"$_ST_PODMAN"
 
 SECURETTY_DIR="$(cd "$(dirname "$0")" && pwd)"
 SECURETTY_IMAGE="${SECURETTY_IMAGE:-securetty_dev}"
@@ -392,12 +393,11 @@ _run() {
 	done
 
 	# Build the podman command
-	local _podman_base=() _run_flags=()
-	read -r -a _podman_base <<<"$_ST_PODMAN"
+	local _run_flags=()
 	[ -n "$_rm_flag" ] && _run_flags+=("$_rm_flag")
 	_run_flags+=("$_it_flags")
 	local _podman_cmd=(
-		"${_podman_base[@]}" run "${_run_flags[@]}"
+		"${_ST_PODMAN_ARGV[@]}" run "${_run_flags[@]}"
 		--env-file "$envfile"
 		--network "{{ securetty_network_name }}"
 		--name "securetty-${agent}-$$"
@@ -703,7 +703,7 @@ cmd_clean() {
 	if [ -n "$orphans" ]; then
 		echo "$orphans"
 		echo "Removing..."
-		echo "$orphans" | xargs $_ST_PODMAN rm -f 2>/dev/null || true
+		echo "$orphans" | xargs "${_ST_PODMAN_ARGV[@]}" rm -f 2>/dev/null || true
 	else
 		echo "None"
 	fi
@@ -731,7 +731,7 @@ cmd_clean() {
 		echo "$orphan_vols"
 		if [ "$_force" -eq 1 ]; then
 			echo "Removing..."
-			echo "$orphan_vols" | xargs $_ST_PODMAN volume rm 2>/dev/null || true
+			echo "$orphan_vols" | xargs "${_ST_PODMAN_ARGV[@]}" volume rm 2>/dev/null || true
 		else
 			echo "Run 'securetty clean --yes' to remove orphaned volumes"
 		fi
@@ -909,16 +909,16 @@ cmd_status() {
 }
 
 cmd_top() {
-	local containers
-	containers=$($_ST_PODMAN ps --format '{% raw %}{{.Names}}{% endraw %}' 2>/dev/null | grep securetty | tr '\n' ' ')
-	if [ -z "$containers" ]; then
+	local containers=()
+	mapfile -t containers < <($_ST_PODMAN ps --format '{% raw %}{{.Names}}{% endraw %}' 2>/dev/null | grep securetty)
+	if [ -z "${containers[*]}" ]; then
 		echo "No securetty containers running"
 		return 1
 	fi
 	if [ "${1:-}" = "--live" ] || [ "${1:-}" = "-l" ]; then
-		exec $_ST_PODMAN stats $containers
+		exec $_ST_PODMAN stats "${containers[@]}"
 	else
-		$_ST_PODMAN stats --no-stream $containers 2>/dev/null
+		$_ST_PODMAN stats --no-stream "${containers[@]}" 2>/dev/null
 		echo ""
 		echo "Live view: securetty top --live"
 	fi
@@ -1001,31 +1001,31 @@ cmd_dispatch() {
 		*) shift ;;
 		esac
 	done
-	local cert_args
-	cert_args=$(_dispatcher_url)
+	local cert_args=()
+	read -r -a cert_args <<<"$(_dispatcher_url)"
 	local body="{\"work_item\":\"$work_item\",\"agent\":\"$agent\""
 	[ -n "$skill" ] && body="$body,\"skill\":\"$skill\""
 	body="$body}"
-	curl $cert_args -sf -X POST "https://securetty-dispatcher:8900/dispatch" \
+	curl "${cert_args[@]}" -sf -X POST "https://securetty-dispatcher:8900/dispatch" \
 		-H "Content-Type: application/json" \
 		-d "$body" 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "ERROR: dispatcher unavailable" >&2
 }
 
 cmd_jobs() {
-	local cert_args
-	cert_args=$(_dispatcher_url)
+	local cert_args=()
+	read -r -a cert_args <<<"$(_dispatcher_url)"
 	local filter=""
 	[ -n "${1:-}" ] && filter="?status=$1"
-	curl $cert_args -sf "https://securetty-dispatcher:8900/jobs${filter}" 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "ERROR: dispatcher unavailable" >&2
+	curl "${cert_args[@]}" -sf "https://securetty-dispatcher:8900/jobs${filter}" 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "ERROR: dispatcher unavailable" >&2
 }
 
 cmd_watch() {
-	local cert_args
-	cert_args=$(_dispatcher_url)
+	local cert_args=()
+	read -r -a cert_args <<<"$(_dispatcher_url)"
 
 	case "${1:-}" in
 	--list | -l)
-		curl $cert_args -sf "https://securetty-dispatcher:8900/triggers" 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "ERROR: dispatcher unavailable" >&2
+		curl "${cert_args[@]}" -sf "https://securetty-dispatcher:8900/triggers" 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "ERROR: dispatcher unavailable" >&2
 		;;
 	--delete | -d)
 		local trigger_id="${2:-}"
@@ -1033,7 +1033,7 @@ cmd_watch() {
 			echo "Usage: securetty watch --delete <trigger-id>" >&2
 			return 1
 		}
-		curl $cert_args -sf -X DELETE "https://securetty-dispatcher:8900/triggers/${trigger_id}" 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "ERROR: dispatcher unavailable" >&2
+		curl "${cert_args[@]}" -sf -X DELETE "https://securetty-dispatcher:8900/triggers/${trigger_id}" 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "ERROR: dispatcher unavailable" >&2
 		;;
 	--help | -h | "")
 		echo "Usage: securetty watch <repo> [--source github|gitlab|jira] [--event <type>] [--interval <seconds>]" >&2
@@ -1062,7 +1062,7 @@ cmd_watch() {
 			*) shift ;;
 			esac
 		done
-		curl $cert_args -sf -X POST "https://securetty-dispatcher:8900/triggers?source=$source&repo=$repo&event_type=$event&poll_interval=$interval" \
+		curl "${cert_args[@]}" -sf -X POST "https://securetty-dispatcher:8900/triggers?source=$source&repo=$repo&event_type=$event&poll_interval=$interval" \
 			-H "Content-Type: application/json" 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "ERROR: dispatcher unavailable" >&2
 		;;
 	esac
@@ -1121,11 +1121,11 @@ cmd_list() {
 		esac
 	done
 
-	local filter=""
-	[ "$show_all" -eq 0 ] && filter="--filter status=running"
+	local filter=()
+	[ "$show_all" -eq 0 ] && filter=(--filter status=running)
 
 	if [ "$json_out" -eq 1 ]; then
-		$_ST_PODMAN ps $filter -a --format json 2>/dev/null |
+		$_ST_PODMAN ps "${filter[@]}" -a --format json 2>/dev/null |
 			python3 -c "
 import json, sys
 containers = json.load(sys.stdin)
@@ -1134,7 +1134,7 @@ json.dump(filtered, sys.stdout, indent=2)
 " 2>/dev/null
 	else
 		printf "%-30s %-12s %-20s %s\n" "NAME" "STATUS" "CREATED" "IMAGE"
-		$_ST_PODMAN ps $filter -a --format '{% raw %}{{.Names}}\t{{.Status}}\t{{.Created}}\t{{.Image}}{% endraw %}' 2>/dev/null |
+		$_ST_PODMAN ps "${filter[@]}" -a --format '{% raw %}{{.Names}}\t{{.Status}}\t{{.Created}}\t{{.Image}}{% endraw %}' 2>/dev/null |
 			grep securetty | while IFS=$'\t' read -r name status created image; do
 			printf "%-30s %-12s %-20s %s\n" "$name" "$status" "$created" "$(basename "$image")"
 		done
