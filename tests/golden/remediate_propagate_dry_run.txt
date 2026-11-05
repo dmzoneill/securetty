@@ -1,0 +1,17 @@
+======================================================================
+securetty remediation propagation
+======================================================================
+
+Remediated classifications: high
+
+Found 1 skill(s) to propagate to:
+
+  high-query (<TMP>/skills/high-query/SKILL.md) -- high (propagated from other)
+
+DRY RUN -- showing what would change
+
+  [dry-run] Would append to <TMP>/skills/high-query/SKILL.md:
+    + ## Known Issues
+    + ## Troubleshooting
+
+1/1 propagation(s) would be applied.

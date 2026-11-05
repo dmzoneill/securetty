@@ -1,0 +1,8 @@
+Confidence score for claude @ /r/beta: 0.0198 (provisional -- fewer than 5 sessions)
+  base_rate:       0.1087
+  recency_weight:  0.6932
+  repo_factor:     0.3333
+  duration_factor: 0.8750
+  sessions:        3
+  failures:        2
+  failure_patterns:2

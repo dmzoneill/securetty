@@ -1,0 +1,101 @@
+============================================================
+SKILL.md improvement suggestions
+============================================================
+
+Agents with >30% failure rate need attention.
+These suggestions should be reviewed and applied manually.
+
+------------------------------------------------------------
+Agent: crit
+  Failure rate: 100.0% (4/4 sessions)
+  Avg duration: 900.0s
+  Common workdir: /w/one
+
+  Exit code distribution:
+    exit_code=2: 4 occurrences
+
+  Top failure workdirs:
+    /w/one: 4 failures
+
+  Suggested SKILL.md changes:
+
+  1. CRITICAL: crit fails in >100% of sessions.
+     Consider adding a pre-flight check to the agent's SKILL.md
+     that validates the working environment before starting work.
+
+  2. Add an explicit error-handling section to the skill definition:
+     ---
+     ## Error Recovery
+     If the initial approach fails, try:
+     - Verify all required tools are installed
+     - Check connectivity to required services
+     - Fall back to a simpler implementation strategy
+     ---
+
+  2. TIMEOUT RISK: Average duration is 900s (>600s).
+     Add a timeout clause to the SKILL.md:
+     ---
+     ## Timeout
+     If the task is not complete within 10 minutes,
+     save progress and exit with a partial result.
+     ---
+
+  3. WORKDIR-SPECIFIC: All failures occur in /w/one.
+     This may indicate a repo-specific issue rather than a skill problem.
+     Check the repo's CLAUDE.md or .claude/ configuration.
+
+------------------------------------------------------------
+Agent: high
+  Failure rate: 60.0% (3/5 sessions)
+  Avg duration: 30.0s
+  Common workdir: /w/1
+
+  Exit code distribution:
+    exit_code=1: 3 occurrences
+
+  Top failure workdirs:
+    /w/1: 2 failures
+    /w/0: 1 failures
+
+  Suggested SKILL.md changes:
+
+  1. HIGH: high fails in >60% of sessions.
+     Add guardrails to the SKILL.md prompt:
+     ---
+     ## Prerequisites
+     Before starting, verify:
+     - Required dependencies are available
+     - Working directory is a valid git repository
+     - Network access to required endpoints is confirmed
+     ---
+
+------------------------------------------------------------
+Agent: elev
+  Failure rate: 40.0% (2/5 sessions)
+  Avg duration: 10.0s
+  Common workdir: /w/5
+
+  Exit code distribution:
+    exit_code=3: 2 occurrences
+
+  Top failure workdirs:
+    /w/2: 1 failures
+    /w/1: 1 failures
+
+  Suggested SKILL.md changes:
+
+  1. ELEVATED: elev fails in >40% of sessions.
+     Consider adding retry guidance to the SKILL.md:
+     ---
+     ## On Failure
+     If a step fails:
+     - Log the error context for retrospective analysis
+     - Attempt one retry with adjusted parameters
+     - If still failing, exit cleanly with diagnostic output
+     ---
+
+============================================================
+To apply changes, edit the relevant SKILL.md files manually.
+Skill definitions are typically in the agent's working directory
+under .claude/skills/ or in the securetty configuration.
+============================================================

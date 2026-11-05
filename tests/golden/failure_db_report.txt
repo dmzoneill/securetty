@@ -1,0 +1,37 @@
+============================================================
+securetty failure database report
+============================================================
+Total sessions:       15
+Total failures:       9
+Overall failure rate: 60.0%
+
+------------------------------------------------------------
+Agent failure patterns:
+------------------------------------------------------------
+Agent                   Total     Fail     Rate   Avg(s)
+crit                        4        4   100.0%    900.0 !!!
+high                        5        3    60.0%     30.0 !!!
+elev                        5        2    40.0%     10.0 !!!
+ok                          1        0     0.0%      5.0
+
+------------------------------------------------------------
+HIGH FAILURE AGENTS (>30% failure rate):
+------------------------------------------------------------
+  crit: 100.0% failure rate (4/4 sessions, common workdir: /w/one)
+  high: 60.0% failure rate (3/5 sessions, common workdir: /w/1)
+  elev: 40.0% failure rate (2/5 sessions, common workdir: /w/5)
+
+------------------------------------------------------------
+Recent failures (last 10):
+------------------------------------------------------------
+  2026-03-02T00:00:00Z  agent=elev  exit=3  dur=10s  workdir=/w/2
+  2026-03-01T00:00:00Z  agent=elev  exit=3  dur=10s  workdir=/w/1
+  2026-02-03T00:00:00Z  agent=high  exit=1  dur=30s  workdir=/w/1
+  2026-02-02T00:00:00Z  agent=high  exit=1  dur=30s  workdir=/w/0
+  2026-02-01T00:00:00Z  agent=high  exit=1  dur=30s  workdir=/w/1
+  2026-01-04T00:00:00Z  agent=crit  exit=2  dur=900s  workdir=/w/one
+  2026-01-03T00:00:00Z  agent=crit  exit=2  dur=900s  workdir=/w/one
+  2026-01-02T00:00:00Z  agent=crit  exit=2  dur=900s  workdir=/w/one
+  2026-01-01T00:00:00Z  agent=crit  exit=2  dur=900s  workdir=/w/one
+
+============================================================

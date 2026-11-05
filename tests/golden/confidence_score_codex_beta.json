@@ -1,0 +1,13 @@
+{
+  "agent": "codex",
+  "score": 0.2699,
+  "provisional": true,
+  "base_rate": 0.5124,
+  "recency_weight": 0.9268,
+  "repo_factor": 0.8,
+  "duration_factor": 0.7479,
+  "total_sessions": 2,
+  "total_failures": 1,
+  "failure_patterns": 1,
+  "repo": "/r/beta"
+}

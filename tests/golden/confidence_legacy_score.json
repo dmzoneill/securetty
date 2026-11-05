@@ -1,0 +1,12 @@
+{
+  "agent": "codex",
+  "score": 0.5054,
+  "provisional": false,
+  "base_rate": 0.6667,
+  "recency_weight": 0.8423,
+  "repo_factor": 1.0,
+  "duration_factor": 1.0,
+  "total_sessions": 5,
+  "total_failures": 2,
+  "failure_patterns": 2
+}

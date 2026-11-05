@@ -10,8 +10,12 @@ Supported agents: claude, codex, gemini, kiro, cline, ampcode, opencode, goose, 
 import json
 import os
 import sys
-import textwrap
 from pathlib import Path
+
+try:
+    import yaml
+except ImportError:
+    yaml = None
 
 HOME = os.path.expanduser("~")
 
@@ -24,10 +28,11 @@ MCP_SERVERS = {
     "headroom": {"type": "http", "url": "http://securetty-headroom:8788/mcp"},
 }
 
-changed = []
+changed: list[str] = []
 
 
 def ensure_dir(path: Path):
+    """Create the directory at path, including parents, if it does not exist."""
     path.mkdir(parents=True, exist_ok=True)
 
 
@@ -44,7 +49,8 @@ def merge_json_mcp(path: Path, servers_key: str = "mcpServers"):
 
     modified = False
     for name, cfg in MCP_SERVERS.items():
-        if name not in data[servers_key] or data[servers_key][name].get("url") != cfg["url"]:
+        missing = name not in data[servers_key]
+        if missing or data[servers_key][name].get("url") != cfg["url"]:
             data[servers_key][name] = cfg
             modified = True
 
@@ -54,6 +60,7 @@ def merge_json_mcp(path: Path, servers_key: str = "mcpServers"):
 
 
 def configure_claude():
+    """Configure MCP servers for Claude Code."""
     merge_json_mcp(Path(HOME) / ".claude.json")
 
 
@@ -78,10 +85,12 @@ def configure_codex():
 
 
 def configure_gemini():
+    """Configure MCP servers for Gemini CLI."""
     merge_json_mcp(Path(HOME) / ".gemini" / "settings.json")
 
 
 def configure_kiro():
+    """Configure MCP servers for Kiro."""
     path = Path(HOME) / ".kiro" / "settings" / "mcp.json"
     ensure_dir(path.parent)
     try:
@@ -95,7 +104,8 @@ def configure_kiro():
     modified = False
     for name, cfg in MCP_SERVERS.items():
         entry = {"url": cfg["url"], "headers": {}}
-        if name not in data["mcpServers"] or data["mcpServers"][name].get("url") != cfg["url"]:
+        missing = name not in data["mcpServers"]
+        if missing or data["mcpServers"][name].get("url") != cfg["url"]:
             data["mcpServers"][name] = entry
             modified = True
 
@@ -105,6 +115,7 @@ def configure_kiro():
 
 
 def configure_cline():
+    """Configure MCP servers for Cline."""
     path = Path(HOME) / ".cline" / "mcp_settings.json"
     ensure_dir(path.parent)
     try:
@@ -117,8 +128,13 @@ def configure_cline():
 
     modified = False
     for name, cfg in MCP_SERVERS.items():
-        entry = {"url": cfg["url"], "transportType": "streamableHttp", "disabled": False}
-        if name not in data["mcpServers"] or data["mcpServers"][name].get("url") != cfg["url"]:
+        entry = {
+            "url": cfg["url"],
+            "transportType": "streamableHttp",
+            "disabled": False,
+        }
+        missing = name not in data["mcpServers"]
+        if missing or data["mcpServers"][name].get("url") != cfg["url"]:
             data["mcpServers"][name] = entry
             modified = True
 
@@ -128,6 +144,7 @@ def configure_cline():
 
 
 def configure_ampcode():
+    """Configure MCP servers for Amp."""
     path = Path(HOME) / ".amp" / "settings.json"
     ensure_dir(path.parent)
     try:
@@ -140,7 +157,8 @@ def configure_ampcode():
 
     modified = False
     for name, cfg in MCP_SERVERS.items():
-        if name not in data["amp.mcpServers"] or data["amp.mcpServers"][name].get("url") != cfg["url"]:
+        missing = name not in data["amp.mcpServers"]
+        if missing or data["amp.mcpServers"][name].get("url") != cfg["url"]:
             data["amp.mcpServers"][name] = {"url": cfg["url"]}
             modified = True
 
@@ -150,6 +168,7 @@ def configure_ampcode():
 
 
 def configure_opencode():
+    """Configure MCP servers for OpenCode."""
     path = Path(HOME) / ".config" / "opencode" / "opencode.json"
     ensure_dir(path.parent)
     try:
@@ -174,9 +193,7 @@ def configure_opencode():
 
 def configure_goose():
     """Goose uses YAML config."""
-    try:
-        import yaml
-    except ImportError:
+    if yaml is None:
         print("SKIP: goose (pyyaml not installed)", file=sys.stderr)
         return
 
@@ -195,7 +212,8 @@ def configure_goose():
     modified = False
     for name, cfg in MCP_SERVERS.items():
         entry = {"uri": cfg["url"], "transport": "http"}
-        if name not in data["mcp_servers"] or data["mcp_servers"][name].get("uri") != cfg["url"]:
+        missing = name not in data["mcp_servers"]
+        if missing or data["mcp_servers"][name].get("uri") != cfg["url"]:
             data["mcp_servers"][name] = entry
             modified = True
 
@@ -206,9 +224,7 @@ def configure_goose():
 
 def configure_aider():
     """Aider uses YAML config with mcp section."""
-    try:
-        import yaml
-    except ImportError:
+    if yaml is None:
         print("SKIP: aider (pyyaml not installed)", file=sys.stderr)
         return
 
@@ -228,7 +244,9 @@ def configure_aider():
     modified = False
     for name, cfg in MCP_SERVERS.items():
         if cfg["url"] not in existing_urls:
-            data["mcp-servers"].append({"name": name, "url": cfg["url"], "transport": "http"})
+            data["mcp-servers"].append(
+                {"name": name, "url": cfg["url"], "transport": "http"},
+            )
             modified = True
 
     if modified:
@@ -237,6 +255,7 @@ def configure_aider():
 
 
 def safe_run(name, func):
+    """Run one configurator, reporting OS errors as a skip instead of failing."""
     try:
         func()
     except OSError as e:
@@ -244,6 +263,7 @@ def safe_run(name, func):
 
 
 def main():
+    """Configure MCP servers for every supported agent."""
     safe_run("claude", configure_claude)
     safe_run("codex", configure_codex)
     safe_run("gemini", configure_gemini)

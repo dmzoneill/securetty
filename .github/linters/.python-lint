@@ -1,0 +1,7 @@
+[MASTER]
+
+# Use multiple processes to speed up Pylint.
+jobs=0
+
+[FORMAT]
+max-line-length=120

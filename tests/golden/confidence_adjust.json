@@ -1,0 +1,17 @@
+{
+  "current_threshold": 0.6407,
+  "suggested_threshold": 0.6407,
+  "suggestion": "no_change",
+  "reason": "Threshold appears well-calibrated.",
+  "recent_sessions": 18,
+  "low_confidence": {
+    "total": 12,
+    "accepted": 6,
+    "accept_rate": 50.0
+  },
+  "high_confidence": {
+    "total": 6,
+    "rejected": 0,
+    "reject_rate": 0.0
+  }
+}

@@ -37,7 +37,7 @@
 
 - name: Configure MCP servers in all agent config files
   ansible.builtin.command:
-    cmd: python3 {{ securetty_dir }}/scripts/configure-agent-mcp.py
+    cmd: python3 {{ securetty_dir }}/scripts/configure_agent_mcp.py
   register: prereqs_mcp_result
   changed_when: "'CHANGED' in prereqs_mcp_result.stdout"
   tags: [prereqs]
