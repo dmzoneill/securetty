@@ -1,6 +1,7 @@
 """DAG-based workflow composition engine for multi-step job orchestration."""
 
 import json
+import sys
 import threading
 import time
 import uuid
@@ -377,13 +378,17 @@ def load_all_workflows(directory: str) -> dict[str, Workflow]:
     if not dirpath.exists():
         return workflows
 
+    load_errors: list[tuple[str, Exception]] = []
     for pattern in ("*.yaml", "*.yml"):
         for yaml_file in sorted(dirpath.glob(pattern)):
             try:
                 wf = load_workflow(str(yaml_file))
                 if wf.name not in workflows:
                     workflows[wf.name] = wf
-            except Exception:
-                continue
+            except Exception as exc:
+                load_errors.append((str(yaml_file), exc))
+
+    for path, exc in load_errors:
+        print(f"Skipping workflow {path}: {exc}", file=sys.stderr)
 
     return workflows

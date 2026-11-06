@@ -373,7 +373,9 @@ async def webhook_jira(request: Request):
 
 
 @app.post("/triggers")
-def create_trigger(source: str, repo: str, event_type: str, poll_interval: int = 300, config: dict = {}):
+def create_trigger(source: str, repo: str, event_type: str, poll_interval: int = 300, config: dict | None = None):
+    if config is None:
+        config = {}
     trigger_id = str(uuid.uuid4())[:8]
     conn = get_db()
     conn.execute(
@@ -475,27 +477,32 @@ def update_triage(issue_key: str, req: TriageUpdateRequest):
         raise HTTPException(status_code=404, detail=f"No triage history for {issue_key}")
 
     now = datetime.now(timezone.utc).isoformat()
-    updates = ["updated_at=?"]
-    params: list = [now]
-
-    if req.status is not None:
-        updates.append("action_taken=?")
-        params.append(req.status)
-    if req.feedback_status is not None:
-        updates.append("feedback_status=?")
-        params.append(req.feedback_status)
-    if req.pr_url is not None:
-        updates.append("pr_url=?")
-        params.append(req.pr_url)
-    if req.outcome is not None:
-        updates.append("outcome=?")
-        params.append(req.outcome)
-
-    params.append(row["id"])
+    triage_id = row["id"]
+    # Fixed SQL strings only (no dynamic column concatenation).
     conn.execute(
-        f"UPDATE triage_history SET {', '.join(updates)} WHERE id=?",
-        params,
+        "UPDATE triage_history SET updated_at=? WHERE id=?",
+        (now, triage_id),
     )
+    if req.status is not None:
+        conn.execute(
+            "UPDATE triage_history SET action_taken=? WHERE id=?",
+            (req.status, triage_id),
+        )
+    if req.feedback_status is not None:
+        conn.execute(
+            "UPDATE triage_history SET feedback_status=? WHERE id=?",
+            (req.feedback_status, triage_id),
+        )
+    if req.pr_url is not None:
+        conn.execute(
+            "UPDATE triage_history SET pr_url=? WHERE id=?",
+            (req.pr_url, triage_id),
+        )
+    if req.outcome is not None:
+        conn.execute(
+            "UPDATE triage_history SET outcome=? WHERE id=?",
+            (req.outcome, triage_id),
+        )
     conn.commit()
     conn.close()
 

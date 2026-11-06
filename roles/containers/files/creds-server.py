@@ -103,7 +103,7 @@ if __name__ == "__main__":
         if os.path.exists(ca_file):
             context.load_verify_locations(ca_file)
             context.verify_mode = ssl.CERT_REQUIRED
-            print(f"mTLS enabled (client cert required)")
+            print("mTLS enabled (client cert required)")
         server.socket = context.wrap_socket(server.socket, server_side=True)
         print(f"Credential proxy listening on :{port} (HTTPS/mTLS)")
     else:
